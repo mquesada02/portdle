@@ -434,15 +434,15 @@ test("does not rewrite a frozen mixed prefix when another schedule is empty", ()
 	expect(out.schedules.mixed.cycles[0]?.order[0]).toBe("http");
 });
 
-test("validateSchedules flags a same-day collision on today", () => {
+test("validateSchedules flags a same-day collision after today", () => {
 	const colliding = {
 		mixed: {
 			epoch,
-			cycles: [{ startDay: 0, order: ["http", "vite", "ssh"] }],
+			cycles: [{ startDay: 0, order: ["vite", "http", "ssh"] }],
 		},
 		protocols: {
 			epoch,
-			cycles: [{ startDay: 0, order: ["http", "ssh", "dns"] }],
+			cycles: [{ startDay: 0, order: ["http", "http", "dns"] }],
 		},
 		applications: {
 			epoch,
