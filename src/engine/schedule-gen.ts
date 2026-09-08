@@ -138,7 +138,7 @@ function applyA2(
 	if (!cycle) {
 		return;
 	}
-	if (frozenLength >= cycle.order.length) {
+	if (!containing && frozenLength >= cycle.order.length) {
 		return;
 	}
 

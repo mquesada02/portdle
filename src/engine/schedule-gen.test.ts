@@ -313,6 +313,36 @@ test("utcToday before all cycles with covering schedules is a no-op", () => {
 	expect(schedulesEqual(first.schedules, second.schedules)).toBe(true);
 });
 
+test("today as last slot of a containing cycle still adds new ids to that cycle", () => {
+	const current = {
+		mixed: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["http", "ssh", "dns"] }],
+		},
+		protocols: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["http", "ssh", "dns"] }],
+		},
+		applications: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["vite", "flask", "django"] }],
+		},
+	};
+	const out = generateSchedules({
+		utcToday: "2026-09-11",
+		protocols: [...protocols, entry("ntp", 123)],
+		applications,
+		current,
+		identity: {},
+	});
+	expect(out.schedules.protocols.cycles[0]?.order.slice(0, 3)).toEqual([
+		"http",
+		"ssh",
+		"dns",
+	]);
+	expect(out.schedules.protocols.cycles[0]?.order).toContain("ntp");
+});
+
 test("today past all cycles freezes the last cycle entire order", () => {
 	const first = generateSchedules({
 		utcToday: epoch,
