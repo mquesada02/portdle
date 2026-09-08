@@ -21,13 +21,15 @@ v1 is a static SPA. There is no backend, no accounts, no leaderboards, no PWA. G
 | Term | Meaning |
 |---|---|
 | **Entry** | One catalog row: a named service with one port number |
-| **Category** | `protocol` (RFC/IANA-style) or `application` (unofficial / tooling) |
-| **Mixed** | Union of both categories; not its own JSON catalog |
+| **Catalog kind** | Which JSON file an entry lives in: `protocol` or `application` |
+| **Daily category** | Game surface: `mixed` \| `protocols` \| `applications` (routes, persist keys, schedules) |
+| **Mixed** | Union of both catalog kinds; not its own JSON catalog |
+| **A2** | Catalog-update rule: freeze schedule through **today**; new/retired-in-tail ids reshuffle into the **future tail** only |
 | **Answer-eligible** | Entry that may be a Daily or Blitz **target** |
 | **Miss-only** | Entry used only to name a wrong guess |
-| **Daily** | One puzzle per UTC date per category (three Dailies) |
-| **Orientation** | Default (name → port) or Inverted (port → name) |
-| **Cycle** | One shuffled deck of answer-eligible ids for a category until exhausted |
+| **Daily** | One puzzle per UTC date per `DailyCategory` (three Dailies) |
+| **Orientation** | `default` (name → port) or `inverted` (port → name) |
+| **Cycle** | One shuffled deck of answer-eligible ids for a `DailyCategory` until exhausted |
 | **Schedule** | Committed JSON: which id is the Daily on which UTC day |
 | **Frozen prefix** | Already-dealt days in the current cycle **plus today** — identity must not change |
 
@@ -66,6 +68,15 @@ scripts/          gen:schedule
 - `src/catalogs/protocols.json` — array of protocol entries
 - `src/catalogs/applications.json` — array of application entries
 - Mixed is derived (union by `id`; ids are globally unique)
+
+Closed unions used everywhere (persist, Blitz, routes):
+
+```ts
+type CatalogKind = "protocol" | "application";
+type DailyCategory = "mixed" | "protocols" | "applications";
+type Orientation = "default" | "inverted";
+type BlitzMode = "sprint" | "marathon" | "survival";
+```
 
 ### 5.2 Entry schema
 
@@ -109,12 +120,12 @@ Build/test fails if this rule is violated.
 
 | Field | Frozen prefix (past + today) | Future tail |
 |---|---|---|
-| `description`, `aliases`, `blurb`, `transport` | Anytime | Anytime |
+| `description`, `aliases`, `blurb`, `transport` | Anytime (search/reveal flavor; not puzzle identity) | Anytime |
 | `name`, `port` | Forbidden | Allowed |
-| `answerEligible` / `retired` | Do not remove from order file | Tail: drop + reshuffle tail (A2 reverse) |
-| Delete row | Forbidden if `id` is in the current order | Prefer `retired: true` |
+| `answerEligible` / `retired` | Flags may change, but the **id stays in the order file**. That day’s Daily is still this id. Flags only affect Blitz pool and **later** cycles | If `retired: true` **or** `answerEligible: false`, drop id from the tail + reshuffle tail (A2 reverse). Same `gen:schedule` trigger as adding ids |
+| Delete row | Forbidden if `id` appears in **any** cycle of **any** schedule file | Prefer `retired: true` |
 
-Retired entries stay in JSON so misses can still name them.
+Puzzle identity is `id` + scheduled `name`/`port` as stored in JSON at play time. Retired entries stay in JSON so misses can still name them. Blitz start pool: `answerEligible && !retired`. A frozen Daily whose row was later `retired` still plays that id.
 
 ## 6. Schedules (Daily identity)
 
@@ -146,23 +157,24 @@ If no cycle covers today, the UI shows “puzzle unavailable”. CI must make th
 
 Idempotent. Inputs: catalogs, existing schedules, `utcToday`. A second run with no catalog-eligibility changes is a no-op.
 
-When answer-eligible ids are **added**, or tail ids are **retired**:
+When answer-eligible ids are **added**, or tail ids are **retired** or lose `answerEligible`:
 
-1. Leave `order[0] … order[todayIndex]` untouched (frozen prefix, including today).
-2. Let `tail = order[todayIndex+1 …]` minus retired ids, plus new eligible ids not already in this cycle.
-3. Deterministically shuffle `tail` (seed derived from `category + cycle startDay + sorted tail ids`).
+1. In the cycle that contains `utcToday` (or the last cycle if today is past all cycles), leave `order[0] … order[todayIndex]` untouched (frozen prefix, including today). `todayIndex` is `utcDayIndex - cycle.startDay`.
+2. Let `tail = order[todayIndex+1 …]` minus ids that are `retired` or not `answerEligible`, plus new eligible ids not already in this cycle.
+3. Deterministically shuffle `tail` (seed derived from `DailyCategory + cycle startDay + sorted tail ids`).
 4. Resolve **same-day distinctness** for days **after today** only (see 6.3).
-5. If the current cycle has no remaining future cards and `utcToday` is past the last card, **append** a new cycle: shuffle all current non-retired answer-eligible ids (seed from category + new `startDay`).
 
-Flavor-text-only JSON edits do not require this script.
+Then enforce **coverage** (the only reason to append a cycle — do not wait for exhaustion day):
 
-**Coverage invariant:** after a successful run, each schedule covers `utcToday` through `utcToday + 7` (append full new cycles if the last assigned day is sooner). Do not wait for exhaustion day; that would make CI date-fragile.
+5. After a successful run, each schedule must cover `utcToday` through `utcToday + 7`. If the last assigned day is sooner, **append** a full new cycle: shuffle all current non-retired answer-eligible ids (seed from `DailyCategory + new startDay`), then run 6.3 on the new cycle’s days.
+
+Flavor-text-only JSON edits do not require this script. A2 is the freeze+tail shuffle (steps 1–4). Coverage is step 5.
 
 `pnpm gen:schedule --check` exits non-zero if running the generator would change any schedule file, or if validation (blurbs, frozen identity, floors, coverage) fails.
 
 ### 6.3 Same-day distinctness
 
-The three Dailies on one UTC date must be **three different `id`s**.
+The three Dailies on one UTC date must be **three different `id`s**. Protocols vs Applications cannot share an `id` (globally unique), so the only collisions to fix are Mixed vs that day’s Protocols or Applications.
 
 Resolved **at schedule generation**, not in the browser.
 
@@ -170,7 +182,7 @@ After building/updating a tail (or a new cycle), walk days from `today+1` (or fr
 
 - Let `P`, `A`, `M` be the ids assigned that calendar day.
 - If `M === P` or `M === A`, swap `M` with the nearest **later** Mixed id that does not collide with that day’s `P` and `A`.
-- If no later Mixed id works, insert the next unused Mixed-eligible id (answer-eligible in either catalog, not already in this Mixed cycle) into that slot. Never steal a Protocols or Applications card.
+- If no later Mixed id works, insert the **lexicographically smallest** unused Mixed-eligible id (`answerEligible && !retired` in either catalog, not already in this Mixed cycle) into that slot. Never steal a Protocols or Applications card.
 - If the Mixed pool is exhausted, append the next Mixed cycle and continue filling from it.
 
 Do **not** rewrite frozen prefix even if a historical collision exists.
@@ -197,26 +209,42 @@ The submitted value is the integer of the digit string (`parseInt`, base 10). Le
 | Integer `> 65535` | `invalid` | No |
 | Same integer already submitted this puzzle | `duplicate` | No |
 | Integer `=== answer.port` | `correct` | Yes (winning try) |
-| Else, some non-retired entry in **this Daily’s category catalog** has that `port` | `miss` + `identified: { name, port }` | Yes |
+| Else, some entry in **this Daily’s category catalog** (including retired and miss-only) has that `port` | `miss` + `identified` | Yes |
 | Else | `miss` + `identified: null` (“not in this catalog”) | Yes |
+
+```ts
+type Identified = { id: string; name: string; port: number };
+type GuessResult =
+  | { status: "invalid" }
+  | { status: "duplicate" }
+  | { status: "correct"; port: number }
+  | { status: "miss"; port: number; identified: Identified | null };
+```
 
 If several entries share the guessed port, `identified` is the one with the lexicographically smallest `id`.
 
-Six misses → `lost`. Reveal still shows the answer.
+A Daily has at most **6 committed tries** (correct or miss). If the 6th committed try is `correct` → `won`. If the 6th is `miss` → `lost`. Reveal still shows the answer.
 
-Category catalog for Mixed Daily misses = union of both JSON files (non-retired).
+Category catalog for Mixed Daily misses = union of both JSON files (including retired). Retired rows still name misses; they are only excluded from answer decks and Blitz start pools.
 
 ### 7.2 Inverted guess (port → name) — Blitz only
 
 Submit is a catalog `id` from the **chosen Blitz category** (picker; garbage strings cannot be submitted).
 
-| Condition | Result | Spends a life |
-|---|---|---|
-| Same `id` already submitted this puzzle | `duplicate` | No |
-| `id === answer.id` | `correct` | Yes (score) |
-| Else | `miss` + picked row’s `{ name, port }` + `samePort: picked.port === answer.port` | Yes |
+| Condition | Result | Spends a life | Score |
+|---|---|---|---|
+| Same `id` already submitted this **item** | `duplicate` | No | — |
+| `id === answer.id` | `correct` | No | +1 |
+| Else | `miss` + picked `{ id, name, port }` + `samePort` | Yes | — |
 
-Aliases only affect which row the UI selects; the engine compares `id`.
+```ts
+type InvertedGuessResult =
+  | { status: "duplicate" }
+  | { status: "correct"; id: string }
+  | { status: "miss"; id: string; identified: Identified; samePort: boolean };
+```
+
+Aliases only affect which row the UI selects; the engine compares `id`. Duplicate is the same `id`, including when the UI chose the row via an alias.
 
 Inverted prompt: show `answer.port`. If that port is crowded in the **chosen category** (including Mixed = union), also show `answer.blurb`.
 
@@ -234,7 +262,7 @@ Built once from the category catalog (full, including miss-only and retired, so 
 
 ### 7.4 Blitz reducer
 
-Start arguments: `category`, `orientation`, `mode: "sprint" | "marathon" | "survival"`, `utcToday`, catalogs, schedules, `rng`.
+Start arguments: `category: DailyCategory`, `orientation: Orientation`, `mode: BlitzMode`, `utcToday`, catalogs, schedules, `rng`.
 
 Pool: answer-eligible, non-retired ids in that category, **minus the three Daily ids for `utcToday`**. Shuffle with `rng`. If the filtered pool is empty, Blitz cannot start (show why).
 
@@ -262,22 +290,26 @@ type CategoryStats = {
 };
 ```
 
-On a finished Daily (once per category per UTC date):
+On a finished Daily (once per `DailyCategory` per UTC date):
 
 - `played += 1`
 - Win: `wins += 1`, `histogram[tries-1] += 1`, `currentStreak += 1`, `bestStreak = max(best, current)`
 - Loss: do **not** increment `histogram` (wins-only 1–6 bars), `currentStreak = 0`
+- Then set `lastPlayed` to today. `lastPlayed` is written **only** on `won` or `lost`, never on `playing`.
 
-Streak gap, applied when loading a new UTC day **or** when recording today’s finish:
+Displayed personal stats: played, **win%** (`played === 0 ? 0 : wins / played`), current/best streak, histogram.
 
-- Missing `lastPlayed` (never finished a Daily in this category): leave `currentStreak` as stored (0).
-- `lastPlayed < yesterday`: skipped day(s) → `currentStreak = 0` before applying today’s result.
-- `lastPlayed === yesterday` but that Daily key is missing or still `playing`: unfinished → `currentStreak = 0`.
-- `lastPlayed === yesterday` and `won`/`lost`: already applied; don’t double-count.
+Streak gap, applied when `lastSeenUtc < utcToday` (tab left open overnight or new load) **and** when recording today’s finish:
 
-Playing Protocols never mutates Mixed stats.
+- Yesterday’s Daily persist `status === "playing"` → started but not finished → `currentStreak = 0`.
+- Else if `lastPlayed` is missing: leave streak as stored (0 until first finish).
+- Else if `lastPlayed < yesterday`: skipped day(s) → `currentStreak = 0` before applying today’s result.
+- Else if `lastPlayed === yesterday` (`won`/`lost`): already applied; don’t double-count.
+- Then set `lastSeenUtc` to `utcToday`.
 
-Headline streak on `/` is Mixed.
+Playing `protocols` never mutates `mixed` stats.
+
+Headline streak on `/` is `mixed`.
 
 ## 8. Persistence
 
@@ -285,13 +317,32 @@ Prefix `portdle:v1:`. Corrupt JSON for one key is ignored; other keys stay. Vers
 
 | Key | Value |
 |---|---|
-| `portdle:v1:daily:{category}:{date}` | Guesses, `playing \| won \| lost`, committed slot rows |
-| `portdle:v1:stats:{category}` | `CategoryStats` |
-| `portdle:v1:lastPlayed:{category}` | UTC date last streak-applied |
-| `portdle:v1:blitzBests` | Best score per `category|orientation|mode` |
+| `portdle:v1:daily:{DailyCategory}:{date}` | `DailyPersist` |
+| `portdle:v1:stats:{DailyCategory}` | `CategoryStats` |
+| `portdle:v1:lastPlayed:{DailyCategory}` | UTC date last streak-applied (`won`/`lost` only) |
+| `portdle:v1:blitzBests` | Map of best scores; keys `DailyCategory|Orientation|BlitzMode` (see type below) |
 | `portdle:v1:theme` | `system` \| `light` \| `dark` (default `system`) |
 | `portdle:v1:howToSeen` | boolean |
-| `portdle:v1:lastSeenUtc` | Last observed UTC date in this tab (new-day while open) |
+| `portdle:v1:lastSeenUtc` | Last observed UTC date in this tab |
+
+```ts
+type DailyPersist = {
+  status: "playing" | "won" | "lost";
+  guesses: Array<{
+    port: number;
+    result: "correct" | "miss";
+    identified: Identified | null;
+  }>;
+};
+
+type BlitzBests = Partial<
+  Record<`${DailyCategory}|${Orientation}|${BlitzMode}`, number>
+>;
+```
+
+Committed slot rows are recovered from `guesses[].port` padded to the answer’s digit length (no extra stored board).
+
+`DailyPersist` is **created on the first committed guess** (`correct` or `miss`) with `status: "playing"`. Opening the route, invalid, and duplicate do **not** write this key. Empty visit is not unfinished.
 
 Blitz **run** is not persisted. Best scores write on run end.
 
@@ -312,9 +363,9 @@ No cookies, no analytics, no network besides static assets.
 | `/history` | Read-only past answers |
 | `/help` | How-to copy |
 
-Shell: nav Mixed · Protocols · Applications · Blitz · History · Help; theme control (sun/moon). Stored value is `system` | `light` | `dark`. First visit: `system` (follow `prefers-color-scheme`). Each click toggles **light ↔ dark** and persists that explicit choice (leaves `system` once the user has clicked).
+Shell: nav Mixed · Protocols · Applications · Blitz · History · Help; theme control (sun/moon). Stored value is `system` | `light` | `dark`. First visit: `system` (follow `prefers-color-scheme`). Each click toggles **light ↔ dark** and persists that explicit choice (leaves `system` once the user has clicked). No control to return to `system` in v1.
 
-First visit on `/`: How-to dialog; dismiss sets `howToSeen`. `/help` is the same rules, always.
+First visit on **any** route: How-to dialog; dismiss sets `howToSeen`. `/help` is the same rules, always.
 
 ### 9.2 Visual tone
 
@@ -339,13 +390,18 @@ Portdle · Mixed · 2026-09-09 · 3/6
 ⬜⬜🟩
 ```
 
-Miss square: ⬜. Winning try: 🟩. Loss: `X/6` and six ⬜. One share per category Daily.
+One square per **committed** guess (not padded to 6 on a win). Miss: ⬜. Winning try: 🟩. Loss: `X/6` and six ⬜. Win on try 1 is a single 🟩. One share per `DailyCategory`.
 
 ### 9.4 Blitz screens
 
 Setup: category, orientation, mode, Start.
 
-Run: lives, score, remaining time (not Survival), same slot control **or** inverted listbox (`role="listbox"`, ↑/↓/Enter, click). Empty filter: “No matches.”
+Run: lives, score, remaining time (not Survival).
+
+- **Default** orientation: same slot control as Daily; each item is one shot using **§7.1** (identified name or “Not in this catalog.”). Then next item (or `ended` if lives hit 0).
+- **Inverted:** listbox (`role="listbox"`, ↑/↓/Enter, click) using **§7.2**. Empty filter: “No matches.” On miss: “{name} is {port}” or, if `samePort`, “Wrong service, same port.” Then next item.
+
+Invalid/duplicate: inline message, do not advance, do not spend a life.
 
 End: score, `lives` vs `timeout`, comparison to stored best, Play again → setup. Write `blitzBests` if score > best.
 
@@ -383,7 +439,7 @@ MIT `LICENSE`. GitHub About description matches `package.json`.
 Engine / generator (Vitest):
 
 - `getDaily` for a fixture schedule date
-- Default: correct, miss identified, miss unknown, incomplete, `65536`, duplicate, win try 1, lose try 6, Mixed miss uses union
+- Default: correct, miss identified, miss unknown, incomplete, `65536`, duplicate, win try 1, **win try 6**, lose on 6th miss, Mixed miss uses union
 - Inverted: correct id, wrong other port, wrong same port, duplicate
 - Search: name prefix, alias prefix, no description match, empty query, case-fold
 - Blitz: score, lives, timeout, excludes today’s three Daily ids, reshuffle when pool empty
