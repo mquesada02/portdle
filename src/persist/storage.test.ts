@@ -111,6 +111,54 @@ test("mixed stats and lastPlayed round-trip without protocols keys", () => {
 	expect(persist.readStats("protocols")).toBeNull();
 });
 
+test("protocols daily and stats round-trip without mixed or applications keys", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	const board = {
+		status: "playing" as const,
+		guesses: [{ port: 22, result: "miss" as const, identified: null }],
+	};
+	const stats = {
+		played: 1,
+		wins: 1,
+		currentStreak: 1,
+		bestStreak: 1,
+		histogram: [1, 0, 0, 0, 0, 0] as [
+			number,
+			number,
+			number,
+			number,
+			number,
+			number,
+		],
+	};
+	expect(persist.writeDaily("protocols", "2026-09-09", board)).toEqual({
+		ok: true,
+	});
+	expect(persist.readDaily("protocols", "2026-09-09")).toEqual(board);
+	expect(persist.writeStats("protocols", stats)).toEqual({ ok: true });
+	expect(persist.writeLastPlayed("protocols", "2026-09-09")).toEqual({
+		ok: true,
+	});
+	expect(store.data.has("portdle:v1:daily:protocols:2026-09-09")).toBe(true);
+	expect(store.data.has("portdle:v1:stats:protocols")).toBe(true);
+	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
+	expect(store.data.has("portdle:v1:stats:applications")).toBe(false);
+});
+
+test("applications daily and stats round-trip without mixed keys", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(
+		persist.writeDaily("applications", "2026-09-09", {
+			status: "won",
+			guesses: [{ port: 5173, result: "correct", identified: null }],
+		}),
+	).toEqual({ ok: true });
+	expect(persist.readDaily("applications", "2026-09-09")?.status).toBe("won");
+	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
+});
+
 test("lastSeenUtc round-trips and corrupt is null", () => {
 	const store = memoryStore();
 	const persist = createPersist(store);

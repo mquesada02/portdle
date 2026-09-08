@@ -5,8 +5,8 @@ import {
 	type RouterHistory,
 } from "@tanstack/react-router";
 import type { Persist } from "./persist/storage";
+import { DailyPage } from "./ui/daily-page";
 import { HelpPage } from "./ui/help-page";
-import { MixedPage } from "./ui/mixed-page";
 import { PlaceholderPage } from "./ui/placeholder-page";
 import { Shell } from "./ui/shell";
 
@@ -22,14 +22,16 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const mixedRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/",
-	component: MixedPage,
+	component: function MixedPage() {
+		return <DailyPage category="mixed" />;
+	},
 });
 
 const protocolsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/protocols",
 	component: function ProtocolsPage() {
-		return <PlaceholderPage title="Protocols" />;
+		return <DailyPage category="protocols" />;
 	},
 });
 
@@ -37,7 +39,7 @@ const applicationsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/applications",
 	component: function ApplicationsPage() {
-		return <PlaceholderPage title="Applications" />;
+		return <DailyPage category="applications" />;
 	},
 });
 

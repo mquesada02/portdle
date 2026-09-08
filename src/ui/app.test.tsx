@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { createPersist } from "../persist/storage";
+import { dailyOn } from "../test/dailies";
 import { memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
 
@@ -105,9 +106,9 @@ test("placeholder headings exist on each route", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const cases = [
-		["/portdle/", "Vite"],
-		["/portdle/protocols", "Protocols"],
-		["/portdle/applications", "Applications"],
+		["/portdle/", dailyOn("mixed").name],
+		["/portdle/protocols", dailyOn("protocols").name],
+		["/portdle/applications", dailyOn("applications").name],
 		["/portdle/blitz", "Blitz"],
 		["/portdle/history", "History"],
 		["/portdle/help", "Help"],
