@@ -68,7 +68,7 @@ Protocols and Applications are real Dailies besides Mixed. `/` stays Mixed (the 
 54. As a maintainer, I want `transport` to be `tcp`, `udp`, or `both`, so that reveal can show `TCP` / `UDP` / `TCP/UDP`.
 55. As a maintainer, I want crowded non-retired ports in a catalog kind to each have a `blurb` that does not contain that entry's name or alias, so that inverted crowding rules are already valid.
 56. As a maintainer, I want Mixed-union crowding to also require blurbs, so that Mixed inverted later does not fail validation.
-57. As a maintainer, I want HTTPS to keep alias `ssl` and PostgreSQL to keep alias `postgres`, so that those same-service names exist for later search.
+57. As a maintainer, I want a committed frozen-identity map of frozen-prefix ids to `name` and `port`, so that `--check` can reject identity edits without a previous catalog checkout.
 58. As a maintainer, I want `gen:schedule` to freeze each schedule through today (including today), so that already-dealt days plus today do not change identity.
 59. As a maintainer who adds a new answer-eligible id, I want the frozen prefix untouched and the new id shuffled into the future tail, so that new answers only enter after today.
 60. As a maintainer who retires a tail id or sets `answerEligible: false` on a tail id, I want that id dropped from the tail and the tail reshuffled, so that retired-in-tail ids leave the future.
@@ -78,8 +78,8 @@ Protocols and Applications are real Dailies besides Mixed. `/` stays Mixed (the 
 64. As a maintainer who changes `name` or `port` of a future-tail-only entry, I want that allowed, so that undealt rows can still be corrected.
 65. As a maintainer, I want each schedule after a successful run to cover `utcToday` through `utcToday + 7`, so that the next week cannot go unavailable.
 66. As a maintainer, I want a second `gen:schedule` with no eligibility change to be a no-op, so that the generator is idempotent.
-67. As a maintainer, I want `gen:schedule --check` to exit 0 when a run would not change files and validation passes, so that CI can gate identity.
-68. As a maintainer, I want `gen:schedule --check` to exit non-zero if a run would change any schedule file or if validation fails, so that drift is caught.
+67. As a maintainer, I want `gen:schedule --check` to exit 0 when a run would not change schedule files or frozen identity and validation (blurbs, frozen identity, floors, coverage) passes, so that CI can gate identity.
+68. As a maintainer, I want `gen:schedule --check` to exit non-zero if a run would change any schedule file or the frozen-identity map, or if validation fails (including frozen-prefix `name`/`port` mismatch), so that drift is caught.
 69. As a maintainer, I want same-day Mixed vs Protocols vs Applications collisions resolved only after today (or from `startDay` on a brand-new cycle), so that the frozen prefix is never rewritten to fix a collision.
 70. As a maintainer, I want collision repair to swap Mixed with a later Mixed id, or insert the lexicographically smallest unused Mixed-eligible id, never stealing a Protocols or Applications card, so that the other two Dailies stay theirs.
 71. As a maintainer, I want epoch `2026-09-09` committed in all three schedule files, so that day indexes match Mixed.
@@ -117,125 +117,55 @@ Protocols and Applications are real Dailies besides Mixed. `/` stays Mixed (the 
 
   Run `validateCatalog` on protocols, on applications, and on the Mixed union (concatenated). Unique `id` / `name` are global (the union run catches cross-file clashes).
 
-- Production catalogs replace the four-row Mixed fixtures. Keep `http`, `chargen`, `telnet`, and `vite` with the same ids, canonical names, and ports they already have (`HTTP` 80, `chargen` 19, `Telnet` 23, `Vite` 5173). Telnet becomes answer-eligible and not retired (it is a production answer). chargen stays miss-only.
+- Production catalogs replace the four-row Mixed fixtures. Hand-curate real services until the floors hold (`answerPool` protocols ≥ 40, applications ≥ 25) plus at least one miss-only row in each catalog. Exact extra ids are implementation as long as uniqueness, ports, transport, blurbs, and floors validate. This spec pins only Mixed-continuity literals so #2 fixtures do not become different rows:
 
-- Protocol **answer-eligible** rows (all `answerEligible: true`). Author a real one-line `description` each. Blurb only where crowding requires it (see Mixed union note on `http-alt`):
-
-  | id | name | port | transport |
+  | id | name | port | notes |
   |---|---|---|---|
-  | ftp | FTP | 21 | tcp |
-  | ssh | SSH | 22 | tcp |
-  | telnet | Telnet | 23 | tcp |
-  | smtp | SMTP | 25 | tcp |
-  | dns | DNS | 53 | both |
-  | dhcp | DHCP | 67 | udp |
-  | tftp | TFTP | 69 | udp |
-  | http | HTTP | 80 | tcp |
-  | pop3 | POP3 | 110 | tcp |
-  | ntp | NTP | 123 | udp |
-  | imap | IMAP | 143 | tcp |
-  | snmp | SNMP | 161 | udp |
-  | ldap | LDAP | 389 | tcp |
-  | https | HTTPS | 443 | tcp |
-  | smtps | SMTPS | 465 | tcp |
-  | submission | Submission | 587 | tcp |
-  | ldaps | LDAPS | 636 | tcp |
-  | imaps | IMAPS | 993 | tcp |
-  | pop3s | POP3S | 995 | tcp |
-  | mysql | MySQL | 3306 | tcp |
-  | rdp | RDP | 3389 | tcp |
-  | postgresql | PostgreSQL | 5432 | tcp |
-  | vnc | VNC | 5900 | tcp |
-  | redis | Redis | 6379 | tcp |
-  | http-alt | HTTP-alt | 8080 | tcp |
-  | kerberos | Kerberos | 88 | both |
-  | bgp | BGP | 179 | tcp |
-  | irc | IRC | 6667 | tcp |
-  | sip | SIP | 5060 | both |
-  | mqtt | MQTT | 1883 | tcp |
-  | amqp | AMQP | 5672 | tcp |
-  | git | Git | 9418 | tcp |
-  | rsync | Rsync | 873 | tcp |
-  | nfs | NFS | 2049 | both |
-  | smb | SMB | 445 | tcp |
-  | iscsi | iSCSI | 3260 | tcp |
-  | syslog | Syslog | 514 | udp |
-  | radius | RADIUS | 1812 | udp |
-  | openvpn | OpenVPN | 1194 | udp |
-  | wireguard | WireGuard | 51820 | udp |
+  | http | HTTP | 80 | answer-eligible protocol |
+  | chargen | chargen | 19 | miss-only protocol |
+  | telnet | Telnet | 23 | answer-eligible protocol (no longer retired) |
+  | vite | Vite | 5173 | answer-eligible application |
 
-  Protocol miss-only (`answerEligible: false`): `echo` 7, `discard` 9, `daytime` 13, `chargen` 19, `whois` 43, `gopher` 70, `finger` 79, `ident` 113 (tcp).
-
-  HTTPS alias: `ssl`. PostgreSQL alias: `postgres`.
-
-- Application **answer-eligible** (transport `tcp`). Blurbs required where the port repeats **in applications** (and also where Mixed-union crowding requires them — already true for 8080):
-
-  | id | name | port | blurb |
-  |---|---|---|---|
-  | vite | Vite | 5173 | Frontend bundler dev server |
-  | svelte | SvelteKit | 5173 | Svelte app framework |
-  | cra | Create React App | 3000 | Legacy React starter |
-  | next | Next.js | 3000 | React meta-framework |
-  | nuxt | Nuxt | 3000 | Vue meta-framework |
-  | rails | Rails | 3000 | Ruby web framework |
-  | grafana | Grafana | 3000 | Metrics dashboards |
-  | angular | Angular | 4200 | — |
-  | astro | Astro | 4321 | — |
-  | flask | Flask | 5000 | — |
-  | django | Django | 8000 | — |
-  | webpack | webpack-dev-server | 8080 | Bundler dev server |
-  | jenkins | Jenkins | 8080 | CI server |
-  | tomcat | Tomcat | 8080 | Java servlet container |
-  | storybook | Storybook | 6006 | — |
-  | kibana | Kibana | 5601 | — |
-  | elasticsearch | Elasticsearch | 9200 | — |
-  | prometheus | Prometheus | 9090 | — |
-  | consul | Consul | 8500 | — |
-  | vault | Vault | 8200 | — |
-  | minio | MinIO | 9000 | — |
-  | rabbitmq-ui | RabbitMQ UI | 15672 | — |
-  | pgadmin | pgAdmin | 5050 | — |
-  | docker | Docker API | 2375 | — |
-  | kubernetes | Kubernetes API | 6443 | — |
-
-  Omit `blurb` when the cell is `—`. Application miss-only: `mongo-express` 8081 (tcp).
-
-  Mixed-union crowding: `http-alt` (8080) shares a port with webpack / jenkins / tomcat. `http-alt` **must** have a blurb that does not contain `HTTP-alt` (for example `Common alternate web port.`).
-
-  Vite description may stay `Vite default development server.` (flavor). Tests must not require Mixed on epoch day to be Vite.
+  Aliases remain optional same-service names (v1 example: `postgres` → PostgreSQL). They are never Daily titles. Tests must not require Mixed on epoch day to be Vite.
 
 - RNG (engine, deterministic): `hashSeed(string) → number`; `mulberry32(seed) → () => number` in `[0, 1)`. Shuffle is Fisher-Yates after sorting the id list lexicographically (so input array order cannot change the deal).
 
 - Schedule generation (engine):
 
   ```ts
-  generateSchedules({ utcToday, protocols, applications, current }): Record<DailyCategory, ScheduleFile>
+  type FrozenIdentity = Record<string, { name: string; port: number }>
+
+  generateSchedules({ utcToday, protocols, applications, current, identity }): {
+    schedules: Record<DailyCategory, ScheduleFile>
+    identity: FrozenIdentity
+  }
   schedulesEqual(a, b): boolean
+  identityEqual(a, b): boolean
   validateSchedules({ utcToday, protocols, applications, schedules }): string[]
-  validateFrozenIdentity({ utcToday, previous, current, schedules }): string[]
+  validateFrozenIdentity({ utcToday, identity, protocols, applications, schedules }): string[]
   ```
 
-  Epoch is `2026-09-09` in every schedule file (v1). Never assign a day whose `utcDayIndex` is negative.
+  Epoch is `2026-09-09` in every schedule file (v1). Never assign a day whose `utcDayIndex` is negative. Freeze through `utcToday`. Coverage: each schedule's last assigned day index `>= utcDayIndex(utcToday, epoch) + 7`. Tests and the first committed run pin `utcToday` to epoch.
 
-  **Effective today** for freeze and coverage: if `utcToday` is before epoch, use epoch. There is no Daily before epoch, so a pre-epoch run must match an epoch-day run (keeps `--check` idempotent on the day before launch). Write `effectiveToday = utcToday < epoch ? epoch : utcToday`. Freeze through `effectiveToday`. Coverage: each schedule's last assigned day index `>= utcDayIndex(effectiveToday, epoch) + 7`.
+  A2 (v1 §6.2). Steps 1–4 run when answer-eligible ids are **added**, or tail ids are **retired** or lose `answerEligible`. A second run with no catalog-eligibility changes is a no-op (step 5 still runs; if coverage already holds it does not append).
 
-  A2 (v1 §6.2), using `effectiveToday`:
-
-  1. In the cycle that contains `effectiveToday` (or the last cycle if that day is past all cycles), leave `order[0] … order[todayIndex]` untouched (frozen prefix, including today). If there is no cycle yet, there is no prefix.
+  1. In the cycle that contains `utcToday` (or the last cycle if today is past all cycles), leave `order[0] … order[todayIndex]` untouched (frozen prefix, including today). If no cycle contains today (including `utcToday` before epoch), there is no prefix.
   2. `tail = order[todayIndex+1 …]` minus ids that are `retired` or not `answerEligible`, plus new eligible ids not already in this cycle. Protocols tail only uses Protocols `answerPool`; Applications tail only uses Applications `answerPool`; Mixed tail uses the union `answerPool`.
   3. Deterministically shuffle `tail` (seed `hashSeed(\`${category}:${cycle.startDay}:${sortedTailIds.join(",")}\`)`).
-  4. Resolve same-day distinctness for days **after** `effectiveToday` only (v1 §6.3), except a **brand-new cycle** walks from that cycle's `startDay`.
-  5. If the last assigned day is sooner than `effectiveToday + 7`, append a full new cycle: shuffle all current `answerPool` ids for that category (seed `hashSeed(\`${category}:${newStartDay}\`)`), then run §6.3 on the new cycle's days.
+  4. Resolve same-day distinctness for days **after** `utcToday` only (v1 §6.3), except a **brand-new cycle** walks from that cycle's `startDay`.
+  5. If the last assigned day is sooner than `utcToday + 7`, append a full new cycle: shuffle all current `answerPool` ids for that category (seed `hashSeed(\`${category}:${newStartDay}\`)`), then run §6.3 on the new cycle's days.
 
-  Same-day distinctness (v1 §6.3): after building/updating a tail or a new cycle, walk days from `effectiveToday+1` (or from `startDay` for a brand-new cycle) forward. Let `P`, `A`, `M` be that day's ids. If `M === P` or `M === A`, swap `M` with the nearest **later** Mixed id that does not collide with that day's `P` and `A`. If none works, insert the lexicographically smallest unused Mixed-eligible id (`answerEligible && !retired` in either catalog, not already in this Mixed cycle) into that slot. Never steal a Protocols or Applications card. If the Mixed pool is exhausted, append the next Mixed cycle and continue. Do not rewrite the frozen prefix even if a historical collision exists.
+  Same-day distinctness (v1 §6.3): after building/updating a tail or a new cycle, walk days from `utcToday+1` (or from `startDay` for a brand-new cycle) forward. Let `P`, `A`, `M` be that day's ids. If `M === P` or `M === A`, swap `M` with the nearest **later** Mixed id that does not collide with that day's `P` and `A`. If none works, insert the lexicographically smallest unused Mixed-eligible id (`answerEligible && !retired` in either catalog, not already in this Mixed cycle) into that slot. Never steal a Protocols or Applications card. If the Mixed pool is exhausted, append the next Mixed cycle and continue. Do not rewrite the frozen prefix even if a historical collision exists.
 
   Empty `current` (missing file or `{ epoch, cycles: [] }`): append cycles from `startDay` 0 until coverage holds, then run distinctness from `startDay`.
 
-  `validateSchedules` returns messages (empty = ok) for: catalog issues (floors, `validateCatalog` on both files and the union), every scheduled id exists in that category's catalog, coverage through `effectiveToday+7`, same-day ids distinct on every day after `effectiveToday` (and on a brand-new cycle from `startDay`), no assigned day before epoch. Floors: `answerPool(protocols).length >= 40`, `answerPool(applications).length >= 25`, at least one miss-only row in each JSON file.
+  Frozen identity (v1 §5.4 / §6.2 `--check` “frozen identity”): a committed map of id → `{ name, port }` for every id that appears on a scheduled day with `utcDayIndex <= utcDayIndex(utcToday)` (the frozen prefix of every cycle, including past cycles). `generateSchedules` copies the current map, then records `{ name, port }` from the catalogs for any newly frozen id not already present. Existing map entries never change. Flavor fields (`description`, `aliases`, `blurb`, `transport`) and eligibility flags are not in the map.
 
-  `validateFrozenIdentity` compares **previous** vs **current** catalogs for every id in each schedule's frozen prefix: `name` and `port` must be equal; missing id fails; `description` / `aliases` / `blurb` / `transport` / flags may change. The CLI `--check` does not keep a sidecar snapshot; this function is the test seam for the name/port rule. A2 frozen **ids** are checked by generating from `current` schedules and asserting the prefix is unchanged.
+  `validateFrozenIdentity` (empty = ok): every frozen-prefix id exists in that category's catalog; if the id is in the map, catalog `name` and `port` equal the map; missing map entries for already-frozen ids fail. Changing a future-tail-only id's `name`/`port` is allowed (not in the frozen prefix, not required to match).
 
-- CLI `gen:schedule`: read production protocols/applications JSON and the three schedule files (missing schedule → `{ epoch: "2026-09-09", cycles: [] }`). `utcToday` from `PORTDLE_UTC_TODAY` if set, else `utcDateString(new Date())`. If argv includes `--check`, compute next schedules and exit 1 if `!schedulesEqual` or `validateSchedules` is non-empty. Else write pretty JSON (tab indent, trailing newline) and still fail if validation is non-empty. Flavor-text-only JSON edits do not require this script.
+  `validateSchedules` returns messages (empty = ok) for: catalog issues (floors, `validateCatalog` on both files and the union), every scheduled id exists in that category's catalog, coverage through `utcToday+7`, same-day ids distinct on every day after `utcToday` (and on a brand-new cycle from `startDay`), no assigned day before epoch. Floors: `answerPool(protocols).length >= 40`, `answerPool(applications).length >= 25`, at least one miss-only row in each JSON file.
+
+- CLI `gen:schedule`: read production protocols/applications JSON, the three schedule files (missing schedule → `{ epoch: "2026-09-09", cycles: [] }`), and the committed frozen-identity map (missing → `{}`). `utcToday` from `PORTDLE_UTC_TODAY` if set, else `utcDateString(new Date())`. Compute next schedules and next identity. If argv includes `--check`, exit 1 if `!schedulesEqual` or `!identityEqual` or `validateSchedules` is non-empty or `validateFrozenIdentity` is non-empty. Else write pretty JSON (tab indent, trailing newline) for schedules and identity, and still fail if validation is non-empty. Flavor-text-only catalog edits do not require this script.
 
 - Persist keys already exist per `DailyCategory`. Use them. Do not add `blitzBests`. Overnight gap: when `lastSeenUtc < utcToday` on load, run `applyStreakGap` for **each** Daily category with that category's stats, `lastPlayed`, and yesterday persist, write each stats key, then write `lastSeenUtc`. Missing `lastSeenUtc` still writes today without resetting. Recording a finish still runs `applyStreakGap` for **that** category only, then `applyDailyFinish`, then that category's `lastPlayed`. Playing one category never reads or writes another category's daily / stats / `lastPlayed`.
 
@@ -243,27 +173,27 @@ Protocols and Applications are real Dailies besides Mixed. `/` stays Mixed (the 
 
 - Existing Mixed UI tests that assumed the fixture schedule (epoch day = Vite, four slots, win `5173`, miss `0080` / `0019` / `0023`) must resolve today's Mixed entry from the committed Mixed schedule via `getDaily` and use that entry's `name` / `port` / `digitLength` / `description`. Miss ports must be in the Mixed catalog, not equal to the answer port, and padded to the answer's digit length. Shell route-heading tests must expect the Mixed canonical name for the injected date, not the word "Mixed", and must expect Protocols/Applications canonical names rather than the placeholder words "Protocols" / "Applications".
 
-- First committed schedules are the output of `generateSchedules` with `utcToday` `2026-09-09` (epoch) and the production catalogs. Commit those three files. `PORTDLE_UTC_TODAY=2026-09-09 pnpm gen:schedule --check` must then exit 0.
+- First committed schedules and frozen-identity map are the output of `generateSchedules` with `utcToday` `2026-09-09` (epoch) and the production catalogs. `PORTDLE_UTC_TODAY=2026-09-09 pnpm gen:schedule --check` must then exit 0.
 
 - No Playwright, no GitHub Actions this ticket. No cookies, analytics, accounts, or network besides static assets.
 
 ## Testing Decisions
 
-A good test checks observable behavior through a public interface. It does not inspect private helpers, mock internal collaborators, or recompute the expected value the way the production code does. Expected values are literals from this spec (floors 40 / 25, epoch `2026-09-09`, names/ports in the catalog tables, copy `Not in this catalog.`, share labels `Mixed` / `Protocols` / `Applications`, key prefixes `portdle:v1:daily:protocols:` / `portdle:v1:stats:applications`).
+A good test checks observable behavior through a public interface. It does not inspect private helpers, mock internal collaborators, or recompute the expected value the way the production code does. Expected values are literals from this spec (floors 40 / 25, epoch `2026-09-09`, continuity ids `http`/`chargen`/`telnet`/`vite`, copy `Not in this catalog.`, share labels `Mixed` / `Protocols` / `Applications`, key prefixes `portdle:v1:daily:protocols:` / `portdle:v1:stats:applications`).
 
-Four seams:
+Four seams (same as Implementation Decisions):
 
-1. **Engine — catalog** — `catalogFor`, `answerPool`, `validateCatalog`. Cover: Mixed union still protocols-then-applications; Protocols/Applications are the source arrays; `answerPool` drops miss-only and retired; duplicate id; duplicate name case-insensitive (`HTTP` vs `http`); port `-1` / `65536` / non-integer invalid; crowded non-retired ports missing blurb; blurb that contains `name`; unique ports need no blurb; production JSON meets floors, has miss-only rows, `validateCatalog` is empty on protocols, applications, and the union; global unique ids and names; table literals (`http` 80, `vite` 5173, `chargen` miss-only, `https` alias `ssl`, `postgresql` alias `postgres`).
+1. **Engine** — `catalogFor`, `answerPool`, `validateCatalog`, `hashSeed` / `mulberry32`, `generateSchedules`, `schedulesEqual`, `identityEqual`, `validateSchedules`, `validateFrozenIdentity`. Catalog cover: Mixed union still protocols-then-applications; Protocols/Applications are the source arrays; `answerPool` drops miss-only and retired; duplicate id; duplicate name case-insensitive (`HTTP` vs `http`); port `-1` / `65536` invalid; crowded non-retired ports missing blurb; blurb that contains `name`; unique ports need no blurb; production JSON meets floors, has miss-only rows, `validateCatalog` is empty on protocols, applications, and the union; global unique ids and names; continuity literals (`http` 80, `vite` 5173, `chargen` miss-only, `telnet` answer-eligible). Schedule cover (tiny injected catalogs, not production, injected `utcToday`): empty current covers `utcToday+7` for all three categories; adding an answer-eligible id does not change frozen prefix including today; retiring a tail id drops it from the tail and leaves the prefix; retiring a frozen-prefix id leaves that slot's id; flavor-only description edit leaves schedules and identity equal; same-day Mixed id differs from Protocols and Applications after today; brand-new cycles are distinct from `startDay`; second generate with no eligibility change equals the first; changing frozen-prefix `name` or `port` makes `validateFrozenIdentity` non-empty and `--check` would fail even when schedule JSON is unchanged; changing frozen-prefix description does not; `utcToday` before epoch with covering schedules and no eligibility change is a no-op; never assigns a negative day index. Do not use wall-clock. Do not test inverted, search, Blitz, or History.
 
-2. **Engine — schedules** — `hashSeed` / `mulberry32` determinism; `generateSchedules`, `schedulesEqual`, `validateSchedules`, `validateFrozenIdentity`. Inject tiny catalogs (not production) plus `utcToday`. Cover: empty current covers `effectiveToday+7` for all three categories; adding an answer-eligible id does not change frozen prefix including today; retiring a tail id drops it from the tail and leaves the prefix; retiring a frozen-prefix id leaves that slot's id; flavor-only description edit leaves schedules equal; same-day Mixed id differs from Protocols and Applications after today; brand-new cycles are distinct from `startDay`; second generate with no eligibility change equals the first (`schedulesEqual`); `--check` equivalent: `schedulesEqual(current, generate(current))` and empty `validateSchedules`; changing frozen-prefix `name` or `port` makes `validateFrozenIdentity` non-empty; changing frozen-prefix description does not; `utcToday` before epoch uses epoch as effective today (same output as `utcToday === epoch`); never assigns a negative day index. Do not use wall-clock. Do not test inverted, search, Blitz, or History.
+2. **Persist** — existing adapter. Cover: Protocols daily/stats/`lastPlayed` round-trip on `portdle:v1:…:protocols…` keys; Applications the same; writing Protocols stats does not write Mixed or Applications keys; Mixed finish keys still do not create Protocols keys.
 
-3. **Persist** — existing adapter. Cover: Protocols daily/stats/`lastPlayed` round-trip on `portdle:v1:…:protocols…` keys; Applications the same; writing Protocols stats does not write Mixed or Applications keys; Mixed finish keys still do not create Protocols keys.
+3. **UI** — Vitest + Testing Library + jsdom through `App`. Inject persist, memory history, `utcToday` `2026-09-09`. Resolve answers with `getDaily` against production JSON + committed schedules. Cover: `/` Mixed `h1` is Mixed's canonical name; `/protocols` and `/applications` `h1`s are those answers' names; three ids that day are distinct; Protocols miss of an Applications-only port (Vite `5173` if that is not the Protocols answer) shows `Not in this catalog.`; Mixed miss of a Protocols port still names it; finishing Protocols writes Protocols stats/`lastPlayed` and does not change Mixed stats; finishing Mixed does not change Protocols stats; Share on Protocols copies a `Portdle · Protocols ·` line; Mixed win/loss/share/restore/How-to/unavailable still hold, using the resolved Mixed answer instead of fixture Vite; Blitz and History still have headings Blitz and History. Do not assert CSS class names except existing `html.dark` shell tests. Do not drive Blitz gameplay.
 
-4. **UI (three Dailies)** — Vitest + Testing Library + jsdom through `App`. Inject persist, memory history, `utcToday` `2026-09-09`. Resolve answers with `getDaily` against production JSON + committed schedules. Cover: `/` Mixed `h1` is Mixed's canonical name; `/protocols` and `/applications` `h1`s are those answers' names; three ids that day are distinct; Protocols miss of an Applications-only port (for example Vite `5173` if that is not the Protocols answer) shows `Not in this catalog.`; Mixed miss of a Protocols port still names it; finishing Protocols writes Protocols stats/`lastPlayed` and does not change Mixed stats; finishing Mixed does not change Protocols stats; Share on Protocols copies a `Portdle · Protocols ·` line; Mixed win/loss/share/restore/How-to/unavailable still hold, using the resolved Mixed answer instead of fixture Vite; Blitz and History still have headings Blitz and History. Do not assert CSS class names except existing `html.dark` shell tests. Do not drive Blitz gameplay.
+4. **`gen:schedule`** — CLI over the engine. `PORTDLE_UTC_TODAY=2026-09-09 pnpm gen:schedule --check` exits 0 on the committed files (schedules and frozen identity unchanged, validation empty). A frozen-prefix `name`/`port` mismatch against the committed identity map exits non-zero even if schedule JSON would not change.
 
-Prior art: engine tests next to sources; `src/persist/storage.test.ts`; `src/ui/mixed-daily.test.tsx` and `src/ui/app.test.tsx` through `App`. Follow those. Do not introduce Playwright.
+Prior art: engine tests next to sources; persist injected-store tests; Mixed Daily and App tests through `App`. Follow those. Do not introduce Playwright.
 
-Also: `PORTDLE_UTC_TODAY=2026-09-09 pnpm gen:schedule --check` exits 0 on the committed files (idempotent). Typecheck and the full Vitest suite pass.
+Typecheck and the full Vitest suite pass.
 
 ## Out of Scope
 
@@ -284,5 +214,5 @@ Also: `PORTDLE_UTC_TODAY=2026-09-09 pnpm gen:schedule --check` exits 0 on the co
 - Headline streak on `/` is Mixed.
 - Transport is never part of the guess.
 - Aliases are not Daily titles.
-- Ticket #2 fixture catalogs and the 90-day vite/http Mixed schedule are replaced by production content and generated schedules.
-- The implementation plan's catalog tables are the hand-curated v1 set; this spec copies them so #3 does not invent entries.
+- Ticket #2 fixture catalogs and the 90-day vite/http Mixed schedule are replaced by production content, generated schedules, and a committed frozen-identity map.
+- Extra catalog rows are hand-curated to the floors; this spec does not pin a roster beyond the Mixed continuity literals.
