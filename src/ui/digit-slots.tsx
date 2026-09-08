@@ -12,7 +12,8 @@ export function DigitSlots({
 	onSubmit: () => void;
 }) {
 	return (
-		<div>
+		<fieldset>
+			<legend className="sr-only">Port digits</legend>
 			<div className="mb-2 flex gap-1 font-mono" aria-hidden="true">
 				{["digit-1", "digit-2", "digit-3", "digit-4", "digit-5"]
 					.slice(0, length)
@@ -43,6 +44,6 @@ export function DigitSlots({
 					}
 				}}
 			/>
-		</div>
+		</fieldset>
 	);
 }

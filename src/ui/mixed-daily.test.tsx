@@ -2,30 +2,14 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import { createPersist, type KeyValueStore } from "../persist/storage";
+import { createPersist } from "../persist/storage";
+import { memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
 
-function memoryStore(data: Map<string, string> = new Map()): KeyValueStore {
-	return {
-		data,
-		getItem: (key) => data.get(key) ?? null,
-		setItem: (key, value) => {
-			data.set(key, value);
-		},
-	} as KeyValueStore & { data: Map<string, string> };
-}
-
-function stubMatchMedia() {
-	window.matchMedia = (query: string) => ({
-		matches: false,
-		media: query,
-		onchange: null,
-		addListener: () => {},
-		removeListener: () => {},
-		addEventListener: () => {},
-		removeEventListener: () => {},
-		dispatchEvent: () => false,
-	});
+function portDigits() {
+	return within(screen.getByRole("group", { name: "Port digits" })).getByRole(
+		"textbox",
+	);
 }
 
 async function renderMixed(
@@ -57,7 +41,7 @@ afterEach(() => {
 test("mixed daily shows service name and digit slots from the start", async () => {
 	await renderMixed();
 	expect(screen.getByRole("heading", { level: 1, name: "Vite" })).toBeTruthy();
-	const slots = screen.getByLabelText("Port digits");
+	const slots = portDigits();
 	expect(slots).toBeTruthy();
 	expect(slots.getAttribute("maxlength")).toBe("4");
 });
@@ -65,7 +49,7 @@ test("mixed daily shows service name and digit slots from the start", async () =
 test("incomplete submit is invalid and does not persist a daily", async () => {
 	const user = userEvent.setup();
 	const persist = await renderMixed();
-	await user.type(screen.getByLabelText("Port digits"), "51");
+	await user.type(portDigits(), "51");
 	await user.keyboard("{Enter}");
 	expect(screen.getByText("Not a valid port.")).toBeTruthy();
 	expect(persist.readDaily("mixed", "2026-09-09")).toBeNull();
@@ -74,7 +58,7 @@ test("incomplete submit is invalid and does not persist a daily", async () => {
 test("catalog misses name the service including retired and miss-only", async () => {
 	const user = userEvent.setup();
 	const persist = await renderMixed();
-	await user.type(screen.getByLabelText("Port digits"), "0080");
+	await user.type(portDigits(), "0080");
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getAllByText("HTTP").length).toBeGreaterThan(0);
 	expect(persist.readDaily("mixed", "2026-09-09")?.guesses).toEqual([
@@ -84,10 +68,10 @@ test("catalog misses name the service including retired and miss-only", async ()
 			identified: { id: "http", name: "HTTP", port: 80 },
 		},
 	]);
-	await user.type(screen.getByLabelText("Port digits"), "0019");
+	await user.type(portDigits(), "0019");
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getAllByText("chargen").length).toBeGreaterThan(0);
-	await user.type(screen.getByLabelText("Port digits"), "0023");
+	await user.type(portDigits(), "0023");
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getAllByText("Telnet").length).toBeGreaterThan(0);
 });
@@ -95,10 +79,10 @@ test("catalog misses name the service including retired and miss-only", async ()
 test("unknown miss and duplicate do not spend extra tries", async () => {
 	const user = userEvent.setup();
 	const persist = await renderMixed();
-	await user.type(screen.getByLabelText("Port digits"), "0001");
+	await user.type(portDigits(), "0001");
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getAllByText("Not in this catalog.").length).toBeGreaterThan(0);
-	await user.type(screen.getByLabelText("Port digits"), "0001");
+	await user.type(portDigits(), "0001");
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getByText("Already guessed.")).toBeTruthy();
 	expect(persist.readDaily("mixed", "2026-09-09")?.guesses).toHaveLength(1);
@@ -116,7 +100,7 @@ test("correct guess wins, reveals, stats, and copies share text", async () => {
 		},
 	});
 	const persist = await renderMixed();
-	await user.type(screen.getByLabelText("Port digits"), "5173");
+	await user.type(portDigits(), "5173");
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getAllByText("5173").length).toBeGreaterThan(0);
 	expect(screen.getByText("TCP")).toBeTruthy();
@@ -129,13 +113,13 @@ test("correct guess wins, reveals, stats, and copies share text", async () => {
 	expect(persist.readLastPlayed("mixed")).toBe("2026-09-09");
 	expect(persist.readLastSeenUtc()).toBe("2026-09-09");
 	expect(persist.readStats("mixed")?.played).toBe(1);
-	expect(screen.queryByLabelText("Port digits")).toBeNull();
+	expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
 });
 
 test("double submit of a winning guess counts played once", async () => {
 	const user = userEvent.setup();
 	const persist = await renderMixed();
-	await user.type(screen.getByLabelText("Port digits"), "5173");
+	await user.type(portDigits(), "5173");
 	await user.dblClick(screen.getByRole("button", { name: "Submit" }));
 	expect(persist.readStats("mixed")?.played).toBe(1);
 	expect(persist.readDaily("mixed", "2026-09-09")?.guesses).toHaveLength(1);
@@ -154,11 +138,11 @@ test("six misses lose, freeze, and share X/6", async () => {
 	});
 	await renderMixed();
 	for (const digits of ["0080", "0019", "0023", "0001", "0002", "0003"]) {
-		await user.type(screen.getByLabelText("Port digits"), digits);
+		await user.type(portDigits(), digits);
 		await user.click(screen.getByRole("button", { name: "Submit" }));
 	}
 	expect(screen.getByText("Vite default development server.")).toBeTruthy();
-	expect(screen.queryByLabelText("Port digits")).toBeNull();
+	expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
 	await user.click(screen.getByRole("button", { name: "Share" }));
 	expect(copied[0]).toBe("Portdle · Mixed · 2026-09-09 · X/6\n\n⬜⬜⬜⬜⬜⬜");
 });
@@ -169,7 +153,7 @@ test("refresh restores a committed miss", async () => {
 	const persist = createPersist(memoryStore(store));
 	persist.writeHowToSeen();
 	await renderMixed({ persist });
-	await user.type(screen.getByLabelText("Port digits"), "0080");
+	await user.type(portDigits(), "0080");
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	cleanup();
 	const restored = createPersist(memoryStore(store));

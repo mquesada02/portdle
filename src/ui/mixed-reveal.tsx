@@ -76,12 +76,24 @@ export function MixedReveal({
 					<dd>{stats.bestStreak}</dd>
 				</div>
 			</dl>
-			<ol className="mt-2">
-				{([1, 2, 3, 4, 5, 6] as const).map((tryNumber) => (
-					<li key={tryNumber}>
-						{tryNumber}: {stats.histogram[tryNumber - 1]}
-					</li>
-				))}
+			<ol className="mt-2 space-y-1">
+				{([1, 2, 3, 4, 5, 6] as const).map((tryNumber) => {
+					const count = stats.histogram[tryNumber - 1] ?? 0;
+					return (
+						<li key={tryNumber}>
+							{tryNumber}: {count}
+							<div
+								className="mt-1 h-3 w-full bg-zinc-200 dark:bg-zinc-800"
+								aria-hidden="true"
+							>
+								<div
+									className="h-3 bg-zinc-800 dark:bg-zinc-200"
+									style={{ width: `${Math.min(100, count * 12.5)}%` }}
+								/>
+							</div>
+						</li>
+					);
+				})}
 			</ol>
 			<button type="button" className="mt-4" onClick={() => void share()}>
 				Share

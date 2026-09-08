@@ -1,17 +1,6 @@
 import { expect, test } from "vitest";
-import { createPersist, type KeyValueStore } from "./storage";
-
-function memoryStore(
-	data: Map<string, string> = new Map(),
-): KeyValueStore & { data: Map<string, string> } {
-	return {
-		data,
-		getItem: (key) => data.get(key) ?? null,
-		setItem: (key, value) => {
-			data.set(key, value);
-		},
-	};
-}
+import { memoryStore } from "../test/helpers";
+import { createPersist } from "./storage";
 
 test("readTheme defaults to system", () => {
 	const persist = createPersist(memoryStore());

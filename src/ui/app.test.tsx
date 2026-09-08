@@ -2,30 +2,9 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import { createPersist, type KeyValueStore } from "../persist/storage";
+import { createPersist } from "../persist/storage";
+import { memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
-
-function memoryStore(data: Map<string, string> = new Map()): KeyValueStore {
-	return {
-		getItem: (key) => data.get(key) ?? null,
-		setItem: (key, value) => {
-			data.set(key, value);
-		},
-	};
-}
-
-function stubMatchMedia(prefersDark: boolean) {
-	window.matchMedia = (query: string) => ({
-		matches: prefersDark && query.includes("prefers-color-scheme: dark"),
-		media: query,
-		onchange: null,
-		addListener: () => {},
-		removeListener: () => {},
-		addEventListener: () => {},
-		removeEventListener: () => {},
-		dispatchEvent: () => false,
-	});
-}
 
 async function renderApp(options: {
 	persist?: ReturnType<typeof createPersist>;
