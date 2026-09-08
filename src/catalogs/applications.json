@@ -5,6 +5,216 @@
 		"port": 5173,
 		"transport": "tcp",
 		"description": "Vite default development server.",
+		"blurb": "Frontend bundler dev server",
 		"answerEligible": true
+	},
+	{
+		"id": "svelte",
+		"name": "SvelteKit",
+		"port": 5173,
+		"transport": "tcp",
+		"description": "SvelteKit development server.",
+		"blurb": "Svelte app framework",
+		"answerEligible": true
+	},
+	{
+		"id": "cra",
+		"name": "Create React App",
+		"port": 3000,
+		"transport": "tcp",
+		"description": "Create React App development server.",
+		"blurb": "Legacy React starter",
+		"answerEligible": true
+	},
+	{
+		"id": "next",
+		"name": "Next.js",
+		"port": 3000,
+		"transport": "tcp",
+		"description": "Next.js development server.",
+		"blurb": "React meta-framework",
+		"answerEligible": true
+	},
+	{
+		"id": "nuxt",
+		"name": "Nuxt",
+		"port": 3000,
+		"transport": "tcp",
+		"description": "Nuxt development server.",
+		"blurb": "Vue meta-framework",
+		"answerEligible": true
+	},
+	{
+		"id": "rails",
+		"name": "Rails",
+		"port": 3000,
+		"transport": "tcp",
+		"description": "Ruby on Rails development server.",
+		"blurb": "Ruby web framework",
+		"answerEligible": true
+	},
+	{
+		"id": "grafana",
+		"name": "Grafana",
+		"port": 3000,
+		"transport": "tcp",
+		"description": "Grafana metrics dashboards.",
+		"blurb": "Metrics dashboards",
+		"answerEligible": true
+	},
+	{
+		"id": "angular",
+		"name": "Angular",
+		"port": 4200,
+		"transport": "tcp",
+		"description": "Angular development server.",
+		"answerEligible": true
+	},
+	{
+		"id": "astro",
+		"name": "Astro",
+		"port": 4321,
+		"transport": "tcp",
+		"description": "Astro development server.",
+		"answerEligible": true
+	},
+	{
+		"id": "flask",
+		"name": "Flask",
+		"port": 5000,
+		"transport": "tcp",
+		"description": "Flask development server.",
+		"answerEligible": true
+	},
+	{
+		"id": "django",
+		"name": "Django",
+		"port": 8000,
+		"transport": "tcp",
+		"description": "Django development server.",
+		"answerEligible": true
+	},
+	{
+		"id": "webpack",
+		"name": "webpack-dev-server",
+		"port": 8080,
+		"transport": "tcp",
+		"description": "webpack development server.",
+		"blurb": "Bundler dev server",
+		"answerEligible": true
+	},
+	{
+		"id": "jenkins",
+		"name": "Jenkins",
+		"port": 8080,
+		"transport": "tcp",
+		"description": "Jenkins CI server.",
+		"blurb": "CI server",
+		"answerEligible": true
+	},
+	{
+		"id": "tomcat",
+		"name": "Tomcat",
+		"port": 8080,
+		"transport": "tcp",
+		"description": "Apache Tomcat servlet container.",
+		"blurb": "Java servlet container",
+		"answerEligible": true
+	},
+	{
+		"id": "storybook",
+		"name": "Storybook",
+		"port": 6006,
+		"transport": "tcp",
+		"description": "Storybook component explorer.",
+		"answerEligible": true
+	},
+	{
+		"id": "kibana",
+		"name": "Kibana",
+		"port": 5601,
+		"transport": "tcp",
+		"description": "Kibana observability UI.",
+		"answerEligible": true
+	},
+	{
+		"id": "elasticsearch",
+		"name": "Elasticsearch",
+		"port": 9200,
+		"transport": "tcp",
+		"description": "Elasticsearch HTTP API.",
+		"answerEligible": true
+	},
+	{
+		"id": "prometheus",
+		"name": "Prometheus",
+		"port": 9090,
+		"transport": "tcp",
+		"description": "Prometheus metrics server.",
+		"answerEligible": true
+	},
+	{
+		"id": "consul",
+		"name": "Consul",
+		"port": 8500,
+		"transport": "tcp",
+		"description": "Consul HTTP API.",
+		"answerEligible": true
+	},
+	{
+		"id": "vault",
+		"name": "Vault",
+		"port": 8200,
+		"transport": "tcp",
+		"description": "HashiCorp Vault API.",
+		"answerEligible": true
+	},
+	{
+		"id": "minio",
+		"name": "MinIO",
+		"port": 9000,
+		"transport": "tcp",
+		"description": "MinIO object storage API.",
+		"answerEligible": true
+	},
+	{
+		"id": "rabbitmq-ui",
+		"name": "RabbitMQ UI",
+		"port": 15672,
+		"transport": "tcp",
+		"description": "RabbitMQ management UI.",
+		"answerEligible": true
+	},
+	{
+		"id": "pgadmin",
+		"name": "pgAdmin",
+		"port": 5050,
+		"transport": "tcp",
+		"description": "pgAdmin web interface.",
+		"answerEligible": true
+	},
+	{
+		"id": "docker",
+		"name": "Docker API",
+		"port": 2375,
+		"transport": "tcp",
+		"description": "Docker Engine API.",
+		"answerEligible": true
+	},
+	{
+		"id": "kubernetes",
+		"name": "Kubernetes API",
+		"port": 6443,
+		"transport": "tcp",
+		"description": "Kubernetes API server.",
+		"answerEligible": true
+	},
+	{
+		"id": "mongo-express",
+		"name": "mongo-express",
+		"port": 8081,
+		"transport": "tcp",
+		"description": "MongoDB admin web UI.",
+		"answerEligible": false
 	}
 ]
