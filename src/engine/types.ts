@@ -1,5 +1,10 @@
 export type CatalogKind = "protocol" | "application";
 export type DailyCategory = "mixed" | "protocols" | "applications";
+export const DAILY_CATEGORIES: DailyCategory[] = [
+	"mixed",
+	"protocols",
+	"applications",
+];
 export type Transport = "tcp" | "udp" | "both";
 
 export type CatalogEntry = {

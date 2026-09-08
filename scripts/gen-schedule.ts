@@ -2,10 +2,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	checkSchedules,
 	type FrozenIdentity,
 	generateSchedules,
-	identityEqual,
-	schedulesEqual,
 	validateFrozenIdentity,
 	validateSchedules,
 } from "../src/engine/schedule-gen.ts";
@@ -78,22 +77,15 @@ const identityIssues = validateFrozenIdentity({
 const check = process.argv.includes("--check");
 
 if (check) {
-	const currentIdentityIssues = validateFrozenIdentity({
-		utcToday,
-		identity,
-		protocols,
-		applications,
-		schedules: current,
-	});
-	const wouldChange =
-		!schedulesEqual(current, next.schedules) ||
-		!identityEqual(identity, next.identity);
-	const issues = [
-		...scheduleIssues,
-		...identityIssues,
-		...currentIdentityIssues,
-	];
-	if (wouldChange || issues.length > 0) {
+	if (
+		checkSchedules({
+			utcToday,
+			protocols,
+			applications,
+			current,
+			identity,
+		}).length > 0
+	) {
 		process.exitCode = 1;
 	}
 } else if (scheduleIssues.length > 0 || identityIssues.length > 0) {

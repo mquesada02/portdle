@@ -1,9 +1,20 @@
 import { applyStreakGap, emptyStats } from "../engine/stats";
-import type { DailyCategory } from "../engine/types";
+import { DAILY_CATEGORIES, type DailyCategory } from "../engine/types";
 import { yesterdayUtc } from "../engine/utc";
 import type { Persist } from "../persist/storage";
 
-const CATEGORIES: DailyCategory[] = ["mixed", "protocols", "applications"];
+export function categoryStreakGap(
+	persist: Persist,
+	category: DailyCategory,
+	utcToday: string,
+) {
+	return applyStreakGap({
+		stats: persist.readStats(category) ?? emptyStats(),
+		utcToday,
+		lastPlayed: persist.readLastPlayed(category),
+		yesterdayPersist: persist.readDaily(category, yesterdayUtc(utcToday)),
+	});
+}
 
 export function syncUtcDay(
 	persist: Persist,
@@ -17,14 +28,19 @@ export function syncUtcDay(
 		return { ok: true };
 	}
 	let ok = true;
-	for (const category of CATEGORIES) {
-		const gapped = applyStreakGap({
-			stats: persist.readStats(category) ?? emptyStats(),
-			utcToday,
-			lastPlayed: persist.readLastPlayed(category),
-			yesterdayPersist: persist.readDaily(category, yesterdayUtc(utcToday)),
-		});
-		if (!persist.writeStats(category, gapped).ok) {
+	for (const category of DAILY_CATEGORIES) {
+		if (
+			persist.readStats(category) === null &&
+			persist.readLastPlayed(category) === null
+		) {
+			continue;
+		}
+		if (
+			!persist.writeStats(
+				category,
+				categoryStreakGap(persist, category, utcToday),
+			).ok
+		) {
 			ok = false;
 		}
 	}

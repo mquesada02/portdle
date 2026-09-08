@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+	checkSchedules,
 	generateSchedules,
 	identityEqual,
 	schedulesEqual,
@@ -260,6 +261,15 @@ test("changing frozen-prefix name fails frozen identity even if schedules would 
 		identity: first.identity,
 	});
 	expect(schedulesEqual(first.schedules, second.schedules)).toBe(true);
+	expect(
+		checkSchedules({
+			utcToday: epoch,
+			protocols: nextProtocols,
+			applications: nextApplications,
+			current: first.schedules,
+			identity: first.identity,
+		}).some((issue) => issue.includes("frozen identity")),
+	).toBe(true);
 });
 
 test("changing frozen-prefix description does not fail frozen identity", () => {
@@ -301,6 +311,63 @@ test("utcToday before all cycles with covering schedules is a no-op", () => {
 		identity: first.identity,
 	});
 	expect(schedulesEqual(first.schedules, second.schedules)).toBe(true);
+});
+
+test("today past all cycles freezes the last cycle entire order", () => {
+	const first = generateSchedules({
+		utcToday: epoch,
+		protocols,
+		applications,
+		current: emptyAll,
+		identity: {},
+	});
+	const shortOrder = first.schedules.protocols.cycles[0]?.order.slice(0, 3);
+	expect(shortOrder?.length).toBe(3);
+	const short = {
+		...emptyAll,
+		mixed: first.schedules.mixed,
+		applications: first.schedules.applications,
+		protocols: {
+			epoch,
+			cycles: [{ startDay: 0, order: shortOrder ?? [] }],
+		},
+	};
+	const second = generateSchedules({
+		utcToday: "2026-10-01",
+		protocols: [...protocols, entry("ntp", 123)],
+		applications,
+		current: short,
+		identity: first.identity,
+	});
+	expect(second.schedules.protocols.cycles[0]?.order).toEqual(shortOrder);
+	expect(
+		second.schedules.protocols.cycles.some((cycle) =>
+			cycle.order.includes("ntp"),
+		),
+	).toBe(true);
+	expect(second.schedules.protocols.cycles[0]?.order).not.toContain("ntp");
+});
+
+test("does not rewrite a frozen mixed prefix when another schedule is empty", () => {
+	const current = {
+		mixed: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["http", "vite", "ssh"] }],
+		},
+		protocols: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["http", "ssh", "dns"] }],
+		},
+		applications: empty,
+	};
+	const out = generateSchedules({
+		utcToday: epoch,
+		protocols,
+		applications,
+		current,
+		identity: {},
+	});
+	expect(out.schedules.mixed.cycles[0]?.order[0]).toBe("http");
 });
 
 test("never assigns a negative day index", () => {

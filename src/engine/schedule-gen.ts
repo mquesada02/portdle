@@ -1,11 +1,16 @@
 import { answerPool, catalogFor, validateCatalog } from "./catalog";
 import { hashSeed, mulberry32 } from "./rng";
-import type { CatalogEntry, Cycle, DailyCategory, ScheduleFile } from "./types";
+import {
+	type CatalogEntry,
+	type Cycle,
+	DAILY_CATEGORIES,
+	type DailyCategory,
+	type ScheduleFile,
+} from "./types";
 import { utcDayIndex } from "./utc";
 
 export type FrozenIdentity = Record<string, { name: string; port: number }>;
 
-const CATEGORIES: DailyCategory[] = ["mixed", "protocols", "applications"];
 const EPOCH = "2026-09-09";
 
 function clone<T>(value: T): T {
@@ -131,6 +136,9 @@ function applyA2(
 	}
 
 	if (!cycle) {
+		return;
+	}
+	if (frozenLength >= cycle.order.length) {
 		return;
 	}
 
@@ -276,7 +284,7 @@ function frozenPrefixIds(
 	utcToday: string,
 ): string[] {
 	const ids: string[] = [];
-	for (const category of CATEGORIES) {
+	for (const category of DAILY_CATEGORIES) {
 		const schedule = schedules[category];
 		const todayIndex = utcDayIndex(utcToday, schedule.epoch);
 		for (const cycle of schedule.cycles) {
@@ -339,7 +347,7 @@ export function generateSchedules(input: {
 	identity: FrozenIdentity;
 } {
 	const schedules = clone(input.current);
-	for (const category of CATEGORIES) {
+	for (const category of DAILY_CATEGORIES) {
 		const current = schedules[category];
 		if (!current.epoch) {
 			current.epoch = EPOCH;
@@ -353,10 +361,8 @@ export function generateSchedules(input: {
 		coverThrough(schedules[category], category, input.utcToday, ids);
 	}
 	const todayIndex = utcDayIndex(input.utcToday, schedules.mixed.epoch);
-	const brandNew = CATEGORIES.some(
-		(category) => input.current[category].cycles.length === 0,
-	);
-	const fromDay = brandNew || todayIndex < 0 ? 0 : todayIndex + 1;
+	const mixedWasEmpty = input.current.mixed.cycles.length === 0;
+	const fromDay = mixedWasEmpty || todayIndex < 0 ? 0 : todayIndex + 1;
 	resolveDistinctness(
 		schedules,
 		fromDay,
@@ -404,7 +410,7 @@ export function validateSchedules(input: {
 	if (!input.applications.some((entry) => !entry.answerEligible)) {
 		issues.push("applications missing miss-only");
 	}
-	for (const category of CATEGORIES) {
+	for (const category of DAILY_CATEGORIES) {
 		const schedule = input.schedules[category];
 		const catalog = catalogFor(category, input.protocols, input.applications);
 		const ids = new Set(catalog.map((entry) => entry.id));
@@ -471,5 +477,45 @@ export function validateFrozenIdentity(input: {
 			issues.push(`frozen identity mismatch ${id}`);
 		}
 	}
+	return issues;
+}
+
+export function checkSchedules(input: {
+	utcToday: string;
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+	current: Record<DailyCategory, ScheduleFile>;
+	identity: FrozenIdentity;
+}): string[] {
+	const next = generateSchedules(input);
+	const issues: string[] = [];
+	if (!schedulesEqual(input.current, next.schedules)) {
+		issues.push("schedules would change");
+	}
+	if (!identityEqual(input.identity, next.identity)) {
+		issues.push("identity would change");
+	}
+	issues.push(
+		...validateSchedules({
+			utcToday: input.utcToday,
+			protocols: input.protocols,
+			applications: input.applications,
+			schedules: next.schedules,
+		}),
+		...validateFrozenIdentity({
+			utcToday: input.utcToday,
+			identity: input.identity,
+			protocols: input.protocols,
+			applications: input.applications,
+			schedules: input.current,
+		}),
+		...validateFrozenIdentity({
+			utcToday: input.utcToday,
+			identity: next.identity,
+			protocols: input.protocols,
+			applications: input.applications,
+			schedules: next.schedules,
+		}),
+	);
 	return issues;
 }

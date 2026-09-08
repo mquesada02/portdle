@@ -12,7 +12,7 @@ import {
 	digitLength,
 	evaluateDefaultGuess,
 } from "../engine/guess";
-import { applyDailyFinish, applyStreakGap, emptyStats } from "../engine/stats";
+import { applyDailyFinish, emptyStats } from "../engine/stats";
 import type {
 	CatalogEntry,
 	CategoryStats,
@@ -20,10 +20,9 @@ import type {
 	DailyPersist,
 	ScheduleFile,
 } from "../engine/types";
-import { yesterdayUtc } from "../engine/utc";
-import type { Persist } from "../persist/storage";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots } from "./digit-slots";
+import { categoryStreakGap } from "./sync-utc";
 
 const protocols = protocolsJson as CatalogEntry[];
 const applications = applicationsJson as CatalogEntry[];
@@ -36,19 +35,6 @@ const NOT_IN_THIS_CATALOG = "Not in this catalog.";
 
 function padPort(port: number, length: number): string {
 	return String(port).padStart(length, "0");
-}
-
-function categoryStreakGap(
-	persist: Persist,
-	category: DailyCategory,
-	utcToday: string,
-) {
-	return applyStreakGap({
-		stats: persist.readStats(category) ?? emptyStats(),
-		utcToday,
-		lastPlayed: persist.readLastPlayed(category),
-		yesterdayPersist: persist.readDaily(category, yesterdayUtc(utcToday)),
-	});
 }
 
 export function DailyPage({ category }: { category: DailyCategory }) {
