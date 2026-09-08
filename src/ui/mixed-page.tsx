@@ -56,7 +56,6 @@ export function MixedPage() {
 	const [digits, setDigits] = useState("");
 	const [message, setMessage] = useState("");
 	const [saveWarning, setSaveWarning] = useState(false);
-	const [shareFallback, setShareFallback] = useState<string | null>(null);
 
 	useEffect(() => {
 		const lastSeen = persist.readLastSeenUtc();
@@ -100,16 +99,24 @@ export function MixedPage() {
 	}
 
 	function submitGuess() {
-		if (frozen) {
+		const stored = persist.readDaily("mixed", utcToday);
+		if (stored?.status === "won" || stored?.status === "lost") {
+			setBoard(stored);
 			return;
 		}
+		const current: DailyPersist | null = stored ?? board;
+		if (current?.status === "won" || current?.status === "lost") {
+			setBoard(current);
+			return;
+		}
+		const previousPorts = current?.guesses.map((guess) => guess.port) ?? [];
 		const result = evaluateDefaultGuess({
 			digits,
 			answer: puzzle,
-			previousPorts: (board?.guesses ?? []).map((guess) => guess.port),
+			previousPorts,
 			catalog,
 		});
-		const next = applyCommittedGuess(board, result);
+		const next = applyCommittedGuess(current, result);
 		if (next.status === "invalid") {
 			setMessage("Not a valid port.");
 			return;
@@ -129,14 +136,17 @@ export function MixedPage() {
 		setBoard(next);
 		noteWrite(persist.writeDaily("mixed", utcToday, next));
 		if (next.status === "won" || next.status === "lost") {
-			const gapped = mixedStreakGap(persist, utcToday);
-			const finished = applyDailyFinish({
-				stats: gapped,
-				result: next.status,
-				tries: next.guesses.length,
-			});
-			noteWrite(persist.writeStats("mixed", finished));
-			noteWrite(persist.writeLastPlayed("mixed", utcToday));
+			if (persist.readLastPlayed("mixed") !== utcToday) {
+				const gapped = mixedStreakGap(persist, utcToday);
+				const finished = applyDailyFinish({
+					stats: gapped,
+					result: next.status,
+					tries: next.guesses.length,
+				});
+				noteWrite(persist.writeStats("mixed", finished));
+				noteWrite(persist.writeLastPlayed("mixed", utcToday));
+			}
+			noteWrite(persist.writeLastSeenUtc(utcToday));
 		}
 	}
 
@@ -179,8 +189,6 @@ export function MixedPage() {
 					board={board}
 					stats={stats}
 					utcToday={utcToday}
-					shareFallback={shareFallback}
-					onShareFallback={setShareFallback}
 				/>
 			) : null}
 		</main>

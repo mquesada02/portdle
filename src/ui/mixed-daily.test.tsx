@@ -126,7 +126,19 @@ test("correct guess wins, reveals, stats, and copies share text", async () => {
 	await user.click(screen.getByRole("button", { name: "Share" }));
 	expect(copied[0]).toBe("Portdle · Mixed · 2026-09-09 · 1/6\n\n🟩");
 	expect(persist.readDaily("mixed", "2026-09-09")?.status).toBe("won");
+	expect(persist.readLastPlayed("mixed")).toBe("2026-09-09");
+	expect(persist.readLastSeenUtc()).toBe("2026-09-09");
+	expect(persist.readStats("mixed")?.played).toBe(1);
 	expect(screen.queryByLabelText("Port digits")).toBeNull();
+});
+
+test("double submit of a winning guess counts played once", async () => {
+	const user = userEvent.setup();
+	const persist = await renderMixed();
+	await user.type(screen.getByLabelText("Port digits"), "5173");
+	await user.dblClick(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readStats("mixed")?.played).toBe(1);
+	expect(persist.readDaily("mixed", "2026-09-09")?.guesses).toHaveLength(1);
 });
 
 test("six misses lose, freeze, and share X/6", async () => {

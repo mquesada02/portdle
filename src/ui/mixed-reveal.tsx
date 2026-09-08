@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatShare } from "../engine/share";
 import { winPercent } from "../engine/stats";
 import type {
@@ -21,16 +22,14 @@ export function MixedReveal({
 	board,
 	stats,
 	utcToday,
-	shareFallback,
-	onShareFallback,
 }: {
 	puzzle: CatalogEntry;
 	board: DailyPersist;
 	stats: CategoryStats;
 	utcToday: string;
-	shareFallback: string | null;
-	onShareFallback: (text: string | null) => void;
 }) {
+	const [shareFallback, setShareFallback] = useState<string | null>(null);
+
 	async function share() {
 		if (board.status !== "won" && board.status !== "lost") {
 			return;
@@ -44,14 +43,14 @@ export function MixedReveal({
 		try {
 			if (navigator.clipboard?.writeText) {
 				await navigator.clipboard.writeText(text);
-				onShareFallback(null);
+				setShareFallback(null);
 				return;
 			}
 		} catch {
-			onShareFallback(text);
+			setShareFallback(text);
 			return;
 		}
-		onShareFallback(text);
+		setShareFallback(text);
 	}
 
 	return (
