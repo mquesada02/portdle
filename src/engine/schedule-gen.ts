@@ -11,7 +11,7 @@ import { utcDayIndex } from "./utc";
 
 export type FrozenIdentity = Record<string, { name: string; port: number }>;
 
-const EPOCH = "2026-09-09";
+export const SCHEDULE_EPOCH = "2026-09-09";
 
 function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
@@ -84,14 +84,6 @@ function poolIds(
 	return answerPool(catalogFor(category, protocols, applications)).map(
 		(entry) => entry.id,
 	);
-}
-
-function eligibleSet(
-	category: DailyCategory,
-	protocols: CatalogEntry[],
-	applications: CatalogEntry[],
-): Set<string> {
-	return new Set(poolIds(category, protocols, applications));
 }
 
 function appendCycle(
@@ -350,13 +342,15 @@ export function generateSchedules(input: {
 	for (const category of DAILY_CATEGORIES) {
 		const current = schedules[category];
 		if (!current.epoch) {
-			current.epoch = EPOCH;
+			current.epoch = SCHEDULE_EPOCH;
 		}
 		if (!current.cycles) {
 			current.cycles = [];
 		}
 		const ids = poolIds(category, input.protocols, input.applications);
-		const eligible = eligibleSet(category, input.protocols, input.applications);
+		const eligible = new Set(
+			poolIds(category, input.protocols, input.applications),
+		);
 		applyA2(schedules[category], category, input.utcToday, eligible);
 		coverThrough(schedules[category], category, input.utcToday, ids);
 	}
@@ -372,7 +366,7 @@ export function generateSchedules(input: {
 	resolveDistinctness(
 		schedules,
 		fromDay,
-		eligibleSet("mixed", input.protocols, input.applications),
+		new Set(poolIds("mixed", input.protocols, input.applications)),
 	);
 	const identity = recordIdentity(
 		input.identity,

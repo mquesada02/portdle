@@ -5,6 +5,7 @@ import {
 	checkSchedules,
 	type FrozenIdentity,
 	generateSchedules,
+	SCHEDULE_EPOCH,
 	validateFrozenIdentity,
 	validateSchedules,
 } from "../src/engine/schedule-gen.ts";
@@ -18,8 +19,7 @@ import { utcDateString } from "../src/engine/utc.ts";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const catalogsDir = join(root, "src/catalogs");
 const schedulesDir = join(catalogsDir, "schedules");
-const EPOCH = "2026-09-09";
-const emptySchedule: ScheduleFile = { epoch: EPOCH, cycles: [] };
+const emptySchedule: ScheduleFile = { epoch: SCHEDULE_EPOCH, cycles: [] };
 
 function readJson<T>(path: string, fallback: T): T {
 	try {
@@ -54,48 +54,38 @@ const identity = readJson<FrozenIdentity>(
 	{},
 );
 const utcToday = process.env.PORTDLE_UTC_TODAY ?? utcDateString(new Date());
-const next = generateSchedules({
-	utcToday,
-	protocols,
-	applications,
-	current,
-	identity,
-});
-const scheduleIssues = validateSchedules({
-	utcToday,
-	protocols,
-	applications,
-	schedules: next.schedules,
-});
-const identityIssues = validateFrozenIdentity({
-	utcToday,
-	identity: next.identity,
-	protocols,
-	applications,
-	schedules: next.schedules,
-});
-const check = process.argv.includes("--check");
+const input = { utcToday, protocols, applications, current, identity };
 
-if (check) {
-	if (
-		checkSchedules({
+if (process.argv.includes("--check")) {
+	if (checkSchedules(input).length > 0) {
+		process.exitCode = 1;
+	}
+} else {
+	const next = generateSchedules(input);
+	const issues = [
+		...validateSchedules({
 			utcToday,
 			protocols,
 			applications,
-			current,
-			identity,
-		}).length > 0
-	) {
+			schedules: next.schedules,
+		}),
+		...validateFrozenIdentity({
+			utcToday,
+			identity: next.identity,
+			protocols,
+			applications,
+			schedules: next.schedules,
+		}),
+	];
+	if (issues.length > 0) {
 		process.exitCode = 1;
+	} else {
+		writePretty(join(schedulesDir, "mixed.json"), next.schedules.mixed);
+		writePretty(join(schedulesDir, "protocols.json"), next.schedules.protocols);
+		writePretty(
+			join(schedulesDir, "applications.json"),
+			next.schedules.applications,
+		);
+		writePretty(join(schedulesDir, "identity.json"), next.identity);
 	}
-} else if (scheduleIssues.length > 0 || identityIssues.length > 0) {
-	process.exitCode = 1;
-} else {
-	writePretty(join(schedulesDir, "mixed.json"), next.schedules.mixed);
-	writePretty(join(schedulesDir, "protocols.json"), next.schedules.protocols);
-	writePretty(
-		join(schedulesDir, "applications.json"),
-		next.schedules.applications,
-	);
-	writePretty(join(schedulesDir, "identity.json"), next.identity);
 }
