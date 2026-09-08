@@ -5,3 +5,13 @@ export const HOW_TO_RULES = [
 	"Three Dailies: Mixed, Protocols, Applications.",
 	"Blitz is a separate timed mode.",
 ] as const;
+
+export function HowToRulesList() {
+	return (
+		<ul>
+			{HOW_TO_RULES.map((rule) => (
+				<li key={rule}>{rule}</li>
+			))}
+		</ul>
+	);
+}

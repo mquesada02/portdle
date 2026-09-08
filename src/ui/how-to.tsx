@@ -1,4 +1,4 @@
-import { HOW_TO_RULES } from "./how-to-copy";
+import { HowToRulesList } from "./how-to-copy";
 
 export function HowTo({
 	open,
@@ -13,11 +13,7 @@ export function HowTo({
 	return (
 		<div role="dialog" aria-labelledby="how-to-title" aria-modal="true">
 			<h2 id="how-to-title">How-to</h2>
-			<ul>
-				{HOW_TO_RULES.map((rule) => (
-					<li key={rule}>{rule}</li>
-				))}
-			</ul>
+			<HowToRulesList />
 			<button type="button" onClick={onDismiss}>
 				Got it
 			</button>

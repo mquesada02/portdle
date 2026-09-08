@@ -8,6 +8,15 @@ import {
 	prefersDarkScheme,
 } from "./theme";
 
+const NAV = [
+	{ to: "/", label: "Mixed" },
+	{ to: "/protocols", label: "Protocols" },
+	{ to: "/applications", label: "Applications" },
+	{ to: "/blitz", label: "Blitz" },
+	{ to: "/history", label: "History" },
+	{ to: "/help", label: "Help" },
+] as const;
+
 function SunIcon() {
 	return (
 		<svg
@@ -58,27 +67,15 @@ export function Shell() {
 		<div className="min-h-dvh bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
 			<header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
 				<nav aria-label="Main" className="flex flex-wrap gap-3">
-					<Link to="/" className="underline-offset-4 hover:underline">
-						Mixed
-					</Link>
-					<Link to="/protocols" className="underline-offset-4 hover:underline">
-						Protocols
-					</Link>
-					<Link
-						to="/applications"
-						className="underline-offset-4 hover:underline"
-					>
-						Applications
-					</Link>
-					<Link to="/blitz" className="underline-offset-4 hover:underline">
-						Blitz
-					</Link>
-					<Link to="/history" className="underline-offset-4 hover:underline">
-						History
-					</Link>
-					<Link to="/help" className="underline-offset-4 hover:underline">
-						Help
-					</Link>
+					{NAV.map((item) => (
+						<Link
+							key={item.to}
+							to={item.to}
+							className="underline-offset-4 hover:underline"
+						>
+							{item.label}
+						</Link>
+					))}
 				</nav>
 				<button
 					type="button"
