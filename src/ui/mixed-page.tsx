@@ -10,39 +10,34 @@ import {
 	digitLength,
 	evaluateDefaultGuess,
 } from "../engine/guess";
-import { formatShare } from "../engine/share";
-import {
-	applyDailyFinish,
-	applyStreakGap,
-	emptyStats,
-	winPercent,
-} from "../engine/stats";
+import { applyDailyFinish, applyStreakGap, emptyStats } from "../engine/stats";
 import type {
 	CatalogEntry,
 	CategoryStats,
 	DailyPersist,
 	ScheduleFile,
-	Transport,
 } from "../engine/types";
 import { yesterdayUtc } from "../engine/utc";
+import type { Persist } from "../persist/storage";
 import { DigitSlots } from "./digit-slots";
+import { MixedReveal } from "./mixed-reveal";
 
 const protocols = protocolsJson as CatalogEntry[];
 const applications = applicationsJson as CatalogEntry[];
 const mixedSchedule = mixedScheduleJson as ScheduleFile;
-
-function transportLabel(transport: Transport): string {
-	if (transport === "tcp") {
-		return "TCP";
-	}
-	if (transport === "udp") {
-		return "UDP";
-	}
-	return "TCP/UDP";
-}
+const NOT_IN_THIS_CATALOG = "Not in this catalog.";
 
 function padPort(port: number, length: number): string {
 	return String(port).padStart(length, "0");
+}
+
+function mixedStreakGap(persist: Persist, utcToday: string) {
+	return applyStreakGap({
+		stats: persist.readStats("mixed") ?? emptyStats(),
+		utcToday,
+		lastPlayed: persist.readLastPlayed("mixed"),
+		yesterdayPersist: persist.readDaily("mixed", yesterdayUtc(utcToday)),
+	});
 }
 
 export function MixedPage() {
@@ -73,12 +68,7 @@ export function MixedPage() {
 			return;
 		}
 		if (lastSeen < utcToday) {
-			const gapped = applyStreakGap({
-				stats: persist.readStats("mixed") ?? emptyStats(),
-				utcToday,
-				lastPlayed: persist.readLastPlayed("mixed"),
-				yesterdayPersist: persist.readDaily("mixed", yesterdayUtc(utcToday)),
-			});
+			const gapped = mixedStreakGap(persist, utcToday);
 			const statsWrite = persist.writeStats("mixed", gapped);
 			const seenWrite = persist.writeLastSeenUtc(utcToday);
 			if (!statsWrite.ok || !seenWrite.ok) {
@@ -131,7 +121,7 @@ export function MixedPage() {
 		setDigits("");
 		if (result.status === "miss") {
 			setMessage(
-				result.identified ? result.identified.name : "Not in this catalog.",
+				result.identified ? result.identified.name : NOT_IN_THIS_CATALOG,
 			);
 		} else {
 			setMessage("");
@@ -139,12 +129,7 @@ export function MixedPage() {
 		setBoard(next);
 		noteWrite(persist.writeDaily("mixed", utcToday, next));
 		if (next.status === "won" || next.status === "lost") {
-			const gapped = applyStreakGap({
-				stats: persist.readStats("mixed") ?? emptyStats(),
-				utcToday,
-				lastPlayed: persist.readLastPlayed("mixed"),
-				yesterdayPersist: persist.readDaily("mixed", yesterdayUtc(utcToday)),
-			});
+			const gapped = mixedStreakGap(persist, utcToday);
 			const finished = applyDailyFinish({
 				stats: gapped,
 				result: next.status,
@@ -153,29 +138,6 @@ export function MixedPage() {
 			noteWrite(persist.writeStats("mixed", finished));
 			noteWrite(persist.writeLastPlayed("mixed", utcToday));
 		}
-	}
-
-	async function share() {
-		if (board?.status !== "won" && board?.status !== "lost") {
-			return;
-		}
-		const text = formatShare({
-			category: "mixed",
-			date: utcToday,
-			status: board.status,
-			committed: board.guesses.length,
-		});
-		try {
-			if (navigator.clipboard?.writeText) {
-				await navigator.clipboard.writeText(text);
-				setShareFallback(null);
-				return;
-			}
-		} catch {
-			setShareFallback(text);
-			return;
-		}
-		setShareFallback(text);
 	}
 
 	return (
@@ -188,9 +150,7 @@ export function MixedPage() {
 						<span>{padPort(guess.port, length)}</span>
 						{guess.result === "miss" ? (
 							<span className="ml-2 font-sans">
-								{guess.identified
-									? guess.identified.name
-									: "Not in this catalog."}
+								{guess.identified ? guess.identified.name : NOT_IN_THIS_CATALOG}
 							</span>
 						) : null}
 					</li>
@@ -213,47 +173,15 @@ export function MixedPage() {
 			<p aria-live="polite" className="mt-2">
 				{message}
 			</p>
-			{frozen ? (
-				<section className="mt-6">
-					<p>{puzzle.port}</p>
-					<p>{transportLabel(puzzle.transport)}</p>
-					<p>{puzzle.description}</p>
-					<dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-						<div>
-							<dt>Played</dt>
-							<dd>{stats.played}</dd>
-						</div>
-						<div>
-							<dt>Win %</dt>
-							<dd>{Math.round(winPercent(stats) * 100)}</dd>
-						</div>
-						<div>
-							<dt>Current streak</dt>
-							<dd>{stats.currentStreak}</dd>
-						</div>
-						<div>
-							<dt>Best streak</dt>
-							<dd>{stats.bestStreak}</dd>
-						</div>
-					</dl>
-					<ol className="mt-2">
-						{([1, 2, 3, 4, 5, 6] as const).map((tryNumber) => (
-							<li key={tryNumber}>
-								{tryNumber}: {stats.histogram[tryNumber - 1]}
-							</li>
-						))}
-					</ol>
-					<button type="button" className="mt-4" onClick={() => void share()}>
-						Share
-					</button>
-					{shareFallback ? (
-						<textarea
-							readOnly
-							value={shareFallback}
-							className="mt-2 block w-full"
-						/>
-					) : null}
-				</section>
+			{frozen && board ? (
+				<MixedReveal
+					puzzle={puzzle}
+					board={board}
+					stats={stats}
+					utcToday={utcToday}
+					shareFallback={shareFallback}
+					onShareFallback={setShareFallback}
+				/>
 			) : null}
 		</main>
 	);

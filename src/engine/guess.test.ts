@@ -4,41 +4,9 @@ import {
 	digitLength,
 	evaluateDefaultGuess,
 } from "./guess";
+import { chargen, http, telnet, vite } from "./test-fixtures";
 import type { CatalogEntry } from "./types";
 
-const vite: CatalogEntry = {
-	id: "vite",
-	name: "Vite",
-	port: 5173,
-	transport: "tcp",
-	description: "Vite default development server.",
-	answerEligible: true,
-};
-const http: CatalogEntry = {
-	id: "http",
-	name: "HTTP",
-	port: 80,
-	transport: "tcp",
-	description: "Hypertext Transfer Protocol.",
-	answerEligible: true,
-};
-const chargen: CatalogEntry = {
-	id: "chargen",
-	name: "chargen",
-	port: 19,
-	transport: "tcp",
-	description: "Character generator protocol.",
-	answerEligible: false,
-};
-const telnet: CatalogEntry = {
-	id: "telnet",
-	name: "Telnet",
-	port: 23,
-	transport: "tcp",
-	description: "Telnet protocol.",
-	answerEligible: true,
-	retired: true,
-};
 const ssh: CatalogEntry = {
 	id: "ssh",
 	name: "SSH",

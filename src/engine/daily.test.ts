@@ -1,23 +1,7 @@
 import { expect, test } from "vitest";
 import { getDaily } from "./daily";
-import type { CatalogEntry, ScheduleFile } from "./types";
-
-const http: CatalogEntry = {
-	id: "http",
-	name: "HTTP",
-	port: 80,
-	transport: "tcp",
-	description: "Hypertext Transfer Protocol.",
-	answerEligible: true,
-};
-const vite: CatalogEntry = {
-	id: "vite",
-	name: "Vite",
-	port: 5173,
-	transport: "tcp",
-	description: "Vite default development server.",
-	answerEligible: true,
-};
+import { http, vite } from "./test-fixtures";
+import type { ScheduleFile } from "./types";
 
 const mixedSchedule: ScheduleFile = {
 	epoch: "2026-09-09",

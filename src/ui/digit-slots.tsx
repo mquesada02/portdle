@@ -14,14 +14,16 @@ export function DigitSlots({
 	return (
 		<div>
 			<div className="mb-2 flex gap-1 font-mono" aria-hidden="true">
-				{["a", "b", "c", "d", "e"].slice(0, length).map((id, index) => (
-					<span
-						key={id}
-						className="flex h-10 w-8 items-center justify-center border border-zinc-400 text-lg dark:border-zinc-600"
-					>
-						{value[index] ?? ""}
-					</span>
-				))}
+				{["digit-1", "digit-2", "digit-3", "digit-4", "digit-5"]
+					.slice(0, length)
+					.map((id, index) => (
+						<span
+							key={id}
+							className="flex h-10 w-8 items-center justify-center border border-zinc-400 text-lg dark:border-zinc-600"
+						>
+							{value[index] ?? ""}
+						</span>
+					))}
 			</div>
 			<input
 				aria-label="Port digits"
