@@ -362,7 +362,13 @@ export function generateSchedules(input: {
 	}
 	const todayIndex = utcDayIndex(input.utcToday, schedules.mixed.epoch);
 	const mixedWasEmpty = input.current.mixed.cycles.length === 0;
-	const fromDay = mixedWasEmpty || todayIndex < 0 ? 0 : todayIndex + 1;
+	const originalLast = lastAssignedDay(input.current.mixed);
+	let fromDay = mixedWasEmpty || todayIndex < 0 ? 0 : todayIndex + 1;
+	for (const cycle of schedules.mixed.cycles) {
+		if (cycle.startDay > originalLast) {
+			fromDay = Math.min(fromDay, Math.max(cycle.startDay, 0));
+		}
+	}
 	resolveDistinctness(
 		schedules,
 		fromDay,

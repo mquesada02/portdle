@@ -7,7 +7,7 @@ import {
 	validateFrozenIdentity,
 } from "./schedule-gen";
 import type { CatalogEntry, DailyCategory, ScheduleFile } from "./types";
-import { utcDayIndex } from "./utc";
+import { addUtcDays, utcDayIndex } from "./utc";
 
 function entry(
 	id: string,
@@ -341,6 +341,39 @@ test("today as last slot of a containing cycle still adds new ids to that cycle"
 		"dns",
 	]);
 	expect(out.schedules.protocols.cycles[0]?.order).toContain("ntp");
+});
+
+test("past-all coverage cycles are distinct from their startDay", () => {
+	const short = {
+		mixed: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["http", "ssh", "dns"] }],
+		},
+		protocols: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["http", "ssh", "dns"] }],
+		},
+		applications: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["vite", "flask", "django"] }],
+		},
+	};
+	const out = generateSchedules({
+		utcToday: "2026-10-01",
+		protocols,
+		applications,
+		current: short,
+		identity: {},
+	});
+	expect(out.schedules.mixed.cycles[0]?.order).toEqual(["http", "ssh", "dns"]);
+	for (let day = 3; day <= lastDay(out.schedules.mixed); day += 1) {
+		const date = addUtcDays(epoch, day);
+		const mixed = idOn(out.schedules.mixed, date);
+		const proto = idOn(out.schedules.protocols, date);
+		const app = idOn(out.schedules.applications, date);
+		expect(mixed).not.toBe(proto);
+		expect(mixed).not.toBe(app);
+	}
 });
 
 test("today past all cycles freezes the last cycle entire order", () => {
