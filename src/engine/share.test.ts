@@ -33,3 +33,22 @@ test("share loss is X/6 and six empty squares", () => {
 		}),
 	).toBe("Portdle · Mixed · 2026-09-09 · X/6\n\n⬜⬜⬜⬜⬜⬜");
 });
+
+test("share labels Protocols and Applications", () => {
+	expect(
+		formatShare({
+			category: "protocols",
+			date: "2026-09-09",
+			status: "won",
+			committed: 1,
+		}),
+	).toBe("Portdle · Protocols · 2026-09-09 · 1/6\n\n🟩");
+	expect(
+		formatShare({
+			category: "applications",
+			date: "2026-09-09",
+			status: "lost",
+			committed: 6,
+		}),
+	).toBe("Portdle · Applications · 2026-09-09 · X/6\n\n⬜⬜⬜⬜⬜⬜");
+});
