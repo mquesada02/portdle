@@ -18,7 +18,8 @@
 		"format": "biome check --write .",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"typecheck": "tsc -b --noEmit"
+		"typecheck": "tsc -b --noEmit",
+		"gen:schedule": "tsx scripts/gen-schedule.ts"
 	},
 	"dependencies": {
 		"@tanstack/react-router": "^1.170.33",
@@ -36,6 +37,7 @@
 		"@vitejs/plugin-react": "^6.1.1",
 		"jsdom": "^30.0.1",
 		"tailwindcss": "^4.3.3",
+		"tsx": "^4.23.13",
 		"typescript": "^7.0.2",
 		"vite": "^8.2.2",
 		"vitest": "^5.0.0"
