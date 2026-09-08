@@ -6,11 +6,13 @@ import {
 } from "@tanstack/react-router";
 import type { Persist } from "./persist/storage";
 import { HelpPage } from "./ui/help-page";
+import { MixedPage } from "./ui/mixed-page";
 import { PlaceholderPage } from "./ui/placeholder-page";
 import { Shell } from "./ui/shell";
 
 export type RouterContext = {
 	persist: Persist;
+	utcToday: string;
 };
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -20,9 +22,7 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const mixedRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/",
-	component: function MixedPage() {
-		return <PlaceholderPage title="Mixed" />;
-	},
+	component: MixedPage,
 });
 
 const protocolsRoute = createRoute({
@@ -75,10 +75,11 @@ const routeTree = rootRoute.addChildren([
 export function createAppRouter(options: {
 	persist: Persist;
 	history?: RouterHistory;
+	utcToday: string;
 }) {
 	return createRouter({
 		routeTree,
-		context: { persist: options.persist },
+		context: { persist: options.persist, utcToday: options.utcToday },
 		basepath: "/portdle",
 		history: options.history,
 		defaultPendingMinMs: 0,

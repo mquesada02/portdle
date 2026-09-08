@@ -31,12 +31,19 @@ async function renderApp(options: {
 	persist?: ReturnType<typeof createPersist>;
 	path?: string;
 	prefersDark?: boolean;
+	utcToday?: string;
 }) {
 	stubMatchMedia(options.prefersDark ?? false);
 	const persist = options.persist ?? createPersist(memoryStore());
 	const path = options.path ?? "/portdle/";
 	const history = createMemoryHistory({ initialEntries: [path] });
-	render(<App persist={persist} history={history} />);
+	render(
+		<App
+			persist={persist}
+			history={history}
+			utcToday={options.utcToday ?? "2026-09-09"}
+		/>,
+	);
 	await screen.findByRole("navigation", { name: "Main" });
 	return persist;
 }
@@ -119,7 +126,7 @@ test("placeholder headings exist on each route", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const cases = [
-		["/portdle/", "Mixed"],
+		["/portdle/", "Vite"],
 		["/portdle/protocols", "Protocols"],
 		["/portdle/applications", "Applications"],
 		["/portdle/blitz", "Blitz"],

@@ -1,0 +1,27 @@
+[
+	{
+		"id": "http",
+		"name": "HTTP",
+		"port": 80,
+		"transport": "tcp",
+		"description": "Hypertext Transfer Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "chargen",
+		"name": "chargen",
+		"port": 19,
+		"transport": "tcp",
+		"description": "Character generator protocol.",
+		"answerEligible": false
+	},
+	{
+		"id": "telnet",
+		"name": "Telnet",
+		"port": 23,
+		"transport": "tcp",
+		"description": "Telnet protocol.",
+		"answerEligible": true,
+		"retired": true
+	}
+]
