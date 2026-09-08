@@ -5,6 +5,7 @@ import {
 	identityEqual,
 	schedulesEqual,
 	validateFrozenIdentity,
+	validateSchedules,
 } from "./schedule-gen";
 import type { CatalogEntry, DailyCategory, ScheduleFile } from "./types";
 import { addUtcDays, utcDayIndex } from "./utc";
@@ -431,6 +432,31 @@ test("does not rewrite a frozen mixed prefix when another schedule is empty", ()
 		identity: {},
 	});
 	expect(out.schedules.mixed.cycles[0]?.order[0]).toBe("http");
+});
+
+test("validateSchedules flags a same-day collision on today", () => {
+	const colliding = {
+		mixed: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["http", "vite", "ssh"] }],
+		},
+		protocols: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["http", "ssh", "dns"] }],
+		},
+		applications: {
+			epoch,
+			cycles: [{ startDay: 0, order: ["vite", "flask", "django"] }],
+		},
+	};
+	expect(
+		validateSchedules({
+			utcToday: epoch,
+			protocols,
+			applications,
+			schedules: colliding,
+		}).some((issue) => issue.includes("same-day collision")),
+	).toBe(true);
 });
 
 test("never assigns a negative day index", () => {

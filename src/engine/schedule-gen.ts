@@ -435,7 +435,8 @@ export function validateSchedules(input: {
 		lastAssignedDay(input.schedules.protocols),
 		lastAssignedDay(input.schedules.applications),
 	);
-	for (let day = todayIndex + 1; day <= last; day += 1) {
+	const distinctFrom = Math.max(0, todayIndex);
+	for (let day = distinctFrom; day <= last; day += 1) {
 		if (day < 0) {
 			continue;
 		}
