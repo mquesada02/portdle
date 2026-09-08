@@ -1,8 +1,10 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import applicationsJson from "../catalogs/applications.json";
 import protocolsJson from "../catalogs/protocols.json";
+import applicationsScheduleJson from "../catalogs/schedules/applications.json";
 import mixedScheduleJson from "../catalogs/schedules/mixed.json";
+import protocolsScheduleJson from "../catalogs/schedules/protocols.json";
 import { catalogFor } from "../engine/catalog";
 import { getDaily } from "../engine/daily";
 import {
@@ -10,71 +12,47 @@ import {
 	digitLength,
 	evaluateDefaultGuess,
 } from "../engine/guess";
-import { applyDailyFinish, applyStreakGap, emptyStats } from "../engine/stats";
+import { applyDailyFinish, emptyStats } from "../engine/stats";
 import type {
 	CatalogEntry,
 	CategoryStats,
+	DailyCategory,
 	DailyPersist,
 	ScheduleFile,
 } from "../engine/types";
-import { yesterdayUtc } from "../engine/utc";
-import type { Persist } from "../persist/storage";
+import { DailyReveal } from "./daily-reveal";
 import { DigitSlots } from "./digit-slots";
-import { MixedReveal } from "./mixed-reveal";
+import { categoryStreakGap } from "./sync-utc";
 
 const protocols = protocolsJson as CatalogEntry[];
 const applications = applicationsJson as CatalogEntry[];
-const mixedSchedule = mixedScheduleJson as ScheduleFile;
+const schedules: Record<DailyCategory, ScheduleFile> = {
+	mixed: mixedScheduleJson as ScheduleFile,
+	protocols: protocolsScheduleJson as ScheduleFile,
+	applications: applicationsScheduleJson as ScheduleFile,
+};
 const NOT_IN_THIS_CATALOG = "Not in this catalog.";
 
 function padPort(port: number, length: number): string {
 	return String(port).padStart(length, "0");
 }
 
-function mixedStreakGap(persist: Persist, utcToday: string) {
-	return applyStreakGap({
-		stats: persist.readStats("mixed") ?? emptyStats(),
-		utcToday,
-		lastPlayed: persist.readLastPlayed("mixed"),
-		yesterdayPersist: persist.readDaily("mixed", yesterdayUtc(utcToday)),
-	});
-}
-
-export function MixedPage() {
-	const { persist, utcToday } = useRouteContext({ from: "/" });
+export function DailyPage({ category }: { category: DailyCategory }) {
+	const { persist, utcToday } = useRouteContext({ from: "__root__" });
 	const answer = getDaily(
-		"mixed",
+		category,
 		utcToday,
-		mixedSchedule,
+		schedules[category],
 		protocols,
 		applications,
 	);
-	const catalog = catalogFor("mixed", protocols, applications);
+	const catalog = catalogFor(category, protocols, applications);
 	const [board, setBoard] = useState<DailyPersist | null>(() =>
-		persist.readDaily("mixed", utcToday),
+		persist.readDaily(category, utcToday),
 	);
 	const [digits, setDigits] = useState("");
 	const [message, setMessage] = useState("");
 	const [saveWarning, setSaveWarning] = useState(false);
-
-	useEffect(() => {
-		const lastSeen = persist.readLastSeenUtc();
-		if (lastSeen === null) {
-			const written = persist.writeLastSeenUtc(utcToday);
-			if (!written.ok) {
-				setSaveWarning(true);
-			}
-			return;
-		}
-		if (lastSeen < utcToday) {
-			const gapped = mixedStreakGap(persist, utcToday);
-			const statsWrite = persist.writeStats("mixed", gapped);
-			const seenWrite = persist.writeLastSeenUtc(utcToday);
-			if (!statsWrite.ok || !seenWrite.ok) {
-				setSaveWarning(true);
-			}
-		}
-	}, [persist, utcToday]);
 
 	if (!answer) {
 		return (
@@ -90,7 +68,7 @@ export function MixedPage() {
 	const puzzle = answer;
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
-	const stats: CategoryStats = persist.readStats("mixed") ?? emptyStats();
+	const stats: CategoryStats = persist.readStats(category) ?? emptyStats();
 
 	function noteWrite(result: { ok: boolean }) {
 		if (!result.ok) {
@@ -99,7 +77,7 @@ export function MixedPage() {
 	}
 
 	function submitGuess() {
-		const stored = persist.readDaily("mixed", utcToday);
+		const stored = persist.readDaily(category, utcToday);
 		if (stored?.status === "won" || stored?.status === "lost") {
 			setBoard(stored);
 			return;
@@ -134,17 +112,17 @@ export function MixedPage() {
 			setMessage("");
 		}
 		setBoard(next);
-		noteWrite(persist.writeDaily("mixed", utcToday, next));
+		noteWrite(persist.writeDaily(category, utcToday, next));
 		if (next.status === "won" || next.status === "lost") {
-			if (persist.readLastPlayed("mixed") !== utcToday) {
-				const gapped = mixedStreakGap(persist, utcToday);
+			if (persist.readLastPlayed(category) !== utcToday) {
+				const gapped = categoryStreakGap(persist, category, utcToday);
 				const finished = applyDailyFinish({
 					stats: gapped,
 					result: next.status,
 					tries: next.guesses.length,
 				});
-				noteWrite(persist.writeStats("mixed", finished));
-				noteWrite(persist.writeLastPlayed("mixed", utcToday));
+				noteWrite(persist.writeStats(category, finished));
+				noteWrite(persist.writeLastPlayed(category, utcToday));
 			}
 			noteWrite(persist.writeLastSeenUtc(utcToday));
 		}
@@ -184,7 +162,8 @@ export function MixedPage() {
 				{message}
 			</p>
 			{frozen && board ? (
-				<MixedReveal
+				<DailyReveal
+					category={category}
 					puzzle={puzzle}
 					board={board}
 					stats={stats}

@@ -1,0 +1,14 @@
+{
+	"nuxt": {
+		"name": "Nuxt",
+		"port": 3000
+	},
+	"syslog": {
+		"name": "Syslog",
+		"port": 514
+	},
+	"webpack": {
+		"name": "webpack-dev-server",
+		"port": 8080
+	}
+}

@@ -32,3 +32,26 @@ test("getDaily returns null before epoch", () => {
 		getDaily("mixed", "2026-09-08", mixedSchedule, [http], [vite]),
 	).toBeNull();
 });
+
+test("getDaily protocols uses the protocols catalog", () => {
+	const schedule = {
+		epoch: "2026-09-09",
+		cycles: [{ startDay: 0, order: ["http"] }],
+	};
+	expect(
+		getDaily("protocols", "2026-09-09", schedule, [http], [vite])?.id,
+	).toBe("http");
+	expect(
+		getDaily("protocols", "2026-09-09", schedule, [http], [vite])?.name,
+	).toBe("HTTP");
+});
+
+test("getDaily applications uses the applications catalog", () => {
+	const schedule = {
+		epoch: "2026-09-09",
+		cycles: [{ startDay: 0, order: ["vite"] }],
+	};
+	expect(
+		getDaily("applications", "2026-09-09", schedule, [http], [vite])?.id,
+	).toBe("vite");
+});

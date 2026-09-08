@@ -1,11 +1,349 @@
 [
 	{
+		"id": "ftp",
+		"name": "FTP",
+		"port": 21,
+		"transport": "tcp",
+		"description": "File Transfer Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "ssh",
+		"name": "SSH",
+		"port": 22,
+		"transport": "tcp",
+		"description": "Secure Shell remote login.",
+		"answerEligible": true
+	},
+	{
+		"id": "telnet",
+		"name": "Telnet",
+		"port": 23,
+		"transport": "tcp",
+		"description": "Telnet protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "smtp",
+		"name": "SMTP",
+		"port": 25,
+		"transport": "tcp",
+		"description": "Simple Mail Transfer Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "dns",
+		"name": "DNS",
+		"port": 53,
+		"transport": "both",
+		"description": "Domain Name System.",
+		"answerEligible": true
+	},
+	{
+		"id": "dhcp",
+		"name": "DHCP",
+		"port": 67,
+		"transport": "udp",
+		"description": "Dynamic Host Configuration Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "tftp",
+		"name": "TFTP",
+		"port": 69,
+		"transport": "udp",
+		"description": "Trivial File Transfer Protocol.",
+		"answerEligible": true
+	},
+	{
 		"id": "http",
 		"name": "HTTP",
 		"port": 80,
 		"transport": "tcp",
 		"description": "Hypertext Transfer Protocol.",
 		"answerEligible": true
+	},
+	{
+		"id": "pop3",
+		"name": "POP3",
+		"port": 110,
+		"transport": "tcp",
+		"description": "Post Office Protocol version 3.",
+		"answerEligible": true
+	},
+	{
+		"id": "ntp",
+		"name": "NTP",
+		"port": 123,
+		"transport": "udp",
+		"description": "Network Time Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "imap",
+		"name": "IMAP",
+		"port": 143,
+		"transport": "tcp",
+		"description": "Internet Message Access Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "snmp",
+		"name": "SNMP",
+		"port": 161,
+		"transport": "udp",
+		"description": "Simple Network Management Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "ldap",
+		"name": "LDAP",
+		"port": 389,
+		"transport": "tcp",
+		"description": "Lightweight Directory Access Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "https",
+		"name": "HTTPS",
+		"port": 443,
+		"transport": "tcp",
+		"description": "HTTP over TLS.",
+		"answerEligible": true
+	},
+	{
+		"id": "smtps",
+		"name": "SMTPS",
+		"port": 465,
+		"transport": "tcp",
+		"description": "SMTP over TLS.",
+		"answerEligible": true
+	},
+	{
+		"id": "submission",
+		"name": "Submission",
+		"port": 587,
+		"transport": "tcp",
+		"description": "Mail message submission.",
+		"answerEligible": true
+	},
+	{
+		"id": "ldaps",
+		"name": "LDAPS",
+		"port": 636,
+		"transport": "tcp",
+		"description": "LDAP over TLS.",
+		"answerEligible": true
+	},
+	{
+		"id": "imaps",
+		"name": "IMAPS",
+		"port": 993,
+		"transport": "tcp",
+		"description": "IMAP over TLS.",
+		"answerEligible": true
+	},
+	{
+		"id": "pop3s",
+		"name": "POP3S",
+		"port": 995,
+		"transport": "tcp",
+		"description": "POP3 over TLS.",
+		"answerEligible": true
+	},
+	{
+		"id": "mysql",
+		"name": "MySQL",
+		"port": 3306,
+		"transport": "tcp",
+		"description": "MySQL database protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "rdp",
+		"name": "RDP",
+		"port": 3389,
+		"transport": "tcp",
+		"description": "Remote Desktop Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "postgresql",
+		"name": "PostgreSQL",
+		"port": 5432,
+		"transport": "tcp",
+		"description": "PostgreSQL database protocol.",
+		"aliases": ["postgres"],
+		"answerEligible": true
+	},
+	{
+		"id": "vnc",
+		"name": "VNC",
+		"port": 5900,
+		"transport": "tcp",
+		"description": "Virtual Network Computing.",
+		"answerEligible": true
+	},
+	{
+		"id": "redis",
+		"name": "Redis",
+		"port": 6379,
+		"transport": "tcp",
+		"description": "Redis in-memory data store.",
+		"answerEligible": true
+	},
+	{
+		"id": "http-alt",
+		"name": "HTTP-alt",
+		"port": 8080,
+		"transport": "tcp",
+		"description": "Alternate HTTP port.",
+		"blurb": "Common alternate web port.",
+		"answerEligible": true
+	},
+	{
+		"id": "kerberos",
+		"name": "Kerberos",
+		"port": 88,
+		"transport": "both",
+		"description": "Kerberos authentication.",
+		"answerEligible": true
+	},
+	{
+		"id": "bgp",
+		"name": "BGP",
+		"port": 179,
+		"transport": "tcp",
+		"description": "Border Gateway Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "irc",
+		"name": "IRC",
+		"port": 6667,
+		"transport": "tcp",
+		"description": "Internet Relay Chat.",
+		"answerEligible": true
+	},
+	{
+		"id": "sip",
+		"name": "SIP",
+		"port": 5060,
+		"transport": "both",
+		"description": "Session Initiation Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "mqtt",
+		"name": "MQTT",
+		"port": 1883,
+		"transport": "tcp",
+		"description": "MQTT telemetry transport.",
+		"answerEligible": true
+	},
+	{
+		"id": "amqp",
+		"name": "AMQP",
+		"port": 5672,
+		"transport": "tcp",
+		"description": "Advanced Message Queuing Protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "git",
+		"name": "Git",
+		"port": 9418,
+		"transport": "tcp",
+		"description": "Git native transfer protocol.",
+		"answerEligible": true
+	},
+	{
+		"id": "rsync",
+		"name": "Rsync",
+		"port": 873,
+		"transport": "tcp",
+		"description": "Rsync file synchronization.",
+		"answerEligible": true
+	},
+	{
+		"id": "nfs",
+		"name": "NFS",
+		"port": 2049,
+		"transport": "both",
+		"description": "Network File System.",
+		"answerEligible": true
+	},
+	{
+		"id": "smb",
+		"name": "SMB",
+		"port": 445,
+		"transport": "tcp",
+		"description": "Server Message Block.",
+		"answerEligible": true
+	},
+	{
+		"id": "iscsi",
+		"name": "iSCSI",
+		"port": 3260,
+		"transport": "tcp",
+		"description": "Internet Small Computer Systems Interface.",
+		"answerEligible": true
+	},
+	{
+		"id": "syslog",
+		"name": "Syslog",
+		"port": 514,
+		"transport": "udp",
+		"description": "Syslog message transport.",
+		"answerEligible": true
+	},
+	{
+		"id": "radius",
+		"name": "RADIUS",
+		"port": 1812,
+		"transport": "udp",
+		"description": "Remote Authentication Dial-In User Service.",
+		"answerEligible": true
+	},
+	{
+		"id": "openvpn",
+		"name": "OpenVPN",
+		"port": 1194,
+		"transport": "udp",
+		"description": "OpenVPN tunnel.",
+		"answerEligible": true
+	},
+	{
+		"id": "wireguard",
+		"name": "WireGuard",
+		"port": 51820,
+		"transport": "udp",
+		"description": "WireGuard VPN.",
+		"answerEligible": true
+	},
+	{
+		"id": "echo",
+		"name": "Echo",
+		"port": 7,
+		"transport": "tcp",
+		"description": "Echo protocol.",
+		"answerEligible": false
+	},
+	{
+		"id": "discard",
+		"name": "Discard",
+		"port": 9,
+		"transport": "tcp",
+		"description": "Discard protocol.",
+		"answerEligible": false
+	},
+	{
+		"id": "daytime",
+		"name": "Daytime",
+		"port": 13,
+		"transport": "tcp",
+		"description": "Daytime protocol.",
+		"answerEligible": false
 	},
 	{
 		"id": "chargen",
@@ -16,12 +354,35 @@
 		"answerEligible": false
 	},
 	{
-		"id": "telnet",
-		"name": "Telnet",
-		"port": 23,
+		"id": "whois",
+		"name": "WHOIS",
+		"port": 43,
 		"transport": "tcp",
-		"description": "Telnet protocol.",
-		"answerEligible": true,
-		"retired": true
+		"description": "WHOIS directory service.",
+		"answerEligible": false
+	},
+	{
+		"id": "gopher",
+		"name": "Gopher",
+		"port": 70,
+		"transport": "tcp",
+		"description": "Gopher document protocol.",
+		"answerEligible": false
+	},
+	{
+		"id": "finger",
+		"name": "Finger",
+		"port": 79,
+		"transport": "tcp",
+		"description": "Finger user information.",
+		"answerEligible": false
+	},
+	{
+		"id": "ident",
+		"name": "Ident",
+		"port": 113,
+		"transport": "tcp",
+		"description": "Identification protocol.",
+		"answerEligible": false
 	}
 ]

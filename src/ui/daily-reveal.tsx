@@ -4,6 +4,7 @@ import { winPercent } from "../engine/stats";
 import type {
 	CatalogEntry,
 	CategoryStats,
+	DailyCategory,
 	DailyPersist,
 } from "../engine/types";
 
@@ -17,12 +18,14 @@ function transportLabel(transport: CatalogEntry["transport"]): string {
 	return "TCP/UDP";
 }
 
-export function MixedReveal({
+export function DailyReveal({
+	category,
 	puzzle,
 	board,
 	stats,
 	utcToday,
 }: {
+	category: DailyCategory;
 	puzzle: CatalogEntry;
 	board: DailyPersist;
 	stats: CategoryStats;
@@ -35,7 +38,7 @@ export function MixedReveal({
 			return;
 		}
 		const text = formatShare({
-			category: "mixed",
+			category,
 			date: utcToday,
 			status: board.status,
 			committed: board.guesses.length,

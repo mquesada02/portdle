@@ -1,0 +1,50 @@
+{
+	"epoch": "2026-09-09",
+	"cycles": [
+		{
+			"startDay": 0,
+			"order": [
+				"syslog",
+				"kerberos",
+				"dhcp",
+				"imaps",
+				"pop3s",
+				"redis",
+				"radius",
+				"ftp",
+				"submission",
+				"ntp",
+				"https",
+				"snmp",
+				"openvpn",
+				"wireguard",
+				"irc",
+				"postgresql",
+				"tftp",
+				"iscsi",
+				"ldaps",
+				"sip",
+				"smtp",
+				"pop3",
+				"imap",
+				"vnc",
+				"http",
+				"nfs",
+				"rdp",
+				"git",
+				"ldap",
+				"rsync",
+				"amqp",
+				"smtps",
+				"bgp",
+				"ssh",
+				"http-alt",
+				"telnet",
+				"mqtt",
+				"mysql",
+				"dns",
+				"smb"
+			]
+		}
+	]
+}

@@ -1,6 +1,7 @@
 import { Link, Outlet, useRouteContext } from "@tanstack/react-router";
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { HowTo } from "./how-to";
+import { syncUtcDay } from "./sync-utc";
 import {
 	applyHtmlTheme,
 	effectiveTheme,
@@ -53,7 +54,7 @@ function MoonIcon() {
 }
 
 export function Shell() {
-	const { persist } = useRouteContext({ from: "__root__" });
+	const { persist, utcToday } = useRouteContext({ from: "__root__" });
 	const [storedTheme, setStoredTheme] = useState(() => persist.readTheme());
 	const [howToOpen, setHowToOpen] = useState(() => !persist.readHowToSeen());
 	const [saveWarning, setSaveWarning] = useState(false);
@@ -62,6 +63,13 @@ export function Shell() {
 	useLayoutEffect(() => {
 		applyHtmlTheme(effective);
 	}, [effective]);
+
+	useEffect(() => {
+		const synced = syncUtcDay(persist, utcToday);
+		if (!synced.ok) {
+			setSaveWarning(true);
+		}
+	}, [persist, utcToday]);
 
 	return (
 		<div className="min-h-dvh bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
