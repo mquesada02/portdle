@@ -2,41 +2,27 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import { createPersist, type KeyValueStore } from "../persist/storage";
+import { createPersist } from "../persist/storage";
+import { memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
-
-function memoryStore(data: Map<string, string> = new Map()): KeyValueStore {
-	return {
-		getItem: (key) => data.get(key) ?? null,
-		setItem: (key, value) => {
-			data.set(key, value);
-		},
-	};
-}
-
-function stubMatchMedia(prefersDark: boolean) {
-	window.matchMedia = (query: string) => ({
-		matches: prefersDark && query.includes("prefers-color-scheme: dark"),
-		media: query,
-		onchange: null,
-		addListener: () => {},
-		removeListener: () => {},
-		addEventListener: () => {},
-		removeEventListener: () => {},
-		dispatchEvent: () => false,
-	});
-}
 
 async function renderApp(options: {
 	persist?: ReturnType<typeof createPersist>;
 	path?: string;
 	prefersDark?: boolean;
+	utcToday?: string;
 }) {
 	stubMatchMedia(options.prefersDark ?? false);
 	const persist = options.persist ?? createPersist(memoryStore());
 	const path = options.path ?? "/portdle/";
 	const history = createMemoryHistory({ initialEntries: [path] });
-	render(<App persist={persist} history={history} />);
+	render(
+		<App
+			persist={persist}
+			history={history}
+			utcToday={options.utcToday ?? "2026-09-09"}
+		/>,
+	);
 	await screen.findByRole("navigation", { name: "Main" });
 	return persist;
 }
@@ -119,7 +105,7 @@ test("placeholder headings exist on each route", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const cases = [
-		["/portdle/", "Mixed"],
+		["/portdle/", "Vite"],
 		["/portdle/protocols", "Protocols"],
 		["/portdle/applications", "Applications"],
 		["/portdle/blitz", "Blitz"],

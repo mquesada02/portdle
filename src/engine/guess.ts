@@ -1,0 +1,65 @@
+import type { CatalogEntry, DailyPersist, GuessResult } from "./types";
+
+export function digitLength(port: number): number {
+	return String(port).length;
+}
+
+export function evaluateDefaultGuess(input: {
+	digits: string;
+	answer: CatalogEntry;
+	previousPorts: number[];
+	catalog: CatalogEntry[];
+}): GuessResult {
+	const { digits, answer, previousPorts, catalog } = input;
+	if (!/^\d+$/.test(digits) || digits.length !== digitLength(answer.port)) {
+		return { status: "invalid" };
+	}
+	const port = Number.parseInt(digits, 10);
+	if (port > 65535) {
+		return { status: "invalid" };
+	}
+	if (previousPorts.includes(port)) {
+		return { status: "duplicate" };
+	}
+	if (port === answer.port) {
+		return { status: "correct", port };
+	}
+	const matches = catalog
+		.filter((entry) => entry.port === port)
+		.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+	const match = matches[0];
+	if (!match) {
+		return { status: "miss", port, identified: null };
+	}
+	return {
+		status: "miss",
+		port,
+		identified: { id: match.id, name: match.name, port: match.port },
+	};
+}
+
+export function applyCommittedGuess(
+	current: DailyPersist | null,
+	result: GuessResult,
+): DailyPersist | { status: "invalid" } | { status: "duplicate" } {
+	if (result.status === "invalid" || result.status === "duplicate") {
+		return { status: result.status };
+	}
+	const guesses = current?.guesses ?? [];
+	const nextGuess =
+		result.status === "correct"
+			? { port: result.port, result: "correct" as const, identified: null }
+			: {
+					port: result.port,
+					result: "miss" as const,
+					identified: result.identified,
+				};
+	const nextGuesses = [...guesses, nextGuess];
+	if (result.status === "correct") {
+		return { status: "won", guesses: nextGuesses };
+	}
+	if (nextGuesses.length >= 6) {
+		return { status: "lost", guesses: nextGuesses };
+	}
+	return { status: "playing", guesses: nextGuesses };
+}

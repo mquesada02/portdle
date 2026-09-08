@@ -1,0 +1,10 @@
+[
+	{
+		"id": "vite",
+		"name": "Vite",
+		"port": 5173,
+		"transport": "tcp",
+		"description": "Vite default development server.",
+		"answerEligible": true
+	}
+]

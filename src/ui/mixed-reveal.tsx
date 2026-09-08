@@ -1,0 +1,110 @@
+import { useState } from "react";
+import { formatShare } from "../engine/share";
+import { winPercent } from "../engine/stats";
+import type {
+	CatalogEntry,
+	CategoryStats,
+	DailyPersist,
+} from "../engine/types";
+
+function transportLabel(transport: CatalogEntry["transport"]): string {
+	if (transport === "tcp") {
+		return "TCP";
+	}
+	if (transport === "udp") {
+		return "UDP";
+	}
+	return "TCP/UDP";
+}
+
+export function MixedReveal({
+	puzzle,
+	board,
+	stats,
+	utcToday,
+}: {
+	puzzle: CatalogEntry;
+	board: DailyPersist;
+	stats: CategoryStats;
+	utcToday: string;
+}) {
+	const [shareFallback, setShareFallback] = useState<string | null>(null);
+
+	async function share() {
+		if (board.status !== "won" && board.status !== "lost") {
+			return;
+		}
+		const text = formatShare({
+			category: "mixed",
+			date: utcToday,
+			status: board.status,
+			committed: board.guesses.length,
+		});
+		try {
+			if (navigator.clipboard?.writeText) {
+				await navigator.clipboard.writeText(text);
+				setShareFallback(null);
+				return;
+			}
+		} catch {
+			setShareFallback(text);
+			return;
+		}
+		setShareFallback(text);
+	}
+
+	return (
+		<section className="mt-6">
+			<p>{puzzle.port}</p>
+			<p>{transportLabel(puzzle.transport)}</p>
+			<p>{puzzle.description}</p>
+			<dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+				<div>
+					<dt>Played</dt>
+					<dd>{stats.played}</dd>
+				</div>
+				<div>
+					<dt>Win %</dt>
+					<dd>{Math.round(winPercent(stats) * 100)}</dd>
+				</div>
+				<div>
+					<dt>Current streak</dt>
+					<dd>{stats.currentStreak}</dd>
+				</div>
+				<div>
+					<dt>Best streak</dt>
+					<dd>{stats.bestStreak}</dd>
+				</div>
+			</dl>
+			<ol className="mt-2 space-y-1">
+				{([1, 2, 3, 4, 5, 6] as const).map((tryNumber) => {
+					const count = stats.histogram[tryNumber - 1] ?? 0;
+					return (
+						<li key={tryNumber}>
+							{tryNumber}: {count}
+							<div
+								className="mt-1 h-3 w-full bg-zinc-200 dark:bg-zinc-800"
+								aria-hidden="true"
+							>
+								<div
+									className="h-3 bg-zinc-800 dark:bg-zinc-200"
+									style={{ width: `${Math.min(100, count * 12.5)}%` }}
+								/>
+							</div>
+						</li>
+					);
+				})}
+			</ol>
+			<button type="button" className="mt-4" onClick={() => void share()}>
+				Share
+			</button>
+			{shareFallback ? (
+				<textarea
+					readOnly
+					value={shareFallback}
+					className="mt-2 block w-full"
+				/>
+			) : null}
+		</section>
+	);
+}
