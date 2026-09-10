@@ -1,10 +1,6 @@
 import { useRouteContext } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import applicationsJson from "../catalogs/applications.json";
-import protocolsJson from "../catalogs/protocols.json";
-import applicationsScheduleJson from "../catalogs/schedules/applications.json";
-import mixedScheduleJson from "../catalogs/schedules/mixed.json";
-import protocolsScheduleJson from "../catalogs/schedules/protocols.json";
+import { applications, protocols, schedules } from "../catalogs/production";
 import { reduceBlitz, startBlitz } from "../engine/blitz";
 import { catalogFor } from "../engine/catalog";
 import { digitLength } from "../engine/guess";
@@ -13,20 +9,11 @@ import type {
 	BlitzState,
 	CatalogEntry,
 	DailyCategory,
-	ScheduleFile,
 } from "../engine/types";
 import type { Persist } from "../persist/storage";
 import { DigitSlots } from "./digit-slots";
+import { defaultGuessMessage } from "./guess-copy";
 
-const protocols = protocolsJson as CatalogEntry[];
-const applications = applicationsJson as CatalogEntry[];
-const schedules: Record<DailyCategory, ScheduleFile> = {
-	mixed: mixedScheduleJson as ScheduleFile,
-	protocols: protocolsScheduleJson as ScheduleFile,
-	applications: applicationsScheduleJson as ScheduleFile,
-};
-
-const NOT_IN_THIS_CATALOG = "Not in this catalog.";
 const EMPTY_POOL = "Cannot start Blitz: not enough unused answers today.";
 const CATEGORIES: Array<{ value: DailyCategory; label: string }> = [
 	{ value: "mixed", label: "Mixed" },
@@ -96,18 +83,13 @@ export function BlitzPage() {
 				if (!current || current.ended) {
 					return current;
 				}
-				const next = reduceBlitz({
+				return reduceBlitz({
 					state: current,
 					event: { type: "timeout" },
 					protocols,
 					applications,
 					rng: Math.random,
 				}).state;
-				const wrote = recordBest(persist, next);
-				if (!wrote.ok) {
-					setSaveWarning(true);
-				}
-				return next;
 			});
 		}
 		function tick() {
@@ -125,13 +107,16 @@ export function BlitzPage() {
 			window.clearInterval(interval);
 			window.clearTimeout(timeout);
 		};
-	}, [deadline, persist]);
+	}, [deadline]);
 
-	function noteWrite(result: { ok: boolean }) {
-		if (!result.ok) {
+	useEffect(() => {
+		if (!run?.ended) {
+			return;
+		}
+		if (!recordBest(persist, run).ok) {
 			setSaveWarning(true);
 		}
-	}
+	}, [persist, run]);
 
 	function start() {
 		const started = startBlitz({
@@ -173,27 +158,15 @@ export function BlitzPage() {
 			applications,
 			rng: Math.random,
 		});
-		if (result.guess?.status === "invalid") {
-			setMessage("Not a valid port.");
-			return;
-		}
-		if (result.guess?.status === "duplicate") {
-			setMessage("Already guessed.");
+		if (
+			result.guess?.status === "invalid" ||
+			result.guess?.status === "duplicate"
+		) {
+			setMessage(defaultGuessMessage(result.guess));
 			return;
 		}
 		setDigits("");
-		if (result.guess?.status === "miss") {
-			setMessage(
-				result.guess.identified
-					? result.guess.identified.name
-					: NOT_IN_THIS_CATALOG,
-			);
-		} else {
-			setMessage("");
-		}
-		if (result.state.ended) {
-			noteWrite(recordBest(persist, result.state));
-		}
+		setMessage(result.guess ? defaultGuessMessage(result.guess) : "");
 		setRun(result.state);
 	}
 
@@ -262,6 +235,9 @@ export function BlitzPage() {
 				<p>Score {run.score}</p>
 				<p>{ended === "timeout" ? "Time's up" : "Out of lives"}</p>
 				<p>{best === undefined ? "Best —" : `Best ${best}`}</p>
+				<p aria-live="polite" className="mt-2">
+					{message}
+				</p>
 				<button type="button" className="mt-4" onClick={playAgain}>
 					Play again
 				</button>

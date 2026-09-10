@@ -8,19 +8,14 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
-import applicationsJson from "../catalogs/applications.json";
-import protocolsJson from "../catalogs/protocols.json";
-import { digitLength } from "../engine/guess";
+import { applications, protocols } from "../catalogs/production";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { dailyOn, UTC_TODAY } from "../test/dailies";
+import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
 
-const catalog = [
-	...(protocolsJson as CatalogEntry[]),
-	...(applicationsJson as CatalogEntry[]),
-];
+const catalog = [...protocols, ...applications];
 
 function portDigits() {
 	return within(screen.getByRole("group", { name: "Port digits" })).getByRole(
@@ -49,6 +44,16 @@ async function renderBlitz(
 	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
 	await screen.findByRole("navigation", { name: "Main" });
 	return persist;
+}
+
+async function missThree(user: ReturnType<typeof userEvent.setup>) {
+	for (let i = 0; i < 3; i += 1) {
+		const answer = currentEntry();
+		const missPort = answer.port === 80 ? 19 : 80;
+		await user.clear(portDigits());
+		await user.type(portDigits(), padToAnswer(missPort, answer));
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+	}
 }
 
 afterEach(() => {
@@ -89,10 +94,7 @@ test("correct port increments score", async () => {
 	await renderBlitz();
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
-	await user.type(
-		portDigits(),
-		String(answer.port).padStart(digitLength(answer.port), "0"),
-	);
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getByText("Score 1")).toBeTruthy();
 	expect(screen.getByText("Lives 3")).toBeTruthy();
@@ -104,10 +106,7 @@ test("catalog miss names the service spends a life and advances", async () => {
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const first = currentEntry();
 	const missPort = first.port === 80 ? 19 : 80;
-	await user.type(
-		portDigits(),
-		String(missPort).padStart(digitLength(first.port), "0"),
-	);
+	await user.type(portDigits(), padToAnswer(missPort, first));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getByText("Lives 2")).toBeTruthy();
 	expect(screen.getByText(missPort === 80 ? "HTTP" : "chargen")).toBeTruthy();
@@ -150,17 +149,9 @@ test("three misses end with Out of lives and write a new best", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
 	await user.click(screen.getByRole("button", { name: "Start" }));
-	for (let i = 0; i < 3; i += 1) {
-		const answer = currentEntry();
-		const missPort = answer.port === 1 ? 2 : 1;
-		await user.clear(portDigits());
-		await user.type(
-			portDigits(),
-			String(missPort).padStart(digitLength(answer.port), "0"),
-		);
-		await user.click(screen.getByRole("button", { name: "Submit" }));
-	}
+	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
+	expect(screen.getByText(/HTTP|chargen/)).toBeTruthy();
 	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(0);
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
 });
@@ -171,16 +162,7 @@ test("play again returns to setup and a lower score does not lower best", async 
 	persist.writeBlitzBests({ "mixed|default|sprint": 5 });
 	await renderBlitz({ persist });
 	await user.click(screen.getByRole("button", { name: "Start" }));
-	for (let i = 0; i < 3; i += 1) {
-		const answer = currentEntry();
-		const missPort = answer.port === 1 ? 2 : 1;
-		await user.clear(portDigits());
-		await user.type(
-			portDigits(),
-			String(missPort).padStart(digitLength(answer.port), "0"),
-		);
-		await user.click(screen.getByRole("button", { name: "Submit" }));
-	}
+	await missThree(user);
 	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(5);
 	await user.click(screen.getByRole("button", { name: "Play again" }));
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
@@ -192,10 +174,7 @@ test("refresh during a run returns to setup without restoring score", async () =
 	const persist = await renderBlitz();
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
-	await user.type(
-		portDigits(),
-		String(answer.port).padStart(digitLength(answer.port), "0"),
-	);
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getByText("Score 1")).toBeTruthy();
 	cleanup();

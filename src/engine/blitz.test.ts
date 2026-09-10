@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { reduceBlitz, startBlitz } from "./blitz";
 import { digitLength } from "./guess";
+import { chargen, http, telnet, vite } from "./test-fixtures";
 import type { CatalogEntry, ScheduleFile } from "./types";
 
 const entries: CatalogEntry[] = ["a", "b", "c", "d"].map((id, index) => ({
@@ -11,30 +12,13 @@ const entries: CatalogEntry[] = ["a", "b", "c", "d"].map((id, index) => ({
 	description: id,
 	answerEligible: true,
 }));
-const proto: CatalogEntry = {
-	id: "http",
-	name: "HTTP",
-	port: 80,
+const ssh: CatalogEntry = {
+	id: "ssh",
+	name: "SSH",
+	port: 2222,
 	transport: "tcp",
-	description: "web",
+	description: "ssh",
 	answerEligible: true,
-};
-const missOnly: CatalogEntry = {
-	id: "chargen",
-	name: "chargen",
-	port: 19,
-	transport: "tcp",
-	description: "chargen",
-	answerEligible: false,
-};
-const retired: CatalogEntry = {
-	id: "telnet",
-	name: "Telnet",
-	port: 23,
-	transport: "tcp",
-	description: "telnet",
-	answerEligible: true,
-	retired: true,
 };
 
 const schedules: Record<"mixed" | "protocols" | "applications", ScheduleFile> =
@@ -58,7 +42,7 @@ function startMixed() {
 		orientation: "default",
 		mode: "sprint",
 		utcToday: "2026-09-09",
-		protocols: [proto, missOnly, retired],
+		protocols: [http, chargen, telnet],
 		applications: entries,
 		schedules,
 		rng,
@@ -94,7 +78,7 @@ test("empty filtered pool returns empty-pool", () => {
 			orientation: "default",
 			mode: "sprint",
 			utcToday: "2026-09-09",
-			protocols: [proto],
+			protocols: [http],
 			applications: entries,
 			schedules,
 			rng,
@@ -113,7 +97,7 @@ test("lives start at 3 and score at 0", () => {
 });
 
 function padFor(state: { currentId: string }, port: number): string {
-	const answer = [...entries, proto, missOnly, retired].find(
+	const answer = [...entries, http, chargen, telnet, ssh, vite].find(
 		(entry) => entry.id === state.currentId,
 	);
 	if (!answer) {
@@ -133,7 +117,7 @@ function reduceDefault(
 	return reduceBlitz({
 		state,
 		event: { type: "default-guess", digits },
-		protocols: [proto, missOnly, retired],
+		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
 	});
@@ -144,9 +128,7 @@ test("correct default-guess increments score and changes currentId", () => {
 	if ("error" in started) {
 		throw new Error("empty");
 	}
-	const answer = [...entries, proto].find(
-		(entry) => entry.id === started.currentId,
-	);
+	const answer = entries.find((entry) => entry.id === started.currentId);
 	if (!answer) {
 		throw new Error("missing");
 	}
@@ -204,9 +186,7 @@ test("timeout sets ended timeout and leaves score", () => {
 	if ("error" in started) {
 		throw new Error("empty");
 	}
-	const firstAnswer = [...entries, proto].find(
-		(entry) => entry.id === started.currentId,
-	);
+	const firstAnswer = entries.find((entry) => entry.id === started.currentId);
 	if (!firstAnswer) {
 		throw new Error("missing");
 	}
@@ -214,7 +194,7 @@ test("timeout sets ended timeout and leaves score", () => {
 	const timed = reduceBlitz({
 		state: scored.state,
 		event: { type: "timeout" },
-		protocols: [proto, missOnly, retired],
+		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
 	});
@@ -228,15 +208,13 @@ test("correct when remainingIds is empty reshuffles startPool", () => {
 	if ("error" in started) {
 		throw new Error("empty");
 	}
-	const firstAnswer = [...entries, proto].find(
-		(entry) => entry.id === started.currentId,
-	);
+	const firstAnswer = entries.find((entry) => entry.id === started.currentId);
 	if (!firstAnswer) {
 		throw new Error("missing");
 	}
 	const afterFirst = reduceDefault(started, firstAnswer.port);
 	expect(afterFirst.state.remainingIds).toEqual([]);
-	const secondAnswer = [...entries, proto].find(
+	const secondAnswer = entries.find(
 		(entry) => entry.id === afterFirst.state.currentId,
 	);
 	if (!secondAnswer) {
@@ -259,7 +237,7 @@ test("reducing an already-ended state is a no-op", () => {
 	const ended = reduceBlitz({
 		state: started,
 		event: { type: "timeout" },
-		protocols: [proto, missOnly, retired],
+		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
 	});
@@ -268,13 +246,13 @@ test("reducing an already-ended state is a no-op", () => {
 	expect(again.guess).toBeUndefined();
 });
 
-test("protocols miss of an applications-only port is unidentified", () => {
+test("applications miss of a protocols-only port is unidentified", () => {
 	const started = startBlitz({
 		category: "applications",
 		orientation: "default",
 		mode: "sprint",
 		utcToday: "2026-09-09",
-		protocols: [proto, missOnly, retired],
+		protocols: [http, chargen, telnet],
 		applications: entries,
 		schedules,
 		rng,
@@ -285,9 +263,58 @@ test("protocols miss of an applications-only port is unidentified", () => {
 	const next = reduceBlitz({
 		state: started,
 		event: { type: "default-guess", digits: padFor(started, 80) },
-		protocols: [proto, missOnly, retired],
+		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
 	});
 	expect(next.guess).toEqual({ status: "miss", port: 80, identified: null });
+});
+
+test("protocols miss of an applications-only port is unidentified", () => {
+	const started = startBlitz({
+		category: "protocols",
+		orientation: "default",
+		mode: "sprint",
+		utcToday: "2026-09-09",
+		protocols: [http, chargen, telnet, ssh],
+		applications: [...entries, vite],
+		schedules,
+		rng,
+	});
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	expect(started.currentId).toBe("ssh");
+	const next = reduceBlitz({
+		state: started,
+		event: { type: "default-guess", digits: padFor(started, 5173) },
+		protocols: [http, chargen, telnet, ssh],
+		applications: [...entries, vite],
+		rng,
+	});
+	expect(next.guess).toEqual({
+		status: "miss",
+		port: 5173,
+		identified: null,
+	});
+});
+
+test("miss when remainingIds is empty reshuffles startPool", () => {
+	const started = startMixed();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const firstAnswer = entries.find((entry) => entry.id === started.currentId);
+	if (!firstAnswer) {
+		throw new Error("missing");
+	}
+	const afterFirst = reduceDefault(started, firstAnswer.port);
+	expect(afterFirst.state.remainingIds).toEqual([]);
+	const afterMiss = reduceDefault(afterFirst.state, 80);
+	expect(afterMiss.state.ended).toBeNull();
+	expect(afterMiss.state.lives).toBe(2);
+	expect(afterMiss.state.currentId).toBeTruthy();
+	expect(
+		[afterMiss.state.currentId, ...afterMiss.state.remainingIds].sort(),
+	).toEqual(["c", "d"]);
 });
