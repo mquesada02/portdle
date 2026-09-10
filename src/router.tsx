@@ -8,7 +8,7 @@ import type { Persist } from "./persist/storage";
 import { BlitzPage } from "./ui/blitz-page";
 import { DailyPage } from "./ui/daily-page";
 import { HelpPage } from "./ui/help-page";
-import { PlaceholderPage } from "./ui/placeholder-page";
+import { HistoryPage } from "./ui/history-page";
 import { Shell } from "./ui/shell";
 
 export type RouterContext = {
@@ -53,9 +53,7 @@ const blitzRoute = createRoute({
 const historyRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/history",
-	component: function HistoryPage() {
-		return <PlaceholderPage title="History" />;
-	},
+	component: HistoryPage,
 });
 
 const helpRoute = createRoute({
