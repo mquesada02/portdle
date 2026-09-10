@@ -14,7 +14,7 @@ export function evaluateInvertedGuess(input: {
 	}
 	const picked = input.catalog.find((entry) => entry.id === input.id);
 	if (!picked) {
-		throw new Error("unknown id");
+		return { status: "duplicate" };
 	}
 	return {
 		status: "miss",

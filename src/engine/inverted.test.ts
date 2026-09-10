@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { evaluateInvertedGuess } from "./inverted";
-import { http } from "./test-fixtures";
+import { http, jenkins, tomcat } from "./test-fixtures";
 import type { CatalogEntry } from "./types";
 
 const https: CatalogEntry = {
@@ -12,25 +12,6 @@ const https: CatalogEntry = {
 	description: "HTTP over TLS",
 	answerEligible: true,
 };
-const jenkins: CatalogEntry = {
-	id: "jenkins",
-	name: "Jenkins",
-	port: 8080,
-	transport: "tcp",
-	description: "ci",
-	blurb: "CI server",
-	answerEligible: true,
-};
-const tomcat: CatalogEntry = {
-	id: "tomcat",
-	name: "Tomcat",
-	port: 8080,
-	transport: "tcp",
-	description: "servlet",
-	blurb: "Java servlet container",
-	answerEligible: true,
-};
-
 test("inverted correct is the target id", () => {
 	expect(
 		evaluateInvertedGuess({

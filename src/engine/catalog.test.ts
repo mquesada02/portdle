@@ -6,8 +6,7 @@ import {
 	isCrowdedPort,
 	validateCatalog,
 } from "./catalog";
-import { chargen, http, telnet, vite } from "./test-fixtures";
-import type { CatalogEntry } from "./types";
+import { chargen, http, jenkins, telnet, tomcat, vite } from "./test-fixtures";
 
 test("catalogFor mixed unions protocols then applications", () => {
 	expect(catalogFor("mixed", [http], [vite]).map((entry) => entry.id)).toEqual([
@@ -49,24 +48,6 @@ test("validateCatalog flags port outside 0-65535", () => {
 });
 
 test("crowded non-retired ports need blurbs that do not leak name", () => {
-	const jenkins: CatalogEntry = {
-		id: "jenkins",
-		name: "Jenkins",
-		port: 8080,
-		transport: "tcp",
-		description: "CI.",
-		blurb: "CI server",
-		answerEligible: true,
-	};
-	const tomcat: CatalogEntry = {
-		id: "tomcat",
-		name: "Tomcat",
-		port: 8080,
-		transport: "tcp",
-		description: "Servlet.",
-		blurb: "Java servlet container",
-		answerEligible: true,
-	};
 	expect(validateCatalog([jenkins, tomcat])).toEqual([]);
 	expect(
 		validateCatalog([jenkins, { ...tomcat, blurb: undefined }]).some(
@@ -91,25 +72,6 @@ test("crowded non-retired ports need blurbs that do not leak name", () => {
 test("unique ports need no blurb", () => {
 	expect(validateCatalog([http, vite])).toEqual([]);
 });
-
-const jenkins: CatalogEntry = {
-	id: "jenkins",
-	name: "Jenkins",
-	port: 8080,
-	transport: "tcp",
-	description: "CI.",
-	blurb: "CI server",
-	answerEligible: true,
-};
-const tomcat: CatalogEntry = {
-	id: "tomcat",
-	name: "Tomcat",
-	port: 8080,
-	transport: "tcp",
-	description: "Servlet.",
-	blurb: "Java servlet container",
-	answerEligible: true,
-};
 
 test("crowded non-retired ports are crowded and unique ports are not", () => {
 	expect(isCrowdedPort([jenkins, tomcat], 8080)).toBe(true);
