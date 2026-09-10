@@ -299,6 +299,74 @@ test("protocols miss of an applications-only port is unidentified", () => {
 	});
 });
 
+function startMixedInverted() {
+	return startBlitz({
+		category: "mixed",
+		orientation: "inverted",
+		mode: "sprint",
+		utcToday: "2026-09-09",
+		protocols: [http, chargen, telnet],
+		applications: entries,
+		schedules,
+		rng,
+	});
+}
+
+function reduceInverted(
+	state: Exclude<
+		ReturnType<typeof startMixedInverted>,
+		{ error: "empty-pool" }
+	>,
+	id: string,
+) {
+	return reduceBlitz({
+		state,
+		event: { type: "inverted-guess", id },
+		protocols: [http, chargen, telnet],
+		applications: entries,
+		rng,
+	});
+}
+
+test("inverted start records orientation and excludes daily ids", () => {
+	const started = startMixedInverted();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	expect(started.orientation).toBe("inverted");
+	const ids = [started.currentId, ...started.remainingIds];
+	expect(ids.sort()).toEqual(["c", "d"]);
+});
+
+test("inverted correct increments score and changes currentId", () => {
+	const started = startMixedInverted();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const next = reduceInverted(started, started.currentId);
+	expect(next.inverted).toEqual({ status: "correct", id: started.currentId });
+	expect(next.state.score).toBe(1);
+	expect(next.state.lives).toBe(3);
+	expect(next.state.currentId).not.toBe(started.currentId);
+});
+
+test("inverted miss decrements lives and advances", () => {
+	const started = startMixedInverted();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const next = reduceInverted(started, "http");
+	expect(next.state.lives).toBe(2);
+	expect(next.state.score).toBe(0);
+	expect(next.state.currentId).not.toBe(started.currentId);
+	expect(next.inverted).toMatchObject({
+		status: "miss",
+		id: "http",
+		samePort: false,
+		identified: { id: "http", name: "HTTP", port: 80 },
+	});
+});
+
 test("miss when remainingIds is empty reshuffles startPool", () => {
 	const started = startMixed();
 	if ("error" in started) {

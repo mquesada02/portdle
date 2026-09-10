@@ -1,6 +1,7 @@
 import { answerPool, catalogFor } from "./catalog";
 import { getDaily } from "./daily";
 import { evaluateDefaultGuess } from "./guess";
+import { evaluateInvertedGuess } from "./inverted";
 import type {
 	BlitzEvent,
 	BlitzMode,
@@ -8,6 +9,8 @@ import type {
 	CatalogEntry,
 	DailyCategory,
 	GuessResult,
+	InvertedGuessResult,
+	Orientation,
 	ScheduleFile,
 } from "./types";
 import { DAILY_CATEGORIES } from "./types";
@@ -37,7 +40,7 @@ function deal(ids: string[]): Pick<BlitzState, "currentId" | "remainingIds"> {
 
 export function startBlitz(input: {
 	category: DailyCategory;
-	orientation: "default";
+	orientation: Orientation;
 	mode: BlitzMode;
 	utcToday: string;
 	protocols: CatalogEntry[];
@@ -73,7 +76,7 @@ export function startBlitz(input: {
 	const dealt = deal(startPool);
 	return {
 		category: input.category,
-		orientation: "default",
+		orientation: input.orientation,
 		mode: input.mode,
 		lives: 3,
 		score: 0,
@@ -97,7 +100,11 @@ export function reduceBlitz(input: {
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
 	rng: () => number;
-}): { state: BlitzState; guess?: GuessResult } {
+}): {
+	state: BlitzState;
+	guess?: GuessResult;
+	inverted?: InvertedGuessResult;
+} {
 	const { state, event, protocols, applications, rng } = input;
 	if (state.ended !== null) {
 		return { state };
@@ -109,6 +116,31 @@ export function reduceBlitz(input: {
 	const answer = catalog.find((entry) => entry.id === state.currentId);
 	if (!answer) {
 		return { state };
+	}
+	if (event.type === "inverted-guess") {
+		if (state.orientation !== "inverted") {
+			return { state };
+		}
+		const inverted = evaluateInvertedGuess({
+			id: event.id,
+			answer,
+			previousIds: [],
+			catalog,
+		});
+		if (inverted.status === "duplicate") {
+			return { state, inverted };
+		}
+		if (inverted.status === "correct") {
+			return {
+				state: advance({ ...state, score: state.score + 1 }, rng),
+				inverted,
+			};
+		}
+		const lives = state.lives - 1;
+		if (lives === 0) {
+			return { state: { ...state, lives, ended: "lives" }, inverted };
+		}
+		return { state: advance({ ...state, lives }, rng), inverted };
 	}
 	const guess = evaluateDefaultGuess({
 		digits: event.digits,
