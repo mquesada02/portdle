@@ -5,16 +5,10 @@ import { afterEach, expect, test } from "vitest";
 import { digitLength } from "../engine/guess";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
-import { memoryStore, stubMatchMedia } from "../test/helpers";
+import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
 
 const mixedAnswer = dailyOn("mixed");
-
-function portDigits() {
-	return within(screen.getByRole("group", { name: "Port digits" })).getByRole(
-		"textbox",
-	);
-}
 
 async function renderDaily(
 	options: {
@@ -45,25 +39,118 @@ afterEach(() => {
 	document.documentElement.classList.remove("dark");
 });
 
-test("mixed daily shows service name and digit slots from the start", async () => {
+test("mixed daily shows N named digit slots with the first one focused on load", async () => {
 	await renderDaily();
 	expect(
 		screen.getByRole("heading", { level: 1, name: mixedAnswer.name }),
 	).toBeTruthy();
-	const slots = portDigits();
-	expect(slots).toBeTruthy();
-	expect(slots.getAttribute("maxlength")).toBe(
-		String(digitLength(mixedAnswer.port)),
-	);
+	const length = digitLength(mixedAnswer.port);
+	const group = screen.getByRole("group", { name: "Port digits" });
+	const slots = within(group).getAllByRole("textbox");
+	expect(slots).toHaveLength(length);
+	for (let index = 0; index < length; index += 1) {
+		expect(
+			within(group).getByRole("textbox", {
+				name: `Digit ${index + 1} of ${length}`,
+			}),
+		).toBeTruthy();
+	}
+	expect(document.activeElement).toBe(slots[0]);
 });
 
-test("incomplete submit is invalid and does not persist a daily", async () => {
+test("first slot regains focus after Got it closes How-to", async () => {
+	stubMatchMedia();
+	const persist = createPersist(memoryStore());
+	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
+	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	await screen.findByRole("dialog", { name: "How-to" });
+	const user = userEvent.setup();
+	await user.click(screen.getByRole("button", { name: "Got it" }));
+	const firstSlot = portDigits();
+	expect(document.activeElement).toBe(firstSlot);
+});
+
+test("Daily switcher marks the current category and links to the other two Dailies", async () => {
+	const user = userEvent.setup();
+	const protocolsAnswer = dailyOn("protocols");
+	const applicationsAnswer = dailyOn("applications");
+	await renderDaily();
+	expect(
+		screen.getByRole("link", { name: "Mixed", current: "page" }),
+	).toBeTruthy();
+	expect(
+		screen.queryByRole("link", { name: "Protocols", current: "page" }),
+	).toBeNull();
+	expect(
+		screen.queryByRole("link", { name: "Applications", current: "page" }),
+	).toBeNull();
+	await user.click(screen.getByRole("link", { name: "Protocols" }));
+	expect(
+		screen.getByRole("heading", { level: 1, name: protocolsAnswer.name }),
+	).toBeTruthy();
+	expect(
+		screen.getByRole("link", { name: "Protocols", current: "page" }),
+	).toBeTruthy();
+	await user.click(screen.getByRole("link", { name: "Applications" }));
+	expect(
+		screen.getByRole("heading", { level: 1, name: applicationsAnswer.name }),
+	).toBeTruthy();
+	expect(
+		screen.getByRole("link", { name: "Applications", current: "page" }),
+	).toBeTruthy();
+});
+
+test("Daily switcher and its Protocols and Applications links appear only on the three Daily routes", async () => {
+	await renderDaily({ path: "/portdle/help" });
+	expect(screen.queryByRole("link", { name: "Mixed" })).toBeNull();
+	expect(screen.queryByRole("link", { name: "Protocols" })).toBeNull();
+	expect(screen.queryByRole("link", { name: "Applications" })).toBeNull();
+});
+
+test("too few digits shows Not enough digits. and does not persist a daily", async () => {
 	const user = userEvent.setup();
 	const persist = await renderDaily();
 	await user.type(portDigits(), "51");
 	await user.keyboard("{Enter}");
-	expect(screen.getByText("Not a valid port.")).toBeTruthy();
+	expect(screen.getByText("Not enough digits.")).toBeTruthy();
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
+});
+
+test("a full-length but out-of-range guess shows Not a valid port.", async () => {
+	const user = userEvent.setup();
+	const date = "2026-09-22";
+	const protocolsAnswer = dailyOn("protocols", date);
+	const persist = await renderDaily({
+		path: "/portdle/protocols",
+		utcToday: date,
+	});
+	expect(digitLength(protocolsAnswer.port)).toBe(5);
+	await user.type(portDigits(), "99999");
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Not a valid port.")).toBeTruthy();
+	expect(persist.readDaily("protocols", date)).toBeNull();
+});
+
+test("try counter reads 0 / 6 then 1 / 6 after a committed try", async () => {
+	const user = userEvent.setup();
+	await renderDaily();
+	expect(screen.getByText("0 / 6")).toBeTruthy();
+	await user.type(portDigits(), padToAnswer(80, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("1 / 6")).toBeTruthy();
+});
+
+test("the board never renders empty placeholder rows", async () => {
+	const user = userEvent.setup();
+	const length = digitLength(mixedAnswer.port);
+	await renderDaily();
+	expect(screen.getAllByRole("textbox")).toHaveLength(length);
+	await user.type(portDigits(), padToAnswer(80, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getAllByRole("textbox")).toHaveLength(length);
+	await user.type(portDigits(), padToAnswer(19, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getAllByRole("textbox")).toHaveLength(length);
 });
 
 test("catalog misses name the service including miss-only", async () => {
@@ -162,7 +249,7 @@ test("six misses lose, freeze, and share X/6", async () => {
 	);
 });
 
-test("refresh restores a committed miss", async () => {
+test("refresh restores a committed miss with the active row ready", async () => {
 	const user = userEvent.setup();
 	const store = new Map<string, string>();
 	const persist = createPersist(memoryStore(store));
@@ -174,7 +261,71 @@ test("refresh restores a committed miss", async () => {
 	const restored = createPersist(memoryStore(store));
 	await renderDaily({ persist: restored });
 	expect(screen.getByText("HTTP")).toBeTruthy();
-	expect(screen.getByText(padToAnswer(80, mixedAnswer))).toBeTruthy();
+	expect(
+		screen.getByText(
+			(_, element) => element?.textContent === padToAnswer(80, mixedAnswer),
+		),
+	).toBeTruthy();
+	expect(screen.getByRole("group", { name: "Port digits" })).toBeTruthy();
+});
+
+test("reload of a finished Daily shows no slots", async () => {
+	const user = userEvent.setup();
+	const store = new Map<string, string>();
+	const persist = createPersist(memoryStore(store));
+	persist.writeHowToSeen();
+	await renderDaily({ persist });
+	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	cleanup();
+	const restored = createPersist(memoryStore(store));
+	await renderDaily({ persist: restored });
+	expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
+	expect(screen.getByText(mixedAnswer.description)).toBeTruthy();
+});
+
+test("slot editing: typing advances, Backspace edits, paste fills, typing over a filled slot replaces", async () => {
+	const user = userEvent.setup();
+	await renderDaily();
+	const length = digitLength(mixedAnswer.port);
+	const group = () => screen.getByRole("group", { name: "Port digits" });
+	const slot = (position: number) =>
+		within(group()).getByRole("textbox", {
+			name: `Digit ${position} of ${length}`,
+		}) as HTMLInputElement;
+
+	await user.type(slot(1), "123");
+	expect(document.activeElement).toBe(slot(4));
+
+	await user.click(slot(3));
+	await user.keyboard("{Backspace}");
+	expect(slot(1).value).toBe("1");
+	expect(slot(2).value).toBe("2");
+	expect(slot(3).value).toBe("");
+	expect(document.activeElement).toBe(slot(3));
+
+	await user.keyboard("{Backspace}");
+	expect(slot(1).value).toBe("1");
+	expect(slot(2).value).toBe("");
+	expect(document.activeElement).toBe(slot(2));
+
+	await user.click(slot(1));
+	await user.paste(padToAnswer(mixedAnswer.port, mixedAnswer));
+	const padded = padToAnswer(mixedAnswer.port, mixedAnswer);
+	for (let index = 0; index < length; index += 1) {
+		expect(slot(index + 1).value).toBe(padded.charAt(index));
+	}
+
+	await user.click(slot(1));
+	await user.keyboard("9");
+	expect(slot(1).value).toBe("9");
+
+	await user.click(slot(1));
+	await user.keyboard(padded.charAt(0));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getAllByText(String(mixedAnswer.port)).length).toBeGreaterThan(
+		0,
+	);
 });
 
 test("how-to still appears on first mixed visit", async () => {
