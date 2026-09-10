@@ -2,17 +2,19 @@ import { useRouteContext } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { applications, protocols, schedules } from "../catalogs/production";
 import { reduceBlitz, startBlitz } from "../engine/blitz";
-import { catalogFor } from "../engine/catalog";
+import { catalogFor, invertedBlurb } from "../engine/catalog";
 import { digitLength } from "../engine/guess";
 import type {
 	BlitzMode,
 	BlitzState,
 	CatalogEntry,
 	DailyCategory,
+	Orientation,
 } from "../engine/types";
 import type { Persist } from "../persist/storage";
 import { DigitSlots } from "./digit-slots";
-import { defaultGuessMessage } from "./guess-copy";
+import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
+import { Typeahead } from "./typeahead";
 
 const EMPTY_POOL = "Cannot start Blitz: not enough unused answers today.";
 const CATEGORIES: Array<{ value: DailyCategory; label: string }> = [
@@ -36,8 +38,10 @@ function durationMs(mode: BlitzMode): number | null {
 	return null;
 }
 
-function bestsKey(state: BlitzState): `${DailyCategory}|default|${BlitzMode}` {
-	return `${state.category}|default|${state.mode}`;
+function bestsKey(
+	state: BlitzState,
+): `${DailyCategory}|${Orientation}|${BlitzMode}` {
+	return `${state.category}|${state.orientation}|${state.mode}`;
 }
 
 function recordBest(
@@ -69,6 +73,7 @@ function currentEntry(state: BlitzState): CatalogEntry | undefined {
 export function BlitzPage() {
 	const { persist, utcToday } = useRouteContext({ from: "__root__" });
 	const [category, setCategory] = useState<DailyCategory>("mixed");
+	const [orientation, setOrientation] = useState<Orientation>("default");
 	const [mode, setMode] = useState<BlitzMode>("sprint");
 	const [run, setRun] = useState<BlitzState | null>(null);
 	const [digits, setDigits] = useState("");
@@ -128,7 +133,7 @@ export function BlitzPage() {
 	function start() {
 		const started = startBlitz({
 			category,
-			orientation: "default",
+			orientation,
 			mode,
 			utcToday,
 			protocols,
@@ -154,17 +159,7 @@ export function BlitzPage() {
 		}
 	}
 
-	function submitGuess() {
-		if (!run || run.ended) {
-			return;
-		}
-		const result = reduceBlitz({
-			state: run,
-			event: { type: "default-guess", digits },
-			protocols,
-			applications,
-			rng: Math.random,
-		});
+	function applyResult(result: ReturnType<typeof reduceBlitz>) {
 		if (
 			result.guess?.status === "invalid" ||
 			result.guess?.status === "duplicate"
@@ -172,9 +167,47 @@ export function BlitzPage() {
 			setMessage(defaultGuessMessage(result.guess));
 			return;
 		}
+		if (result.inverted?.status === "duplicate") {
+			setMessage(invertedGuessMessage(result.inverted));
+			return;
+		}
 		setDigits("");
-		setMessage(result.guess ? defaultGuessMessage(result.guess) : "");
+		if (result.inverted) {
+			setMessage(invertedGuessMessage(result.inverted));
+		} else {
+			setMessage(result.guess ? defaultGuessMessage(result.guess) : "");
+		}
 		setRun(result.state);
+	}
+
+	function submitGuess() {
+		if (!run || run.ended) {
+			return;
+		}
+		applyResult(
+			reduceBlitz({
+				state: run,
+				event: { type: "default-guess", digits },
+				protocols,
+				applications,
+				rng: Math.random,
+			}),
+		);
+	}
+
+	function submitInverted(id: string) {
+		if (!run || run.ended) {
+			return;
+		}
+		applyResult(
+			reduceBlitz({
+				state: run,
+				event: { type: "inverted-guess", id },
+				protocols,
+				applications,
+				rng: Math.random,
+			}),
+		);
 	}
 
 	function playAgain() {
@@ -205,7 +238,27 @@ export function BlitzPage() {
 						</label>
 					))}
 				</fieldset>
-				<p className="mt-2">Default</p>
+				<fieldset className="mt-2">
+					<legend>Orientation</legend>
+					<label className="mr-3">
+						<input
+							type="radio"
+							name="blitz-orientation"
+							checked={orientation === "default"}
+							onChange={() => setOrientation("default")}
+						/>{" "}
+						Default
+					</label>
+					<label className="mr-3">
+						<input
+							type="radio"
+							name="blitz-orientation"
+							checked={orientation === "inverted"}
+							onChange={() => setOrientation("inverted")}
+						/>{" "}
+						Inverted
+					</label>
+				</fieldset>
 				<fieldset className="mt-2">
 					<legend>Mode</legend>
 					{MODES.map((item) => (
@@ -261,24 +314,37 @@ export function BlitzPage() {
 		);
 	}
 
+	const inverted = run.orientation === "inverted";
+	const categoryCatalog = catalogFor(run.category, protocols, applications);
+	const blurb = inverted ? invertedBlurb(puzzle, categoryCatalog) : null;
+
 	return (
 		<main>
-			<h1 className="text-2xl">{puzzle.name}</h1>
+			<h1 className="text-2xl">
+				{inverted ? String(puzzle.port) : puzzle.name}
+			</h1>
+			{blurb ? <p>{blurb}</p> : null}
 			<ProgressWarning show={saveWarning} />
 			<p>Lives {run.lives}</p>
 			<p>Score {run.score}</p>
 			{remaining !== null ? <p>Time {remaining}</p> : null}
 			<div className="mt-4">
-				<DigitSlots
-					length={digitLength(puzzle.port)}
-					value={digits}
-					disabled={false}
-					onChange={setDigits}
-					onSubmit={submitGuess}
-				/>
-				<button type="button" className="mt-2" onClick={submitGuess}>
-					Submit
-				</button>
+				{inverted ? (
+					<Typeahead catalog={categoryCatalog} onSubmit={submitInverted} />
+				) : (
+					<>
+						<DigitSlots
+							length={digitLength(puzzle.port)}
+							value={digits}
+							disabled={false}
+							onChange={setDigits}
+							onSubmit={submitGuess}
+						/>
+						<button type="button" className="mt-2" onClick={submitGuess}>
+							Submit
+						</button>
+					</>
+				)}
 			</div>
 			<p aria-live="polite" className="mt-2">
 				{message}

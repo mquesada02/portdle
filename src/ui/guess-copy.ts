@@ -1,4 +1,4 @@
-import type { GuessResult } from "../engine/types";
+import type { GuessResult, InvertedGuessResult } from "../engine/types";
 
 export const NOT_IN_THIS_CATALOG = "Not in this catalog.";
 
@@ -11,6 +11,19 @@ export function defaultGuessMessage(guess: GuessResult): string {
 	}
 	if (guess.status === "miss") {
 		return guess.identified ? guess.identified.name : NOT_IN_THIS_CATALOG;
+	}
+	return "";
+}
+
+export function invertedGuessMessage(guess: InvertedGuessResult): string {
+	if (guess.status === "duplicate") {
+		return "Already guessed.";
+	}
+	if (guess.status === "miss") {
+		if (guess.samePort) {
+			return "Wrong service, same port.";
+		}
+		return `${guess.identified.name} is ${guess.identified.port}`;
 	}
 	return "";
 }

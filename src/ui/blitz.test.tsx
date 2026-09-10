@@ -62,7 +62,7 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-test("setup shows Blitz heading category mode and Start without Inverted", async () => {
+test("setup shows Blitz heading category orientation mode and Start", async () => {
 	await renderBlitz();
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
 	expect(screen.getByRole("radio", { name: "Mixed" }).tabIndex).not.toBe(-1);
@@ -70,8 +70,11 @@ test("setup shows Blitz heading category mode and Start without Inverted", async
 		-1,
 	);
 	expect(screen.getByRole("button", { name: "Start" }).tabIndex).not.toBe(-1);
-	expect(screen.getByText("Default")).toBeTruthy();
-	expect(screen.queryByRole("radio", { name: /inverted/i })).toBeNull();
+	expect(
+		(screen.getByRole("radio", { name: "Default" }) as HTMLInputElement)
+			.checked,
+	).toBe(true);
+	expect(screen.getByRole("radio", { name: "Inverted" }).tabIndex).not.toBe(-1);
 });
 
 test("start mixed sprint shows a non-daily name lives score time and slots", async () => {
@@ -182,6 +185,169 @@ test("refresh during a run returns to setup without restoring score", async () =
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
 	expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
 	expect(persist.readBlitzBests()).toEqual({});
+});
+
+function headingPort(): number {
+	const text = screen.getByRole("heading", { level: 1 }).textContent ?? "";
+	expect(text).toMatch(/^\d+$/);
+	return Number(text);
+}
+
+async function startInverted(user: ReturnType<typeof userEvent.setup>) {
+	await renderBlitz();
+	await user.click(screen.getByRole("radio", { name: "Inverted" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+}
+
+async function startInvertedFake() {
+	const persist = await renderBlitz();
+	fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
+	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "Start" }));
+	return persist;
+}
+
+async function pickListed(name: string) {
+	const box = screen.getByRole("combobox", { name: "Service name" });
+	fireEvent.change(box, { target: { value: name.slice(0, 3).toLowerCase() } });
+	await vi.advanceTimersByTimeAsync(200);
+	fireEvent.click(screen.getByRole("option", { name }));
+}
+
+test("inverted start shows port lives score time and search not slots", async () => {
+	const user = userEvent.setup();
+	await startInverted(user);
+	expect(headingPort()).toBeGreaterThanOrEqual(0);
+	expect(screen.getByRole("heading", { level: 1 }).textContent).not.toBe(
+		"Blitz",
+	);
+	expect(screen.getByText("Lives 3")).toBeTruthy();
+	expect(screen.getByText("Score 0")).toBeTruthy();
+	expect(screen.getByText("Time 60")).toBeTruthy();
+	expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
+	expect(screen.getByRole("combobox", { name: "Service name" })).toBeTruthy();
+});
+
+test("empty inverted query lists nothing", async () => {
+	const user = userEvent.setup();
+	await startInverted(user);
+	expect(screen.getByText("No matches.")).toBeTruthy();
+	expect(screen.queryByRole("option")).toBeNull();
+});
+
+test("prefix lists a canonical name after debounce", async () => {
+	await startInvertedFake();
+	const box = screen.getByRole("combobox", { name: "Service name" });
+	fireEvent.change(box, { target: { value: "htt" } });
+	expect(screen.queryByRole("option", { name: "HTTP" })).toBeNull();
+	await vi.advanceTimersByTimeAsync(200);
+	expect(screen.getByRole("option", { name: "HTTP" })).toBeTruthy();
+});
+
+test("enter without a listed row does not spend a life", async () => {
+	const user = userEvent.setup();
+	await startInverted(user);
+	screen.getByRole("combobox", { name: "Service name" }).focus();
+	await user.keyboard("{Enter}");
+	expect(screen.getByText("Lives 3")).toBeTruthy();
+});
+
+test("listed miss shows name is port and spends a life", async () => {
+	await startInvertedFake();
+	const port = headingPort();
+	const miss = catalog.find(
+		(entry) => entry.name === "HTTP" && entry.port !== port,
+	);
+	const pick = miss ?? catalog.find((entry) => entry.port !== port);
+	if (!pick) {
+		throw new Error("missing miss row");
+	}
+	await pickListed(pick.name);
+	expect(screen.getByText(`${pick.name} is ${pick.port}`)).toBeTruthy();
+	expect(screen.getByText("Lives 2")).toBeTruthy();
+});
+
+const CROWDED_BLURBS: Record<number, string[]> = {
+	3000: [
+		"Legacy React starter",
+		"React meta-framework",
+		"Vue meta-framework",
+		"Ruby web framework",
+		"Metrics dashboards",
+	],
+	5173: ["Frontend bundler dev server", "Svelte app framework"],
+	8080: [
+		"Bundler dev server",
+		"CI server",
+		"Java servlet container",
+		"Common alternate web port.",
+	],
+};
+
+async function startInvertedUntil(ports: number[]) {
+	for (let attempt = 0; attempt < 40; attempt += 1) {
+		cleanup();
+		document.documentElement.classList.remove("dark");
+		vi.useRealTimers();
+		await renderBlitz();
+		fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
+		vi.useFakeTimers();
+		fireEvent.click(screen.getByRole("button", { name: "Start" }));
+		const port = headingPort();
+		if (ports.includes(port)) {
+			return port;
+		}
+	}
+	throw new Error(`no heading in ${ports.join(",")}`);
+}
+
+test("unique inverted heading shows the port number only", async () => {
+	const crowdedPorts = Object.keys(CROWDED_BLURBS).map(Number);
+	const port = await startInvertedUntil(
+		catalog
+			.filter(
+				(entry) =>
+					entry.answerEligible &&
+					!entry.retired &&
+					!crowdedPorts.includes(entry.port),
+			)
+			.map((entry) => entry.port),
+	);
+	expect(
+		screen.getByRole("heading", { level: 1, name: String(port) }),
+	).toBeTruthy();
+	for (const blurb of Object.values(CROWDED_BLURBS).flat()) {
+		expect(screen.queryByText(blurb)).toBeNull();
+	}
+});
+
+test("crowded inverted heading shows that port's blurb", async () => {
+	const port = await startInvertedUntil(
+		Object.keys(CROWDED_BLURBS).map(Number),
+	);
+	const blurbs = CROWDED_BLURBS[port];
+	if (!blurbs) {
+		throw new Error("missing blurbs");
+	}
+	expect(blurbs.some((blurb) => screen.queryByText(blurb))).toBe(true);
+});
+
+test("inverted finish writes inverted best not default or daily", async () => {
+	const persist = await startInvertedFake();
+	for (let i = 0; i < 3; i += 1) {
+		const port = headingPort();
+		const pick =
+			catalog.find((entry) => entry.name === "HTTP" && entry.port !== port) ??
+			catalog.find((entry) => entry.port !== port);
+		if (!pick) {
+			throw new Error("missing miss row");
+		}
+		await pickListed(pick.name);
+	}
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	expect(persist.readBlitzBests()["mixed|inverted|sprint"]).toBe(0);
+	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBeUndefined();
+	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
 });
 
 test("history still has heading History", async () => {

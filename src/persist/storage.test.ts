@@ -170,6 +170,20 @@ test("blitzBests missing is empty object and round-trips", () => {
 	expect(store.data.has("portdle:v1:blitzBests")).toBe(true);
 });
 
+test("inverted blitzBests round-trip without dropping default", () => {
+	const persist = createPersist(memoryStore());
+	expect(
+		persist.writeBlitzBests({
+			"mixed|default|sprint": 4,
+			"mixed|inverted|sprint": 4,
+		}),
+	).toEqual({ ok: true });
+	expect(persist.readBlitzBests()).toEqual({
+		"mixed|default|sprint": 4,
+		"mixed|inverted|sprint": 4,
+	});
+});
+
 test("corrupt blitzBests is empty without dropping theme", () => {
 	const store = memoryStore();
 	const persist = createPersist(store);

@@ -36,3 +36,23 @@ export const telnet: CatalogEntry = {
 	answerEligible: true,
 	retired: true,
 };
+
+export const jenkins: CatalogEntry = {
+	id: "jenkins",
+	name: "Jenkins",
+	port: 8080,
+	transport: "tcp",
+	description: "CI.",
+	blurb: "CI server",
+	answerEligible: true,
+};
+
+export const tomcat: CatalogEntry = {
+	id: "tomcat",
+	name: "Tomcat",
+	port: 8080,
+	transport: "tcp",
+	description: "Servlet.",
+	blurb: "Java servlet container",
+	answerEligible: true,
+};

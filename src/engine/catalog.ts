@@ -25,6 +25,23 @@ export function answerPool(catalog: CatalogEntry[]): CatalogEntry[] {
 	return catalog.filter((entry) => entry.answerEligible && !entry.retired);
 }
 
+export function isCrowdedPort(entries: CatalogEntry[], port: number): boolean {
+	return crowdedPorts(entries).has(port);
+}
+
+export function invertedBlurb(
+	entry: CatalogEntry,
+	catalog: CatalogEntry[],
+): string | null {
+	if (!isCrowdedPort(catalog, entry.port)) {
+		return null;
+	}
+	if (entry.blurb === undefined || entry.blurb.length === 0) {
+		return null;
+	}
+	return entry.blurb;
+}
+
 function crowdedPorts(entries: CatalogEntry[]): Set<number> {
 	const counts = new Map<number, number>();
 	for (const entry of entries) {
