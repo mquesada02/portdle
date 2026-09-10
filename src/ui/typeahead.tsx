@@ -31,6 +31,7 @@ export function Typeahead({
 	}, [index, query]);
 
 	const active = highlight >= 0 ? hits[highlight] : undefined;
+	const hasQuery = query.trim().length > 0;
 
 	function submitId(id: string) {
 		onSubmit(id);
@@ -74,28 +75,45 @@ export function Typeahead({
 						}
 					}
 				}}
+				className="w-full rounded-md border-2 border-zinc-300 bg-transparent px-3 py-2.5 text-base outline-none transition-colors focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/20 dark:border-zinc-700 dark:focus:border-zinc-100 dark:focus:ring-zinc-100/20"
 			/>
-			{hits.length === 0 ? (
-				<p aria-live="polite">No matches.</p>
-			) : (
-				<div id={listId} role="listbox">
-					{hits.map((hit, hitIndex) => (
-						<button
-							key={hit.id}
-							id={`${listId}-${hit.id}`}
-							type="button"
-							role="option"
-							tabIndex={-1}
-							aria-selected={hitIndex === highlight}
-							onClick={() => {
-								submitId(hit.id);
-							}}
-						>
-							{hit.name}
-						</button>
-					))}
-				</div>
-			)}
+			{hasQuery ? (
+				hits.length === 0 ? (
+					<p
+						aria-live="polite"
+						className="mt-2 text-sm text-zinc-500 dark:text-zinc-400"
+					>
+						No matches.
+					</p>
+				) : (
+					<div
+						id={listId}
+						role="listbox"
+						className="mt-2 max-h-[13.5rem] overflow-y-auto rounded-md border border-zinc-200 dark:border-zinc-800"
+					>
+						{hits.map((hit, hitIndex) => (
+							<button
+								key={hit.id}
+								id={`${listId}-${hit.id}`}
+								type="button"
+								role="option"
+								tabIndex={-1}
+								aria-selected={hitIndex === highlight}
+								onClick={() => {
+									submitId(hit.id);
+								}}
+								className={`block w-full px-3 py-2 text-left text-sm ${
+									hitIndex === highlight
+										? "bg-zinc-200 dark:bg-zinc-800"
+										: "hover:bg-zinc-100 dark:hover:bg-zinc-900"
+								}`}
+							>
+								{hit.name}
+							</button>
+						))}
+					</div>
+				)
+			) : null}
 		</div>
 	);
 }
