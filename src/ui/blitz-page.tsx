@@ -53,6 +53,13 @@ function recordBest(
 	return { ok: true };
 }
 
+function ProgressWarning({ show }: { show: boolean }) {
+	if (!show) {
+		return null;
+	}
+	return <p role="status">Progress may not save.</p>;
+}
+
 function currentEntry(state: BlitzState): CatalogEntry | undefined {
 	return catalogFor(state.category, protocols, applications).find(
 		(entry) => entry.id === state.currentId,
@@ -183,7 +190,7 @@ export function BlitzPage() {
 		return (
 			<main>
 				<h1 className="text-2xl">Blitz</h1>
-				{saveWarning ? <p role="status">Progress may not save.</p> : null}
+				<ProgressWarning show={saveWarning} />
 				<fieldset className="mt-4">
 					<legend>Daily category</legend>
 					{CATEGORIES.map((item) => (
@@ -231,7 +238,7 @@ export function BlitzPage() {
 		return (
 			<main>
 				<h1 className="text-2xl">Blitz</h1>
-				{saveWarning ? <p role="status">Progress may not save.</p> : null}
+				<ProgressWarning show={saveWarning} />
 				<p>Score {run.score}</p>
 				<p>{ended === "timeout" ? "Time's up" : "Out of lives"}</p>
 				<p>{best === undefined ? "Best —" : `Best ${best}`}</p>
@@ -257,7 +264,7 @@ export function BlitzPage() {
 	return (
 		<main>
 			<h1 className="text-2xl">{puzzle.name}</h1>
-			{saveWarning ? <p role="status">Progress may not save.</p> : null}
+			<ProgressWarning show={saveWarning} />
 			<p>Lives {run.lives}</p>
 			<p>Score {run.score}</p>
 			{remaining !== null ? <p>Time {remaining}</p> : null}

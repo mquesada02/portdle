@@ -85,18 +85,10 @@ export function startBlitz(input: {
 
 function advance(state: BlitzState, rng: () => number): BlitzState {
 	if (state.remainingIds.length > 0) {
-		const currentId = state.remainingIds[0];
-		if (currentId === undefined) {
-			return state;
-		}
-		return {
-			...state,
-			currentId,
-			remainingIds: state.remainingIds.slice(1),
-		};
+		return { ...state, ...deal(state.remainingIds) };
 	}
-	const startPool = shuffle([...state.startPool], rng);
-	return { ...state, startPool: state.startPool, ...deal(startPool) };
+	const shuffled = shuffle([...state.startPool], rng);
+	return { ...state, ...deal(shuffled) };
 }
 
 export function reduceBlitz(input: {
