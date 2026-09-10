@@ -1,27 +1,15 @@
 import { createMemoryHistory } from "@tanstack/react-router";
-import {
-	cleanup,
-	fireEvent,
-	render,
-	screen,
-	within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { applications, protocols } from "../catalogs/production";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
-import { memoryStore, stubMatchMedia } from "../test/helpers";
+import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
 
 const catalog = [...protocols, ...applications];
-
-function portDigits() {
-	return within(screen.getByRole("group", { name: "Port digits" })).getByRole(
-		"textbox",
-	);
-}
 
 function currentEntry(): CatalogEntry {
 	const name = screen.getByRole("heading", { level: 1 }).textContent;
