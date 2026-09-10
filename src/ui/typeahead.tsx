@@ -80,24 +80,19 @@ export function Typeahead({
 			) : (
 				<div id={listId} role="listbox">
 					{hits.map((hit, hitIndex) => (
-						<div
+						<button
 							key={hit.id}
 							id={`${listId}-${hit.id}`}
+							type="button"
 							role="option"
 							tabIndex={-1}
 							aria-selected={hitIndex === highlight}
 							onClick={() => {
 								submitId(hit.id);
 							}}
-							onKeyDown={(event) => {
-								if (event.key === "Enter" || event.key === " ") {
-									event.preventDefault();
-									submitId(hit.id);
-								}
-							}}
 						>
 							{hit.name}
-						</div>
+						</button>
 					))}
 				</div>
 			)}

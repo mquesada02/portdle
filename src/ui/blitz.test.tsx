@@ -247,6 +247,7 @@ test("prefix lists a canonical name after debounce", async () => {
 test("enter without a listed row does not spend a life", async () => {
 	const user = userEvent.setup();
 	await startInverted(user);
+	screen.getByRole("combobox", { name: "Service name" }).focus();
 	await user.keyboard("{Enter}");
 	expect(screen.getByText("Lives 3")).toBeTruthy();
 });
@@ -266,25 +267,69 @@ test("listed miss shows name is port and spends a life", async () => {
 	expect(screen.getByText("Lives 2")).toBeTruthy();
 });
 
-test("crowded inverted heading shows a blurb and unique does not", async () => {
-	const user = userEvent.setup();
-	await startInverted(user);
-	const port = headingPort();
-	const roommates = catalog.filter(
-		(entry) => !entry.retired && entry.port === port,
-	);
-	if (roommates.length >= 2) {
-		expect(
-			roommates.some(
-				(entry) => entry.blurb !== undefined && screen.queryByText(entry.blurb),
-			),
-		).toBe(true);
-	} else {
-		const unique = roommates[0];
-		if (unique?.blurb) {
-			expect(screen.queryByText(unique.blurb)).toBeNull();
+const CROWDED_BLURBS: Record<number, string[]> = {
+	3000: [
+		"Legacy React starter",
+		"React meta-framework",
+		"Vue meta-framework",
+		"Ruby web framework",
+		"Metrics dashboards",
+	],
+	5173: ["Frontend bundler dev server", "Svelte app framework"],
+	8080: [
+		"Bundler dev server",
+		"CI server",
+		"Java servlet container",
+		"Common alternate web port.",
+	],
+};
+
+async function startInvertedUntil(ports: number[]) {
+	for (let attempt = 0; attempt < 40; attempt += 1) {
+		cleanup();
+		document.documentElement.classList.remove("dark");
+		vi.useRealTimers();
+		await renderBlitz();
+		fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
+		vi.useFakeTimers();
+		fireEvent.click(screen.getByRole("button", { name: "Start" }));
+		const port = headingPort();
+		if (ports.includes(port)) {
+			return port;
 		}
 	}
+	throw new Error(`no heading in ${ports.join(",")}`);
+}
+
+test("unique inverted heading shows the port number only", async () => {
+	const crowdedPorts = Object.keys(CROWDED_BLURBS).map(Number);
+	const port = await startInvertedUntil(
+		catalog
+			.filter(
+				(entry) =>
+					entry.answerEligible &&
+					!entry.retired &&
+					!crowdedPorts.includes(entry.port),
+			)
+			.map((entry) => entry.port),
+	);
+	expect(
+		screen.getByRole("heading", { level: 1, name: String(port) }),
+	).toBeTruthy();
+	for (const blurb of Object.values(CROWDED_BLURBS).flat()) {
+		expect(screen.queryByText(blurb)).toBeNull();
+	}
+});
+
+test("crowded inverted heading shows that port's blurb", async () => {
+	const port = await startInvertedUntil(
+		Object.keys(CROWDED_BLURBS).map(Number),
+	);
+	const blurbs = CROWDED_BLURBS[port];
+	if (!blurbs) {
+		throw new Error("missing blurbs");
+	}
+	expect(blurbs.some((blurb) => screen.queryByText(blurb))).toBe(true);
 });
 
 test("inverted finish writes inverted best not default or daily", async () => {
