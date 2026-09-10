@@ -94,6 +94,21 @@ function advance(state: BlitzState, rng: () => number): BlitzState {
 	return { ...state, ...deal(shuffled) };
 }
 
+function afterCommitted(
+	state: BlitzState,
+	rng: () => number,
+	outcome: "correct" | "miss",
+): BlitzState {
+	if (outcome === "correct") {
+		return advance({ ...state, score: state.score + 1 }, rng);
+	}
+	const lives = state.lives - 1;
+	if (lives === 0) {
+		return { ...state, lives, ended: "lives" };
+	}
+	return advance({ ...state, lives }, rng);
+}
+
 export function reduceBlitz(input: {
 	state: BlitzState;
 	event: BlitzEvent;
@@ -130,17 +145,10 @@ export function reduceBlitz(input: {
 		if (inverted.status === "duplicate") {
 			return { state, inverted };
 		}
-		if (inverted.status === "correct") {
-			return {
-				state: advance({ ...state, score: state.score + 1 }, rng),
-				inverted,
-			};
-		}
-		const lives = state.lives - 1;
-		if (lives === 0) {
-			return { state: { ...state, lives, ended: "lives" }, inverted };
-		}
-		return { state: advance({ ...state, lives }, rng), inverted };
+		return {
+			state: afterCommitted(state, rng, inverted.status),
+			inverted,
+		};
 	}
 	const guess = evaluateDefaultGuess({
 		digits: event.digits,
@@ -151,15 +159,8 @@ export function reduceBlitz(input: {
 	if (guess.status === "invalid" || guess.status === "duplicate") {
 		return { state, guess };
 	}
-	if (guess.status === "correct") {
-		return {
-			state: advance({ ...state, score: state.score + 1 }, rng),
-			guess,
-		};
-	}
-	const lives = state.lives - 1;
-	if (lives === 0) {
-		return { state: { ...state, lives, ended: "lives" }, guess };
-	}
-	return { state: advance({ ...state, lives }, rng), guess };
+	return {
+		state: afterCommitted(state, rng, guess.status),
+		guess,
+	};
 }
