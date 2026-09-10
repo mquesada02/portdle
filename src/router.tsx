@@ -5,6 +5,7 @@ import {
 	type RouterHistory,
 } from "@tanstack/react-router";
 import type { Persist } from "./persist/storage";
+import { BlitzPage } from "./ui/blitz-page";
 import { DailyPage } from "./ui/daily-page";
 import { HelpPage } from "./ui/help-page";
 import { PlaceholderPage } from "./ui/placeholder-page";
@@ -46,9 +47,7 @@ const applicationsRoute = createRoute({
 const blitzRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/blitz",
-	component: function BlitzPage() {
-		return <PlaceholderPage title="Blitz" />;
-	},
+	component: BlitzPage,
 });
 
 const historyRoute = createRoute({
