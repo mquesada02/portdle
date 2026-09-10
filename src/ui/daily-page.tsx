@@ -140,6 +140,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 	const [message, setMessage] = useState("");
 	const [shakeKey, setShakeKey] = useState(0);
 	const [saveWarning, setSaveWarning] = useState(false);
+	const [finishedThisSession, setFinishedThisSession] = useState(false);
 
 	if (!answer) {
 		return (
@@ -209,6 +210,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 		setBoard(next);
 		noteWrite(persist.writeDaily(category, utcToday, next));
 		if (next.status === "won" || next.status === "lost") {
+			setFinishedThisSession(true);
 			if (persist.readLastPlayed(category) !== utcToday) {
 				const gapped = categoryStreakGap(persist, category, utcToday);
 				const finished = applyDailyFinish({
@@ -281,6 +283,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 					board={board}
 					stats={stats}
 					utcToday={utcToday}
+					finishedThisSession={finishedThisSession}
 				/>
 			) : null}
 		</main>
