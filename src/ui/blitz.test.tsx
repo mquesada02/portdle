@@ -59,7 +59,14 @@ test("setup shows Blitz heading category orientation mode and Start", async () =
 	);
 	expect(screen.getByRole("button", { name: "Start" }).tabIndex).not.toBe(-1);
 	expect(
+		(screen.getByRole("radio", { name: "Mixed" }) as HTMLInputElement).checked,
+	).toBe(true);
+	expect(
 		(screen.getByRole("radio", { name: "Default" }) as HTMLInputElement)
+			.checked,
+	).toBe(true);
+	expect(
+		(screen.getByRole("radio", { name: "Sprint (1m)" }) as HTMLInputElement)
 			.checked,
 	).toBe(true);
 	expect(screen.getByRole("radio", { name: "Inverted" }).tabIndex).not.toBe(-1);
@@ -74,9 +81,9 @@ test("start mixed sprint shows a non-daily name lives score time and slots", asy
 	expect(heading).not.toBe(dailyOn("protocols").name);
 	expect(heading).not.toBe(dailyOn("applications").name);
 	expect(heading).not.toBe("Blitz");
-	expect(screen.getByText("Lives 3")).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
 	expect(screen.getByText("Score 0")).toBeTruthy();
-	expect(screen.getByText("Time 60")).toBeTruthy();
+	expect(screen.getByText("1:00")).toBeTruthy();
 	expect(portDigits()).toBeTruthy();
 });
 
@@ -88,7 +95,7 @@ test("correct port increments score", async () => {
 	await user.type(portDigits(), padToAnswer(answer.port, answer));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getByText("Score 1")).toBeTruthy();
-	expect(screen.getByText("Lives 3")).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
 });
 
 test("catalog miss names the service spends a life and advances", async () => {
@@ -99,7 +106,7 @@ test("catalog miss names the service spends a life and advances", async () => {
 	const missPort = first.port === 80 ? 19 : 80;
 	await user.type(portDigits(), padToAnswer(missPort, first));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
-	expect(screen.getByText("Lives 2")).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 2" })).toBeTruthy();
 	expect(screen.getByText(missPort === 80 ? "HTTP" : "chargen")).toBeTruthy();
 	expect(screen.getByRole("heading", { level: 1 }).textContent).not.toBe(
 		first.name,
@@ -113,7 +120,7 @@ test("incomplete enter is invalid and does not spend a life", async () => {
 	await user.type(portDigits(), "1");
 	await user.keyboard("{Enter}");
 	expect(screen.getByText("Not a valid port.")).toBeTruthy();
-	expect(screen.getByText("Lives 3")).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
 });
 
 test("survival start shows no remaining time", async () => {
@@ -121,15 +128,15 @@ test("survival start shows no remaining time", async () => {
 	await renderBlitz();
 	await user.click(screen.getByRole("radio", { name: "Survival" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
-	expect(screen.queryByText(/Time /)).toBeNull();
-	expect(screen.getByText("Lives 3")).toBeTruthy();
+	expect(screen.queryByText(/^\d+:\d{2}$/)).toBeNull();
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
 });
 
 test("sprint timer ends with Time's up", async () => {
 	await renderBlitz();
 	vi.useFakeTimers();
 	fireEvent.click(screen.getByRole("button", { name: "Start" }));
-	expect(screen.getByText("Time 60")).toBeTruthy();
+	expect(screen.getByText("1:00")).toBeTruthy();
 	await vi.advanceTimersByTimeAsync(60_000);
 	expect(screen.getByText("Time's up")).toBeTruthy();
 	expect(screen.getByText("Score 0")).toBeTruthy();
@@ -155,9 +162,26 @@ test("play again returns to setup and a lower score does not lower best", async 
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
 	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(5);
+	expect(screen.queryByText("New best")).toBeNull();
 	await user.click(screen.getByRole("button", { name: "Play again" }));
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
 	expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+});
+
+test("run beating a stored best shows New best on the end card", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeBlitzBests({ "mixed|default|sprint": 0 });
+	await renderBlitz({ persist });
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const answer = currentEntry();
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Score 1")).toBeTruthy();
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	expect(screen.getByText("New best")).toBeTruthy();
+	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(1);
 });
 
 test("refresh during a run returns to setup without restoring score", async () => {
@@ -209,9 +233,9 @@ test("inverted start shows port lives score time and search not slots", async ()
 	expect(screen.getByRole("heading", { level: 1 }).textContent).not.toBe(
 		"Blitz",
 	);
-	expect(screen.getByText("Lives 3")).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
 	expect(screen.getByText("Score 0")).toBeTruthy();
-	expect(screen.getByText("Time 60")).toBeTruthy();
+	expect(screen.getByText("1:00")).toBeTruthy();
 	expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
 	expect(screen.getByRole("combobox", { name: "Service name" })).toBeTruthy();
 });
@@ -219,7 +243,18 @@ test("inverted start shows port lives score time and search not slots", async ()
 test("empty inverted query lists nothing", async () => {
 	const user = userEvent.setup();
 	await startInverted(user);
-	expect(screen.getByText("No matches.")).toBeTruthy();
+	expect(screen.queryByText("No matches.")).toBeNull();
+	expect(screen.queryByRole("option")).toBeNull();
+});
+
+test("non-empty inverted query with no hits shows No matches", async () => {
+	const user = userEvent.setup();
+	await startInverted(user);
+	await user.type(
+		screen.getByRole("combobox", { name: "Service name" }),
+		"zzzzznotaservice",
+	);
+	expect(await screen.findByText("No matches.")).toBeTruthy();
 	expect(screen.queryByRole("option")).toBeNull();
 });
 
@@ -237,7 +272,7 @@ test("enter without a listed row does not spend a life", async () => {
 	await startInverted(user);
 	screen.getByRole("combobox", { name: "Service name" }).focus();
 	await user.keyboard("{Enter}");
-	expect(screen.getByText("Lives 3")).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
 });
 
 test("listed miss shows name is port and spends a life", async () => {
@@ -252,7 +287,7 @@ test("listed miss shows name is port and spends a life", async () => {
 	}
 	await pickListed(pick.name);
 	expect(screen.getByText(`${pick.name} is ${pick.port}`)).toBeTruthy();
-	expect(screen.getByText("Lives 2")).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 2" })).toBeTruthy();
 });
 
 const CROWDED_BLURBS: Record<number, string[]> = {

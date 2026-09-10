@@ -28,6 +28,8 @@ const MODES: Array<{ value: BlitzMode; label: string }> = [
 	{ value: "marathon", label: "Marathon (5m)" },
 	{ value: "survival", label: "Survival" },
 ];
+const PRIMARY_BUTTON =
+	"w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900";
 
 function durationMs(mode: BlitzMode): number | null {
 	if (mode === "sprint") {
@@ -39,6 +41,13 @@ function durationMs(mode: BlitzMode): number | null {
 	return null;
 }
 
+function formatTime(seconds: number): string {
+	const whole = Math.max(0, Math.round(seconds));
+	const minutes = Math.floor(whole / 60);
+	const secs = String(whole % 60).padStart(2, "0");
+	return `${minutes}:${secs}`;
+}
+
 function bestsKey(
 	state: BlitzState,
 ): `${DailyCategory}|${Orientation}|${BlitzMode}` {
@@ -48,19 +57,87 @@ function bestsKey(
 function recordBest(
 	persist: Persist,
 	state: BlitzState,
-): { ok: true } | { ok: false } {
+): { ok: boolean; newBest: boolean } {
 	const key = bestsKey(state);
 	const bests = persist.readBlitzBests();
 	const best = bests[key];
+	const newBest = best !== undefined && state.score > best;
 	if (best === undefined || state.score > best) {
-		return persist.writeBlitzBests({ ...bests, [key]: state.score });
+		const result = persist.writeBlitzBests({ ...bests, [key]: state.score });
+		return { ok: result.ok, newBest };
 	}
-	return { ok: true };
+	return { ok: true, newBest };
 }
 
 function currentEntry(state: BlitzState): CatalogEntry | undefined {
 	return catalogFor(state.category, protocols, applications).find(
 		(entry) => entry.id === state.currentId,
+	);
+}
+
+function Pill({
+	name,
+	checked,
+	label,
+	onChange,
+}: {
+	name: string;
+	checked: boolean;
+	label: string;
+	onChange: () => void;
+}) {
+	return (
+		<label
+			className={`inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+				checked
+					? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+					: "border-zinc-300 text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600"
+			}`}
+		>
+			<input
+				type="radio"
+				name={name}
+				checked={checked}
+				onChange={onChange}
+				className="sr-only"
+			/>
+			{label}
+		</label>
+	);
+}
+
+function HeartIcon({ filled }: { filled: boolean }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			width="22"
+			height="22"
+			fill={filled ? "currentColor" : "none"}
+			stroke="currentColor"
+			strokeWidth="1.8"
+			className={
+				filled
+					? "text-rose-500 dark:text-rose-400"
+					: "text-zinc-300 dark:text-zinc-700"
+			}
+		>
+			<path d="M12 21s-7.5-4.6-10-9.1C.5 8.4 2.4 5 6 5c2 0 3.5 1.2 4.5 2.6C11.5 6.2 13 5 15 5c3.6 0 5.5 3.4 4 6.9C19.5 16.4 12 21 12 21z" />
+		</svg>
+	);
+}
+
+function Hearts({ lives }: { lives: number }) {
+	return (
+		<span
+			role="img"
+			aria-label={`Lives: ${lives}`}
+			className="inline-flex gap-1"
+		>
+			{[0, 1, 2].map((index) => (
+				<HeartIcon key={index} filled={index < lives} />
+			))}
+		</span>
 	);
 }
 
@@ -76,6 +153,8 @@ export function BlitzPage() {
 	const [saveWarning, setSaveWarning] = useState(false);
 	const [deadline, setDeadline] = useState<number | null>(null);
 	const [remaining, setRemaining] = useState<number | null>(null);
+	const [shakeKey, setShakeKey] = useState(0);
+	const [newBest, setNewBest] = useState(false);
 
 	const ended = run?.ended ?? null;
 
@@ -119,7 +198,9 @@ export function BlitzPage() {
 		if (!run?.ended) {
 			return;
 		}
-		if (!recordBest(persist, run).ok) {
+		const result = recordBest(persist, run);
+		setNewBest(result.newBest);
+		if (!result.ok) {
 			setSaveWarning(true);
 		}
 	}, [persist, run]);
@@ -142,6 +223,8 @@ export function BlitzPage() {
 		setPoolError("");
 		setMessage("");
 		setDigits("");
+		setShakeKey(0);
+		setNewBest(false);
 		setRun(started);
 		const ms = durationMs(mode);
 		if (ms === null) {
@@ -159,6 +242,7 @@ export function BlitzPage() {
 			result.guess?.status === "duplicate"
 		) {
 			setMessage(defaultGuessMessage(result.guess));
+			setShakeKey((key) => key + 1);
 			return;
 		}
 		if (result.inverted?.status === "duplicate") {
@@ -211,67 +295,77 @@ export function BlitzPage() {
 		setPoolError("");
 		setDeadline(null);
 		setRemaining(null);
+		setNewBest(false);
 	}
 
 	if (!run) {
 		return (
-			<main>
-				<h1 className="text-2xl">Blitz</h1>
+			<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
+				<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
 				<ProgressNotice show={saveWarning} />
-				<fieldset className="mt-4">
-					<legend>Daily category</legend>
-					{CATEGORIES.map((item) => (
-						<label key={item.value} className="mr-3">
-							<input
-								type="radio"
+				<fieldset className="mt-6">
+					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+						Daily category
+					</legend>
+					<div className="mt-2 flex flex-wrap gap-2">
+						{CATEGORIES.map((item) => (
+							<Pill
+								key={item.value}
 								name="blitz-category"
 								checked={category === item.value}
+								label={item.label}
 								onChange={() => setCategory(item.value)}
-							/>{" "}
-							{item.label}
-						</label>
-					))}
+							/>
+						))}
+					</div>
 				</fieldset>
-				<fieldset className="mt-2">
-					<legend>Orientation</legend>
-					<label className="mr-3">
-						<input
-							type="radio"
+				<fieldset className="mt-4">
+					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+						Orientation
+					</legend>
+					<div className="mt-2 flex flex-wrap gap-2">
+						<Pill
 							name="blitz-orientation"
 							checked={orientation === "default"}
+							label="Default"
 							onChange={() => setOrientation("default")}
-						/>{" "}
-						Default
-					</label>
-					<label className="mr-3">
-						<input
-							type="radio"
+						/>
+						<Pill
 							name="blitz-orientation"
 							checked={orientation === "inverted"}
+							label="Inverted"
 							onChange={() => setOrientation("inverted")}
-						/>{" "}
-						Inverted
-					</label>
+						/>
+					</div>
 				</fieldset>
-				<fieldset className="mt-2">
-					<legend>Mode</legend>
-					{MODES.map((item) => (
-						<label key={item.value} className="mr-3">
-							<input
-								type="radio"
+				<fieldset className="mt-4">
+					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+						Mode
+					</legend>
+					<div className="mt-2 flex flex-wrap gap-2">
+						{MODES.map((item) => (
+							<Pill
+								key={item.value}
 								name="blitz-mode"
 								checked={mode === item.value}
+								label={item.label}
 								onChange={() => setMode(item.value)}
-							/>{" "}
-							{item.label}
-						</label>
-					))}
+							/>
+						))}
+					</div>
 				</fieldset>
-				<button type="button" className="mt-4" onClick={start}>
+				<button
+					type="button"
+					className={`mt-6 ${PRIMARY_BUTTON}`}
+					onClick={start}
+				>
 					Start
 				</button>
 				{poolError ? (
-					<p aria-live="polite" className="mt-2">
+					<p
+						aria-live="polite"
+						className="mt-3 rounded-md bg-rose-100 px-3 py-2 text-sm text-rose-900 dark:bg-rose-900/40 dark:text-rose-200"
+					>
 						{poolError}
 					</p>
 				) : null}
@@ -283,16 +377,34 @@ export function BlitzPage() {
 		const key = bestsKey(run);
 		const best = persist.readBlitzBests()[key];
 		return (
-			<main>
-				<h1 className="text-2xl">Blitz</h1>
+			<main className="mx-auto w-full max-w-md px-4 pb-6 text-center sm:max-w-lg">
+				<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
 				<ProgressNotice show={saveWarning} />
-				<p>Score {run.score}</p>
-				<p>{ended === "timeout" ? "Time's up" : "Out of lives"}</p>
-				<p>{best === undefined ? "Best —" : `Best ${best}`}</p>
-				<p aria-live="polite" className="mt-2">
+				<p className="mt-6 text-lg font-medium text-zinc-700 dark:text-zinc-300">
+					{ended === "timeout" ? "Time's up" : "Out of lives"}
+				</p>
+				<p className="mt-2 text-5xl font-bold tabular-nums">
+					Score {run.score}
+				</p>
+				<p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+					{best === undefined ? "Best —" : `Best ${best}`}
+				</p>
+				{newBest ? (
+					<span className="mt-2 inline-block rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+						New best
+					</span>
+				) : null}
+				<p
+					aria-live="polite"
+					className="mt-3 min-h-5 text-sm text-zinc-600 dark:text-zinc-400"
+				>
 					{message}
 				</p>
-				<button type="button" className="mt-4" onClick={playAgain}>
+				<button
+					type="button"
+					className={`mt-4 ${PRIMARY_BUTTON}`}
+					onClick={playAgain}
+				>
 					Play again
 				</button>
 			</main>
@@ -313,16 +425,26 @@ export function BlitzPage() {
 	const blurb = inverted ? invertedBlurb(puzzle, categoryCatalog) : null;
 
 	return (
-		<main>
-			<h1 className="text-2xl">
+		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
+			<ProgressNotice show={saveWarning} />
+			<div className="mt-4 flex items-center justify-between gap-4">
+				<Hearts lives={run.lives} />
+				<p className="text-sm font-medium">Score {run.score}</p>
+				{remaining !== null ? (
+					<span className="font-mono text-sm text-zinc-700 dark:text-zinc-300">
+						{formatTime(remaining)}
+					</span>
+				) : null}
+			</div>
+			<h1 className="mt-6 text-center text-3xl font-bold tracking-tight">
 				{inverted ? String(puzzle.port) : puzzle.name}
 			</h1>
-			{blurb ? <p>{blurb}</p> : null}
-			<ProgressNotice show={saveWarning} />
-			<p>Lives {run.lives}</p>
-			<p>Score {run.score}</p>
-			{remaining !== null ? <p>Time {remaining}</p> : null}
-			<div className="mt-4">
+			{blurb ? (
+				<p className="mt-1 text-center text-sm text-zinc-600 dark:text-zinc-400">
+					{blurb}
+				</p>
+			) : null}
+			<div className="mt-6">
 				{inverted ? (
 					<Typeahead catalog={categoryCatalog} onSubmit={submitInverted} />
 				) : (
@@ -333,14 +455,22 @@ export function BlitzPage() {
 							disabled={false}
 							onChange={setDigits}
 							onSubmit={submitGuess}
+							shakeKey={shakeKey}
 						/>
-						<button type="button" className="mt-2" onClick={submitGuess}>
+						<button
+							type="button"
+							className={`mt-3 ${PRIMARY_BUTTON}`}
+							onClick={submitGuess}
+						>
 							Submit
 						</button>
 					</>
 				)}
 			</div>
-			<p aria-live="polite" className="mt-2">
+			<p
+				aria-live="polite"
+				className="mt-3 min-h-5 text-center text-sm text-zinc-600 dark:text-zinc-400"
+			>
 				{message}
 			</p>
 		</main>
