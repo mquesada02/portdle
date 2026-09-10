@@ -17,6 +17,7 @@ import type {
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots } from "./digit-slots";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
+import { ProgressNotice } from "./notice";
 import { categoryStreakGap } from "./sync-utc";
 
 function padPort(port: number, length: number): string {
@@ -107,7 +108,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 	return (
 		<main>
 			<h1 className="text-2xl">{puzzle.name}</h1>
-			{saveWarning ? <p role="status">Progress may not save.</p> : null}
+			<ProgressNotice show={saveWarning} />
 			<ol className="mt-4 space-y-2 font-mono">
 				{(board?.guesses ?? []).map((guess) => (
 					<li key={`${guess.port}-${guess.result}`}>

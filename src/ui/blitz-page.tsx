@@ -14,6 +14,7 @@ import type {
 import type { Persist } from "../persist/storage";
 import { DigitSlots } from "./digit-slots";
 import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
+import { ProgressNotice } from "./notice";
 import { Typeahead } from "./typeahead";
 
 const EMPTY_POOL = "Cannot start Blitz: not enough unused answers today.";
@@ -55,13 +56,6 @@ function recordBest(
 		return persist.writeBlitzBests({ ...bests, [key]: state.score });
 	}
 	return { ok: true };
-}
-
-function ProgressWarning({ show }: { show: boolean }) {
-	if (!show) {
-		return null;
-	}
-	return <p role="status">Progress may not save.</p>;
 }
 
 function currentEntry(state: BlitzState): CatalogEntry | undefined {
@@ -223,7 +217,7 @@ export function BlitzPage() {
 		return (
 			<main>
 				<h1 className="text-2xl">Blitz</h1>
-				<ProgressWarning show={saveWarning} />
+				<ProgressNotice show={saveWarning} />
 				<fieldset className="mt-4">
 					<legend>Daily category</legend>
 					{CATEGORIES.map((item) => (
@@ -291,7 +285,7 @@ export function BlitzPage() {
 		return (
 			<main>
 				<h1 className="text-2xl">Blitz</h1>
-				<ProgressWarning show={saveWarning} />
+				<ProgressNotice show={saveWarning} />
 				<p>Score {run.score}</p>
 				<p>{ended === "timeout" ? "Time's up" : "Out of lives"}</p>
 				<p>{best === undefined ? "Best —" : `Best ${best}`}</p>
@@ -324,7 +318,7 @@ export function BlitzPage() {
 				{inverted ? String(puzzle.port) : puzzle.name}
 			</h1>
 			{blurb ? <p>{blurb}</p> : null}
-			<ProgressWarning show={saveWarning} />
+			<ProgressNotice show={saveWarning} />
 			<p>Lives {run.lives}</p>
 			<p>Score {run.score}</p>
 			{remaining !== null ? <p>Time {remaining}</p> : null}

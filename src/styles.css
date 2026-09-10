@@ -2,6 +2,70 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@keyframes pop {
+	0% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.12);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+@keyframes shake {
+	0%,
+	100% {
+		transform: translateX(0);
+	}
+	20%,
+	60% {
+		transform: translateX(-5px);
+	}
+	40%,
+	80% {
+		transform: translateX(5px);
+	}
+}
+
+@keyframes draw {
+	from {
+		transform: scaleX(0);
+	}
+	to {
+		transform: scaleX(1);
+	}
+}
+
+@keyframes rise {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.animate-pop {
+	animation: pop 150ms ease-out both;
+}
+
+.animate-shake {
+	animation: shake 300ms ease-in-out;
+}
+
+.animate-draw {
+	transform-origin: center;
+	animation: draw 300ms ease-out both;
+}
+
+.animate-rise {
+	animation: rise 300ms ease-out 250ms both;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
