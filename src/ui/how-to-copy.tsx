@@ -8,10 +8,10 @@ export const HOW_TO_RULES = [
 
 export function HowToRulesList() {
 	return (
-		<ul>
+		<ol className="list-decimal space-y-2 pl-5 text-sm">
 			{HOW_TO_RULES.map((rule) => (
 				<li key={rule}>{rule}</li>
 			))}
-		</ul>
+		</ol>
 	);
 }
