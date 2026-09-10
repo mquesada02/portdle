@@ -48,17 +48,21 @@ A player can run Blitz in Default orientation (name in, port out), but setup doe
 34. As a player, I want the start pool to be answer-eligible, not retired, in the chosen Daily category, minus today's three Daily ids, so that exclusion matches Default.
 35. As a player whose remaining pool is empty after a correct or a miss with lives left, I want a reshuffle of the start pool, so that the run can continue.
 36. As a player who starts when the filtered pool is empty, I want "Cannot start Blitz: not enough unused answers today.", so that an empty pool cannot begin.
-37. As a player whose third miss ends the run, I want "Out of lives", the score, and the stored best for this Daily category, Inverted orientation, and mode.
-38. As a player whose Sprint or Marathon timer ends the run, I want "Time's up", the score, and that same stored best.
-39. As a player who finishes an Inverted run with a new best, I want it stored under `{category}|inverted|{mode}`, so that Default bests are not overwritten.
-40. As a player who has a Default best for the same category and mode, I want that Default best unchanged by an Inverted finish, so that orientation keys do not leak.
-41. As a player on the end screen, I want Play again to return to setup, so that I can start a new run.
-42. As a player who refreshes during an Inverted run, I want setup again with the run discarded, so that a Blitz run is not persisted.
-43. As a player in a run, I want status messages in an `aria-live` region, so that miss, duplicate, and empty-list copy are announced.
-44. As a player, I want one `h1` per screen (Blitz on setup and end; the port during an Inverted run; the canonical name during a Default run).
-45. As a player, I want English copy only, committed port digits still monospace on Default, and service names in the UI sans-serif.
-46. As a maintainer, I want inverted guess and prefix search to be pure TypeScript with injected catalogs, so that tests do not use the DOM or the clock.
-47. As a maintainer, I want the Blitz reducer to accept `orientation: "inverted"` and an inverted-guess event, so that start and reduce stay the engine seam.
+37. As a player whose third miss ends the run, I want "Out of lives", the score, and the stored best for this Daily category, Inverted orientation, and mode, so that I know why it ended and how I did.
+38. As a player whose Sprint or Marathon timer ends the run, I want "Time's up", the score, and that same stored best, so that timeout is distinct from lives.
+39. As a player on Sprint or Marathon, I want the timer to use wall clock (`Date.now()`), so that a backgrounded tab still consumes time and there is no pause.
+40. As a player who finishes an Inverted run with a new best, I want it stored under `{category}|inverted|{mode}`, so that Default bests are not overwritten.
+41. As a player who has a Default best for the same category and mode, I want that Default best unchanged by an Inverted finish, so that orientation keys do not leak.
+42. As a player who finishes an Inverted run with a score equal to the stored best, I want the stored best unchanged, so that ties do not rewrite.
+43. As a player who finishes a first Inverted run for that key with any score (including 0), I want that score stored as the best, so that a first finish creates a best.
+44. As a player whose browser cannot write storage, I want "Progress may not save." and a still-playable run, so that quota failure is not a lockout.
+45. As a player on the end screen, I want Play again to return to setup, so that I can start a new run.
+46. As a player who refreshes during an Inverted run, I want setup again with the run discarded, so that a Blitz run is not persisted.
+47. As a player in a run, I want status messages in an `aria-live` region, so that miss, duplicate, and empty-list copy are announced.
+48. As a player, I want one `h1` per screen (Blitz on setup and end; the port during an Inverted run; the canonical name during a Default run), so that heading structure stays one per screen.
+49. As a player, I want English copy only, committed port digits still monospace on Default, and service names in the UI sans-serif, so that Inverted matches Daily visual tone.
+50. As a maintainer, I want inverted guess and prefix search to be pure TypeScript with injected catalogs, so that tests do not use the DOM or the clock.
+51. As a maintainer, I want the Blitz reducer to accept `orientation: "inverted"` and an inverted-guess event, so that start and reduce stay the engine seam.
 
 ## Implementation Decisions
 
@@ -73,6 +77,9 @@ A player can run Blitz in Default orientation (name in, port out), but setup doe
     | { status: "correct"; id: string }
     | { status: "miss"; id: string; identified: Identified; samePort: boolean }
   type SearchHit = { id: string; name: string }
+  type SearchIndex = {
+    entries: Array<{ id: string; name: string; tokens: string[] }>
+  }
   ```
 
 - Inverted guess:
@@ -83,7 +90,7 @@ A player can run Blitz in Default orientation (name in, port out), but setup doe
   }): InvertedGuessResult
   ```
 
-  Look up `id` in `catalog`. Unknown `id` is a programmer error (the picker cannot produce it); throw. Same `id` already in `previousIds` → `{ status: "duplicate" }`. `id === answer.id` → `{ status: "correct", id }`. Else `{ status: "miss", id, identified: { id, name, port } of the picked row, samePort: picked.port === answer.port }`. Aliases are not compared; only `id`. The picked row is the identified row (not lexicographically smallest on that port).
+  `id` is a catalog `id` from the picker; tests only pass ids present in `catalog`. Same `id` already in `previousIds` → `{ status: "duplicate" }`. `id === answer.id` → `{ status: "correct", id }`. Else `{ status: "miss", id, identified: { id, name, port } of the picked row, samePort: picked.port === answer.port }`. Aliases are not compared; only `id`. The picked row is the identified row (not lexicographically smallest on that port).
 
 - Prefix search:
 
@@ -94,7 +101,14 @@ A player can run Blitz in Default orientation (name in, port out), but setup doe
 
   Index the **chosen Daily category** catalog (full, including miss-only and retired). Tokens per entry: canonical `name` plus each alias, `toLowerCase`. Query: trim then `toLowerCase`. Empty query (including whitespace-only) → `[]`. Match: any token `startsWith` the query (prefix, not infix). Description and blurb are not indexed. Sort: name-prefix matches first, then alias-prefix (name did not prefix but an alias did), then `name.localeCompare`. Cap 20 after sort. Each hit is `{ id, name }` with the canonical name.
 
-- Crowding (same rule as catalog validation): a port is crowded in a catalog when two or more **non-retired** entries share that `port`. Mixed = union of both JSON files. Unique → inverted shows the number only. Crowded → also show that entry's `blurb`. Export this as a pure `isCrowdedPort(entries, port)` used by inverted UI. Do not show `name` or aliases in the prompt.
+- Crowding (same rule as catalog validation): a port is crowded in a catalog when two or more **non-retired** entries share that `port`. Mixed = union of both JSON files. Unique → inverted shows the number only. Crowded → also show **that entry's** `blurb` (not a roommate's).
+
+  ```ts
+  isCrowdedPort(entries, port): boolean
+  invertedBlurb(entry, catalog): string | null
+  ```
+
+  `invertedBlurb` returns `entry.blurb` when `isCrowdedPort(catalog, entry.port)` and `entry.blurb` is a non-empty string; otherwise `null`. UI shows that string. Do not show `name` or aliases in the prompt.
 
 - Blitz engine (widen #5):
 
@@ -126,7 +140,7 @@ A player can run Blitz in Default orientation (name in, port out), but setup doe
 
   `startBlitz` records the given `orientation` (`"default"` or `"inverted"`). Start pool, lives 3, score 0, exclusion of today's three Daily ids, Fisher–Yates shuffle, empty-pool error, advance, reshuffle, and `timeout` are unchanged from #5.
 
-  `inverted-guess` (only meaningful when `state.orientation === "inverted"`): `evaluateInvertedGuess({ id, answer, previousIds: [], catalog })` with `catalogFor(state.category, …)` and the entry whose `id === state.currentId`. Duplicate: same `state`, return `inverted`. Correct: `score += 1`, then advance. Miss: `lives -= 1`; if `lives === 0`, `ended: "lives"` and keep `currentId`; else advance. Each item is one shot, so `previousIds` is always empty at reduce time; duplicate still has the §7.2 meaning and must not change state if it ever occurs. `default-guess` on an inverted state, or `inverted-guess` on a default state: return the same `state` with no `guess` / `inverted`. Ended state: no-op, as in #5.
+  `inverted-guess` when `state.orientation === "inverted"`: `evaluateInvertedGuess({ id, answer, previousIds: [], catalog })` with `catalogFor(state.category, …)` and the entry whose `id === state.currentId`. Duplicate: same `state`, return `inverted`. Correct: `score += 1`, then advance. Miss: `lives -= 1`; if `lives === 0`, `ended: "lives"` and keep `currentId`; else advance. Each item is one shot, so `previousIds` is always empty at reduce time; duplicate still has the §7.2 meaning and must not change state if it ever occurs. The UI sends `default-guess` only on Default runs and `inverted-guess` only on Inverted runs. Ended state: no-op, as in #5.
 
 - Persist: no new keys. Best update on run end uses `` `${category}|${orientation}|${mode}` `` (Default still writes `default`; Inverted writes `inverted`). Equal score does not write. Missing or corrupt `blitzBests` still reads `{}`. Do not persist the run. Do not write Daily / stats / `lastPlayed` from Blitz.
 
@@ -134,7 +148,7 @@ A player can run Blitz in Default orientation (name in, port out), but setup doe
 
   Setup: `h1` Blitz. Keep Daily category and Mode radios from #5. Replace the static Default label with Orientation radios labelled `Default` / `Inverted` (group name `Orientation`). Initial selections: Mixed, Default, Sprint. Start named `Start`. Empty pool copy unchanged.
 
-  Inverted run: `h1` is `String(answer.port)` (no leading zeros). If `isCrowdedPort(category catalog, answer.port)`, also show `answer.blurb` (not in the `h1`). Lives, score, remaining time as #5. No Port digits. Combobox named `Service name`. Debounce 200ms, then `searchNames`. Listbox (`role="listbox"`) of options (`role="option"`, accessible name = canonical `name`). Empty list: `No matches.` Click an option or Enter on the highlighted option submits that `id`. No listed row selected → Enter / Submit does nothing (no Default "Not a valid port."). Duplicate copy `Already guessed.` Miss with `samePort === false`: `{identified.name} is {identified.port}`. Miss with `samePort === true`: `Wrong service, same port.` Then next item (or end). No Skip.
+  Inverted run: `h1` is `String(answer.port)` (no leading zeros). Also show `invertedBlurb(answer, category catalog)` when it is not `null` (not in the `h1`). Lives, score, remaining time as #5. No Port digits. Combobox named `Service name`. Debounce 200ms, then `searchNames`. Listbox (`role="listbox"`) of options (`role="option"`, accessible name = canonical `name`). Empty list: `No matches.` Click an option or Enter on the highlighted option submits that `id`. No listed row selected → Enter / Submit does nothing (no Default "Not a valid port."). Duplicate copy `Already guessed.` Miss with `samePort === false`: `{identified.name} is {identified.port}`. Miss with `samePort === true`: `Wrong service, same port.` Then next item (or end). No Skip.
 
   Default run, timer, end screen, Play again, How-to, Help, theme, nav, History heading, and Daily routes stay as shipped, except end-screen bests read the run's orientation key.
 
@@ -148,11 +162,11 @@ A good test checks observable behavior through a public interface. It does not i
 
 Three seams (same as Implementation Decisions):
 
-1. **Engine** — `evaluateInvertedGuess`, `buildSearchIndex` / `searchNames`, `isCrowdedPort`, `startBlitz`, `reduceBlitz`. Inject tiny catalogs, tiny schedules, `utcToday`, and `rng`. Cover: inverted correct `id`; miss other port identifies the picked row with `samePort: false`; miss same port sets `samePort: true`; duplicate `id` in `previousIds` returns `duplicate`; unknown `id` throws; search name prefix; search alias prefix returns the canonical-name row; empty / whitespace query is `[]`; description / blurb text does not match; case-fold; name-prefix before alias-prefix then `localeCompare`; cap 20; miss-only and retired rows are searchable; `isCrowdedPort` is true for two non-retired entries on the same port and false when the roommate is retired or in the other catalog kind; Mixed union is crowded when each kind has one occupant; `startBlitz` with `orientation: "inverted"` sets that orientation and still excludes today's three Daily ids; inverted correct increments score and changes `currentId`; inverted miss decrements lives and advances while lives remain; inverted duplicate (via `evaluateInvertedGuess`) spends no life; `timeout` and empty-pool and reshuffle still work; Default `default-guess` still works on a default run. Do not test Daily persist or History.
+1. **Engine** — `evaluateInvertedGuess`, `buildSearchIndex` / `searchNames`, `isCrowdedPort`, `invertedBlurb`, `startBlitz`, `reduceBlitz`. Inject tiny catalogs, tiny schedules, `utcToday`, and `rng`. Cover: inverted correct `id`; miss other port identifies the picked row with `samePort: false`; miss same port sets `samePort: true`; duplicate `id` in `previousIds` returns `duplicate`; search name prefix; search alias prefix returns the canonical-name row; empty / whitespace query is `[]`; description / blurb text does not match; case-fold; name-prefix before alias-prefix then `localeCompare`; cap 20; miss-only and retired rows are searchable; `isCrowdedPort` is true for two non-retired entries on the same port and false when the roommate is retired or in the other catalog kind; Mixed union is crowded when each kind has one occupant; `invertedBlurb` for a crowded entry is **that entry's** `blurb` (Jenkins vs Tomcat on 8080 return different strings) and `null` for a unique port; `startBlitz` with `orientation: "inverted"` sets that orientation and still excludes today's three Daily ids; inverted correct increments score and changes `currentId`; inverted miss decrements lives and advances while lives remain; inverted duplicate (via `evaluateInvertedGuess`) spends no life; `timeout` and empty-pool and reshuffle still work; Default `default-guess` still works on a default run. Do not test Daily persist or History. Picker-only `id`s: do not test unknown ids.
 
 2. **Persist** — existing adapter. Cover a round-trip `{ "mixed|inverted|sprint": 4 }` and that writing an inverted key does not drop a stored `mixed|default|sprint` value. Do not use `window.localStorage`. Do not add persist methods.
 
-3. **UI** — Vitest + Testing Library + jsdom through `App`. Inject persist, memory history, `utcToday` `2026-09-09`. Cover: setup has Orientation radios Default and Inverted, Default selected; Start Inverted Mixed Sprint shows a numeric `h1` that is not a service name, lives 3, score 0, time 60, no Port digits, a Service name combobox; empty query shows `No matches.` and no options; after typing a name prefix and advancing 200ms, a listed option with that canonical name appears; Enter without a listed selection does not change lives; clicking a listed row whose port is not the heading port shows `{name} is {port}`, decrements lives, and advances; when the heading port is crowded in Mixed, a blurb from a Mixed entry on that port is shown; when unique, no blurb; an Inverted finish writes `mixed|inverted|sprint` and does not write `mixed|default|sprint` or a Daily key; Default Start still shows a service-name `h1` and Port digits; Play again returns to setup; How-to, History heading, and Mixed Daily still work. Do not assert CSS class names except existing `html.dark` shell tests. Do not add an App catalog-injection seam.
+3. **UI** — Vitest + Testing Library + jsdom through `App`. Inject persist, memory history, `utcToday` `2026-09-09`. Cover: setup has Orientation radios Default and Inverted, Default selected; Start Inverted Mixed Sprint shows a numeric `h1` that is not a service name, lives 3, score 0, time 60, no Port digits, a Service name combobox; empty query shows `No matches.` and no options; after typing a name prefix and advancing 200ms, a listed option with that canonical name appears; Enter without a listed selection does not change lives; clicking a listed row whose port is not the heading port shows `{name} is {port}`, decrements lives, and advances; unique Mixed heading shows no blurb; crowded Mixed heading shows a blurb (which blurb is `invertedBlurb` of the current entry — engine-tested, not an App currentId assertion); an Inverted finish writes `mixed|inverted|sprint` and does not write `mixed|default|sprint` or a Daily key; Default Start still shows a service-name `h1` and Port digits; Play again returns to setup; How-to, History heading, and Mixed Daily still work. Do not assert CSS class names except existing `html.dark` shell tests. Do not add an App catalog-injection seam.
 
 Prior art: engine tests next to sources with injected catalogs; persist injected-store tests; Blitz Default and Mixed Daily through `App`. Follow those. Do not introduce Playwright.
 
