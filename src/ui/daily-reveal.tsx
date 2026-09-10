@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatShare } from "../engine/share";
 import { winPercent } from "../engine/stats";
 import type {
@@ -7,6 +7,8 @@ import type {
 	DailyCategory,
 	DailyPersist,
 } from "../engine/types";
+
+const TRIES = [1, 2, 3, 4, 5, 6] as const;
 
 function transportLabel(transport: CatalogEntry["transport"]): string {
 	if (transport === "tcp") {
@@ -18,20 +20,97 @@ function transportLabel(transport: CatalogEntry["transport"]): string {
 	return "TCP/UDP";
 }
 
+function Badge({ children }: { children: string }) {
+	return (
+		<span className="inline-flex items-center rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+			{children}
+		</span>
+	);
+}
+
+function Histogram({
+	stats,
+	highlight,
+}: {
+	stats: CategoryStats;
+	highlight: number | null;
+}) {
+	const max = Math.max(1, ...stats.histogram);
+	return (
+		<ol className="space-y-1">
+			{TRIES.map((tryNumber) => {
+				const count = stats.histogram[tryNumber - 1] ?? 0;
+				return (
+					<li key={tryNumber} className="flex items-center gap-2 text-xs">
+						<span className="w-3 text-right text-zinc-500">{tryNumber}</span>
+						<div className="flex-1">
+							<div
+								className={`h-4 rounded-sm px-1.5 text-right leading-4 text-white ${
+									tryNumber === highlight
+										? "bg-emerald-500"
+										: "bg-zinc-400 dark:bg-zinc-600"
+								}`}
+								style={{ width: `${Math.max(8, (count / max) * 100)}%` }}
+							>
+								{count}
+							</div>
+						</div>
+					</li>
+				);
+			})}
+		</ol>
+	);
+}
+
 export function DailyReveal({
 	category,
 	puzzle,
 	board,
 	stats,
 	utcToday,
+	finishedThisSession,
 }: {
 	category: DailyCategory;
 	puzzle: CatalogEntry;
 	board: DailyPersist;
 	stats: CategoryStats;
 	utcToday: string;
+	finishedThisSession: boolean;
 }) {
 	const [shareFallback, setShareFallback] = useState<string | null>(null);
+	const [copied, setCopied] = useState(false);
+	const won = board.status === "won";
+	const highlight = won ? board.guesses.length : null;
+
+	// Smooth scroll to the reveal, but only when the Daily finished during
+	// this page session — a reload of an already-finished Daily never
+	// scrolls. Reduced motion skips the delay and the smooth behavior.
+	useEffect(() => {
+		if (!finishedThisSession) {
+			return;
+		}
+		const reduced = window.matchMedia(
+			"(prefers-reduced-motion: reduce)",
+		).matches;
+		const timer = window.setTimeout(
+			() =>
+				window.scrollTo({
+					top: document.documentElement.scrollHeight,
+					behavior: reduced ? "auto" : "smooth",
+				}),
+			reduced ? 0 : 250,
+		);
+		return () => window.clearTimeout(timer);
+	}, [finishedThisSession]);
+
+	// "Copied!" reverts to "Share" after 1.5s.
+	useEffect(() => {
+		if (!copied) {
+			return;
+		}
+		const timer = window.setTimeout(() => setCopied(false), 1500);
+		return () => window.clearTimeout(timer);
+	}, [copied]);
 
 	async function share() {
 		if (board.status !== "won" && board.status !== "lost") {
@@ -47,6 +126,7 @@ export function DailyReveal({
 			if (navigator.clipboard?.writeText) {
 				await navigator.clipboard.writeText(text);
 				setShareFallback(null);
+				setCopied(true);
 				return;
 			}
 		} catch {
@@ -57,57 +137,77 @@ export function DailyReveal({
 	}
 
 	return (
-		<section className="mt-6">
-			<p>{puzzle.port}</p>
-			<p>{transportLabel(puzzle.transport)}</p>
-			<p>{puzzle.description}</p>
-			<dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-				<div>
-					<dt>Played</dt>
-					<dd>{stats.played}</dd>
+		<section className="mt-8 text-center">
+			<div
+				aria-hidden="true"
+				className="animate-draw h-px w-full bg-zinc-300 dark:bg-zinc-700"
+			/>
+			<div className="animate-rise pt-6">
+				<p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+					{won ? "Solved" : "The answer was"}
+				</p>
+				<p className="mt-2 font-mono text-5xl font-bold tabular-nums">
+					{puzzle.port}
+				</p>
+				<p className="mt-2">
+					<Badge>{transportLabel(puzzle.transport)}</Badge>
+				</p>
+				<p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+					{puzzle.description}
+				</p>
+				<dl className="mt-8 grid grid-cols-4 gap-2">
+					<div>
+						<dt className="text-[11px] uppercase tracking-wide text-zinc-500">
+							Played
+						</dt>
+						<dd className="text-2xl font-bold tabular-nums">{stats.played}</dd>
+					</div>
+					<div>
+						<dt className="text-[11px] uppercase tracking-wide text-zinc-500">
+							Win %
+						</dt>
+						<dd className="text-2xl font-bold tabular-nums">
+							{Math.round(winPercent(stats) * 100)}
+						</dd>
+					</div>
+					<div>
+						<dt className="text-[11px] uppercase tracking-wide text-zinc-500">
+							Streak
+						</dt>
+						<dd className="text-2xl font-bold tabular-nums">
+							{stats.currentStreak}
+						</dd>
+					</div>
+					<div>
+						<dt className="text-[11px] uppercase tracking-wide text-zinc-500">
+							Best streak
+						</dt>
+						<dd className="text-2xl font-bold tabular-nums">
+							{stats.bestStreak}
+						</dd>
+					</div>
+				</dl>
+				<div className="mt-6 text-left">
+					<p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+						Guess distribution
+					</p>
+					<Histogram stats={stats} highlight={highlight} />
 				</div>
-				<div>
-					<dt>Win %</dt>
-					<dd>{Math.round(winPercent(stats) * 100)}</dd>
-				</div>
-				<div>
-					<dt>Current streak</dt>
-					<dd>{stats.currentStreak}</dd>
-				</div>
-				<div>
-					<dt>Best streak</dt>
-					<dd>{stats.bestStreak}</dd>
-				</div>
-			</dl>
-			<ol className="mt-2 space-y-1">
-				{([1, 2, 3, 4, 5, 6] as const).map((tryNumber) => {
-					const count = stats.histogram[tryNumber - 1] ?? 0;
-					return (
-						<li key={tryNumber}>
-							{tryNumber}: {count}
-							<div
-								className="mt-1 h-3 w-full bg-zinc-200 dark:bg-zinc-800"
-								aria-hidden="true"
-							>
-								<div
-									className="h-3 bg-zinc-800 dark:bg-zinc-200"
-									style={{ width: `${Math.min(100, count * 12.5)}%` }}
-								/>
-							</div>
-						</li>
-					);
-				})}
-			</ol>
-			<button type="button" className="mt-4" onClick={() => void share()}>
-				Share
-			</button>
-			{shareFallback ? (
-				<textarea
-					readOnly
-					value={shareFallback}
-					className="mt-2 block w-full"
-				/>
-			) : null}
+				<button
+					type="button"
+					onClick={() => void share()}
+					className="mt-6 w-full rounded-lg bg-emerald-500 py-3 text-base font-semibold text-white"
+				>
+					{copied ? "Copied!" : "Share"}
+				</button>
+				{shareFallback ? (
+					<textarea
+						readOnly
+						value={shareFallback}
+						className="mt-2 block w-full"
+					/>
+				) : null}
+			</div>
 		</section>
 	);
 }
