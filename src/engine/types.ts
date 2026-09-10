@@ -5,6 +5,8 @@ export const DAILY_CATEGORIES: DailyCategory[] = [
 	"protocols",
 	"applications",
 ];
+export type Orientation = "default" | "inverted";
+export type BlitzMode = "sprint" | "marathon" | "survival";
 export type Transport = "tcp" | "udp" | "both";
 
 export type CatalogEntry = {
@@ -45,3 +47,23 @@ export type DailyPersist = {
 		identified: Identified | null;
 	}>;
 };
+
+export type BlitzBests = Partial<
+	Record<`${DailyCategory}|${Orientation}|${BlitzMode}`, number>
+>;
+
+export type BlitzState = {
+	category: DailyCategory;
+	orientation: "default";
+	mode: BlitzMode;
+	lives: number;
+	score: number;
+	remainingIds: string[];
+	currentId: string;
+	startPool: string[];
+	ended: null | "lives" | "timeout";
+};
+
+export type BlitzEvent =
+	| { type: "default-guess"; digits: string }
+	| { type: "timeout" };

@@ -1,10 +1,6 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
 import { useState } from "react";
-import applicationsJson from "../catalogs/applications.json";
-import protocolsJson from "../catalogs/protocols.json";
-import applicationsScheduleJson from "../catalogs/schedules/applications.json";
-import mixedScheduleJson from "../catalogs/schedules/mixed.json";
-import protocolsScheduleJson from "../catalogs/schedules/protocols.json";
+import { applications, protocols, schedules } from "../catalogs/production";
 import { catalogFor } from "../engine/catalog";
 import { getDaily } from "../engine/daily";
 import {
@@ -14,24 +10,14 @@ import {
 } from "../engine/guess";
 import { applyDailyFinish, emptyStats } from "../engine/stats";
 import type {
-	CatalogEntry,
 	CategoryStats,
 	DailyCategory,
 	DailyPersist,
-	ScheduleFile,
 } from "../engine/types";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots } from "./digit-slots";
+import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { categoryStreakGap } from "./sync-utc";
-
-const protocols = protocolsJson as CatalogEntry[];
-const applications = applicationsJson as CatalogEntry[];
-const schedules: Record<DailyCategory, ScheduleFile> = {
-	mixed: mixedScheduleJson as ScheduleFile,
-	protocols: protocolsScheduleJson as ScheduleFile,
-	applications: applicationsScheduleJson as ScheduleFile,
-};
-const NOT_IN_THIS_CATALOG = "Not in this catalog.";
 
 function padPort(port: number, length: number): string {
 	return String(port).padStart(length, "0");
@@ -95,22 +81,12 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 			catalog,
 		});
 		const next = applyCommittedGuess(current, result);
-		if (next.status === "invalid") {
-			setMessage("Not a valid port.");
-			return;
-		}
-		if (next.status === "duplicate") {
-			setMessage("Already guessed.");
+		if (next.status === "invalid" || next.status === "duplicate") {
+			setMessage(defaultGuessMessage(result));
 			return;
 		}
 		setDigits("");
-		if (result.status === "miss") {
-			setMessage(
-				result.identified ? result.identified.name : NOT_IN_THIS_CATALOG,
-			);
-		} else {
-			setMessage("");
-		}
+		setMessage(defaultGuessMessage(result));
 		setBoard(next);
 		noteWrite(persist.writeDaily(category, utcToday, next));
 		if (next.status === "won" || next.status === "lost") {

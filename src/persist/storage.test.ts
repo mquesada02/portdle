@@ -159,6 +159,48 @@ test("applications daily and stats round-trip without mixed keys", () => {
 	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
 });
 
+test("blitzBests missing is empty object and round-trips", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.readBlitzBests()).toEqual({});
+	expect(persist.writeBlitzBests({ "mixed|default|sprint": 4 })).toEqual({
+		ok: true,
+	});
+	expect(persist.readBlitzBests()).toEqual({ "mixed|default|sprint": 4 });
+	expect(store.data.has("portdle:v1:blitzBests")).toBe(true);
+});
+
+test("corrupt blitzBests is empty without dropping theme", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.writeTheme("dark")).toEqual({ ok: true });
+	store.data.set("portdle:v1:blitzBests", "{not json");
+	expect(persist.readBlitzBests()).toEqual({});
+	expect(persist.readTheme()).toBe("dark");
+});
+
+test("writing blitzBests does not write daily or stats keys", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.writeBlitzBests({ "mixed|default|sprint": 2 })).toEqual({
+		ok: true,
+	});
+	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
+	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
+});
+
+test("writeBlitzBests setItem throw returns ok false", () => {
+	const persist = createPersist({
+		getItem: () => null,
+		setItem: () => {
+			throw new Error("quota");
+		},
+	});
+	expect(persist.writeBlitzBests({ "mixed|default|sprint": 1 })).toEqual({
+		ok: false,
+	});
+});
+
 test("lastSeenUtc round-trips and corrupt is null", () => {
 	const store = memoryStore();
 	const persist = createPersist(store);
