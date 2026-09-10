@@ -25,6 +25,18 @@ function historyList() {
 	return screen.getByRole("list", { name: "History" });
 }
 
+function dateHeadingNames() {
+	return within(historyList())
+		.getAllByRole("heading", { level: 2 })
+		.map((heading) => heading.textContent);
+}
+
+function dateRows(date: string) {
+	return within(screen.getByRole("list", { name: date })).getAllByRole(
+		"listitem",
+	);
+}
+
 afterEach(() => {
 	cleanup();
 	document.documentElement.classList.remove("dark");
@@ -37,27 +49,29 @@ test("History heading and past days newest first without today", async () => {
 	expect(
 		screen.getByRole("heading", { level: 1, name: "History" }),
 	).toBeTruthy();
-	const items = within(historyList()).getAllByRole("listitem");
-	expect(items.length).toBe(6);
+	expect(dateHeadingNames()).toEqual([YESTERDAY, EPOCH]);
 	const mixedYesterday = dailyOn("mixed", YESTERDAY);
 	const protocolsYesterday = dailyOn("protocols", YESTERDAY);
 	const applicationsYesterday = dailyOn("applications", YESTERDAY);
 	const mixedEpoch = dailyOn("mixed", EPOCH);
 	const protocolsEpoch = dailyOn("protocols", EPOCH);
 	const applicationsEpoch = dailyOn("applications", EPOCH);
-	expect(items[0]?.textContent).toContain(YESTERDAY);
-	expect(items[0]?.textContent).toContain("Mixed");
-	expect(items[0]?.textContent).toContain(mixedYesterday.name);
-	expect(items[0]?.textContent).toContain(String(mixedYesterday.port));
-	expect(items[1]?.textContent).toContain("Protocols");
-	expect(items[1]?.textContent).toContain(protocolsYesterday.name);
-	expect(items[2]?.textContent).toContain("Applications");
-	expect(items[2]?.textContent).toContain(applicationsYesterday.name);
-	expect(items[3]?.textContent).toContain(EPOCH);
-	expect(items[3]?.textContent).toContain(mixedEpoch.name);
-	expect(items[4]?.textContent).toContain(protocolsEpoch.name);
-	expect(items[5]?.textContent).toContain(applicationsEpoch.name);
+	const yesterdayRows = dateRows(YESTERDAY);
+	expect(yesterdayRows.length).toBe(3);
+	expect(yesterdayRows[0]?.textContent).toBe(
+		`Mixed ${mixedYesterday.name} ${mixedYesterday.port}`,
+	);
+	expect(yesterdayRows[1]?.textContent).toContain("Protocols");
+	expect(yesterdayRows[1]?.textContent).toContain(protocolsYesterday.name);
+	expect(yesterdayRows[2]?.textContent).toContain("Applications");
+	expect(yesterdayRows[2]?.textContent).toContain(applicationsYesterday.name);
+	const epochRows = dateRows(EPOCH);
+	expect(epochRows.length).toBe(3);
+	expect(epochRows[0]?.textContent).toContain(mixedEpoch.name);
+	expect(epochRows[1]?.textContent).toContain(protocolsEpoch.name);
+	expect(epochRows[2]?.textContent).toContain(applicationsEpoch.name);
 	expect(historyList().textContent).not.toContain(UTC_TODAY);
+	expect(dateHeadingNames()).not.toContain(UTC_TODAY);
 });
 
 test("won Mixed today lists Mixed today and not unfinished categories", async () => {
@@ -79,20 +93,16 @@ test("won Mixed today lists Mixed today and not unfinished categories", async ()
 		],
 	});
 	await renderHistory(persist);
-	const items = within(historyList()).getAllByRole("listitem");
-	expect(items.length).toBe(7);
-	expect(items[0]?.textContent).toContain(UTC_TODAY);
-	expect(items[0]?.textContent).toContain("Mixed");
-	expect(items[0]?.textContent).toContain(mixedToday.name);
-	expect(items[0]?.textContent).toContain(String(mixedToday.port));
-	expect(items[1]?.textContent).toContain(YESTERDAY);
+	expect(dateHeadingNames()).toEqual([UTC_TODAY, YESTERDAY, EPOCH]);
+	const todayRows = dateRows(UTC_TODAY);
+	expect(todayRows.length).toBe(1);
+	expect(todayRows[0]?.textContent).toContain("Mixed");
+	expect(todayRows[0]?.textContent).toContain(mixedToday.name);
+	expect(todayRows[0]?.textContent).toContain(String(mixedToday.port));
 	expect(
-		items.some(
-			(item) =>
-				item.textContent?.includes(UTC_TODAY) === true &&
-				item.textContent.includes("Protocols"),
-		),
+		todayRows.some((row) => row.textContent?.includes("Protocols") === true),
 	).toBe(false);
+	expect(dateRows(YESTERDAY).length).toBe(3);
 });
 
 test("lost Protocols today lists Protocols today", async () => {
@@ -111,11 +121,11 @@ test("lost Protocols today lists Protocols today", async () => {
 		],
 	});
 	await renderHistory(persist);
-	const items = within(historyList()).getAllByRole("listitem");
-	expect(items[0]?.textContent).toContain(UTC_TODAY);
-	expect(items[0]?.textContent).toContain("Protocols");
-	expect(items[0]?.textContent).toContain(protocolsToday.name);
-	expect(items[0]?.textContent).toContain(String(protocolsToday.port));
+	const todayRows = dateRows(UTC_TODAY);
+	expect(todayRows.length).toBe(1);
+	expect(todayRows[0]?.textContent).toContain("Protocols");
+	expect(todayRows[0]?.textContent).toContain(protocolsToday.name);
+	expect(todayRows[0]?.textContent).toContain(String(protocolsToday.port));
 });
 
 test("playing Mixed today does not list Mixed today", async () => {
@@ -126,6 +136,7 @@ test("playing Mixed today does not list Mixed today", async () => {
 		guesses: [{ port: 80, result: "miss", identified: null }],
 	});
 	await renderHistory(persist);
+	expect(dateHeadingNames()).not.toContain(UTC_TODAY);
 	expect(historyList().textContent).not.toContain(UTC_TODAY);
 });
 
@@ -135,6 +146,7 @@ test("corrupt Mixed persist today does not list Mixed today", async () => {
 	const persist = createPersist(store);
 	persist.writeHowToSeen();
 	await renderHistory(persist);
+	expect(dateHeadingNames()).not.toContain(UTC_TODAY);
 	expect(historyList().textContent).not.toContain(UTC_TODAY);
 });
 
