@@ -31,6 +31,11 @@ export type GuessResult =
 	| { status: "correct"; port: number }
 	| { status: "miss"; port: number; identified: Identified | null };
 
+export type InvertedGuessResult =
+	| { status: "duplicate" }
+	| { status: "correct"; id: string }
+	| { status: "miss"; id: string; identified: Identified; samePort: boolean };
+
 export type CategoryStats = {
 	currentStreak: number;
 	bestStreak: number;
@@ -54,7 +59,7 @@ export type BlitzBests = Partial<
 
 export type BlitzState = {
 	category: DailyCategory;
-	orientation: "default";
+	orientation: Orientation;
 	mode: BlitzMode;
 	lives: number;
 	score: number;
@@ -66,4 +71,5 @@ export type BlitzState = {
 
 export type BlitzEvent =
 	| { type: "default-guess"; digits: string }
+	| { type: "inverted-guess"; id: string }
 	| { type: "timeout" };

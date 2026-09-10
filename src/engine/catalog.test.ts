@@ -1,5 +1,11 @@
 import { expect, test } from "vitest";
-import { answerPool, catalogFor, validateCatalog } from "./catalog";
+import {
+	answerPool,
+	catalogFor,
+	invertedBlurb,
+	isCrowdedPort,
+	validateCatalog,
+} from "./catalog";
 import { chargen, http, telnet, vite } from "./test-fixtures";
 import type { CatalogEntry } from "./types";
 
@@ -84,4 +90,43 @@ test("crowded non-retired ports need blurbs that do not leak name", () => {
 
 test("unique ports need no blurb", () => {
 	expect(validateCatalog([http, vite])).toEqual([]);
+});
+
+const jenkins: CatalogEntry = {
+	id: "jenkins",
+	name: "Jenkins",
+	port: 8080,
+	transport: "tcp",
+	description: "CI.",
+	blurb: "CI server",
+	answerEligible: true,
+};
+const tomcat: CatalogEntry = {
+	id: "tomcat",
+	name: "Tomcat",
+	port: 8080,
+	transport: "tcp",
+	description: "Servlet.",
+	blurb: "Java servlet container",
+	answerEligible: true,
+};
+
+test("crowded non-retired ports are crowded and unique ports are not", () => {
+	expect(isCrowdedPort([jenkins, tomcat], 8080)).toBe(true);
+	expect(isCrowdedPort([http, vite], 80)).toBe(false);
+	expect(isCrowdedPort([http, { ...telnet, port: 80 }], 80)).toBe(false);
+	expect(isCrowdedPort([http], 80)).toBe(false);
+});
+
+test("mixed union is crowded when each kind has one occupant", () => {
+	expect(isCrowdedPort([http, { ...vite, port: 80 }], 80)).toBe(true);
+	expect(isCrowdedPort([http], 80)).toBe(false);
+});
+
+test("invertedBlurb is that entry's blurb when crowded else null", () => {
+	expect(invertedBlurb(jenkins, [jenkins, tomcat])).toBe("CI server");
+	expect(invertedBlurb(tomcat, [jenkins, tomcat])).toBe(
+		"Java servlet container",
+	);
+	expect(invertedBlurb(http, [http, vite])).toBeNull();
 });
