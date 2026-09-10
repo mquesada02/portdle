@@ -11,6 +11,7 @@ import {
 import { CATEGORY_LABEL } from "../engine/share";
 import { applyDailyFinish, emptyStats } from "../engine/stats";
 import {
+	type CatalogEntry,
 	type CategoryStats,
 	DAILY_CATEGORIES,
 	type DailyCategory,
@@ -19,6 +20,7 @@ import {
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
+import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { categoryStreakGap } from "./sync-utc";
 
@@ -80,14 +82,26 @@ function Tiles({ guess, length }: { guess: CommittedGuess; length: number }) {
 	);
 }
 
-function RowCaption({ guess }: { guess: CommittedGuess }) {
+function RowCaption({
+	guess,
+	catalog,
+}: {
+	guess: CommittedGuess;
+	catalog: CatalogEntry[];
+}) {
 	if (guess.result === "correct") {
 		return null;
 	}
 	if (!guess.identified) {
 		return <>{NOT_IN_THIS_CATALOG}</>;
 	}
-	return <>{guess.identified.name}</>;
+	const entry = catalog.find(
+		(candidate) => candidate.id === guess.identified?.id,
+	);
+	if (!entry) {
+		return <>{guess.identified.name}</>;
+	}
+	return <MissPopover entry={entry} />;
 }
 
 // Shared board-row layout: a left spacer column, the tiles or slots, and
@@ -115,9 +129,17 @@ function RowShell({
 	);
 }
 
-function Row({ guess, length }: { guess: CommittedGuess; length: number }) {
+function Row({
+	guess,
+	length,
+	catalog,
+}: {
+	guess: CommittedGuess;
+	length: number;
+	catalog: CatalogEntry[];
+}) {
 	return (
-		<RowShell caption={<RowCaption guess={guess} />}>
+		<RowShell caption={<RowCaption guess={guess} catalog={catalog} />}>
 			<Tiles guess={guess} length={length} />
 		</RowShell>
 	);
@@ -246,6 +268,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 						key={`${guess.port}-${guess.result}`}
 						guess={guess}
 						length={length}
+						catalog={catalog}
 					/>
 				))}
 				{frozen ? null : (

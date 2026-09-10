@@ -5,7 +5,10 @@
 		"port": 21,
 		"transport": "tcp",
 		"description": "File Transfer Protocol.",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 959", "url": "https://www.rfc-editor.org/rfc/rfc959" }
+		]
 	},
 	{
 		"id": "ssh",

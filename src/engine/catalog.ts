@@ -5,7 +5,8 @@ export type CatalogIssue =
 	| { kind: "duplicate-name"; name: string }
 	| { kind: "invalid-port"; id: string }
 	| { kind: "missing-blurb"; id: string }
-	| { kind: "blurb-leaks-name"; id: string };
+	| { kind: "blurb-leaks-name"; id: string }
+	| { kind: "invalid-source"; id: string };
 
 export function catalogFor(
 	category: DailyCategory,
@@ -97,6 +98,12 @@ export function validateCatalog(entries: CatalogEntry[]): CatalogIssue[] {
 				issues.push({ kind: "missing-blurb", id: entry.id });
 			} else if (blurbLeaks(entry)) {
 				issues.push({ kind: "blurb-leaks-name", id: entry.id });
+			}
+		}
+
+		for (const source of entry.sources ?? []) {
+			if (source.label.length === 0 || !source.url.startsWith("https://")) {
+				issues.push({ kind: "invalid-source", id: entry.id });
 			}
 		}
 	}

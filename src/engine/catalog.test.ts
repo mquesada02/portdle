@@ -47,6 +47,30 @@ test("validateCatalog flags port outside 0-65535", () => {
 	]);
 });
 
+test("validateCatalog accepts a valid source", () => {
+	expect(
+		validateCatalog([
+			{ ...http, sources: [{ label: "RFC 9110", url: "https://example.com" }] },
+		]),
+	).toEqual([]);
+});
+
+test("validateCatalog flags a source with an empty label", () => {
+	expect(
+		validateCatalog([
+			{ ...http, sources: [{ label: "", url: "https://example.com" }] },
+		]),
+	).toEqual([{ kind: "invalid-source", id: "http" }]);
+});
+
+test("validateCatalog flags a source with a non-https URL", () => {
+	expect(
+		validateCatalog([
+			{ ...http, sources: [{ label: "RFC 9110", url: "http://example.com" }] },
+		]),
+	).toEqual([{ kind: "invalid-source", id: "http" }]);
+});
+
 test("crowded non-retired ports need blurbs that do not leak name", () => {
 	expect(validateCatalog([jenkins, tomcat])).toEqual([]);
 	expect(

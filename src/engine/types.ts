@@ -9,6 +9,8 @@ export type Orientation = "default" | "inverted";
 export type BlitzMode = "sprint" | "marathon" | "survival";
 export type Transport = "tcp" | "udp" | "both";
 
+export type Source = { label: string; url: string };
+
 export type CatalogEntry = {
 	id: string;
 	name: string;
@@ -19,6 +21,7 @@ export type CatalogEntry = {
 	blurb?: string;
 	answerEligible: boolean;
 	retired?: boolean;
+	sources?: Source[];
 };
 
 export type Cycle = { startDay: number; order: string[] };
