@@ -1,4 +1,5 @@
 import type {
+	BlitzBests,
 	CategoryStats,
 	DailyCategory,
 	DailyPersist,
@@ -15,6 +16,7 @@ export type KeyValueStore = {
 const THEME_KEY = "portdle:v1:theme";
 const HOW_TO_SEEN_KEY = "portdle:v1:howToSeen";
 const LAST_SEEN_UTC_KEY = "portdle:v1:lastSeenUtc";
+const BLITZ_BESTS_KEY = "portdle:v1:blitzBests";
 
 function dailyKey(category: DailyCategory, date: string): string {
 	return `portdle:v1:daily:${category}:${date}`;
@@ -101,6 +103,26 @@ function isDailyPersist(value: unknown): value is DailyPersist {
 	});
 }
 
+function isBlitzBests(value: unknown): value is BlitzBests {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		return false;
+	}
+	return Object.entries(value).every(([key, score]) => {
+		const parts = key.split("|");
+		return (
+			parts.length === 3 &&
+			(parts[0] === "mixed" ||
+				parts[0] === "protocols" ||
+				parts[0] === "applications") &&
+			(parts[1] === "default" || parts[1] === "inverted") &&
+			(parts[2] === "sprint" ||
+				parts[2] === "marathon" ||
+				parts[2] === "survival") &&
+			typeof score === "number"
+		);
+	});
+}
+
 function isCategoryStats(value: unknown): value is CategoryStats {
 	if (value === null || typeof value !== "object") {
 		return false;
@@ -140,6 +162,8 @@ export type Persist = {
 	): { ok: true } | { ok: false };
 	readLastSeenUtc(): string | null;
 	writeLastSeenUtc(date: string): { ok: true } | { ok: false };
+	readBlitzBests(): BlitzBests;
+	writeBlitzBests(value: BlitzBests): { ok: true } | { ok: false };
 };
 
 export function createPersist(store: KeyValueStore): Persist {
@@ -184,6 +208,13 @@ export function createPersist(store: KeyValueStore): Persist {
 		},
 		writeLastSeenUtc(date) {
 			return writeJson(store, LAST_SEEN_UTC_KEY, date);
+		},
+		readBlitzBests() {
+			const value = readJson(store, BLITZ_BESTS_KEY);
+			return isBlitzBests(value) ? value : {};
+		},
+		writeBlitzBests(value) {
+			return writeJson(store, BLITZ_BESTS_KEY, value);
 		},
 	};
 }
