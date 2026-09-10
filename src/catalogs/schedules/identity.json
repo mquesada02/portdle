@@ -10,5 +10,17 @@
 	"webpack": {
 		"name": "webpack-dev-server",
 		"port": 8080
+	},
+	"prometheus": {
+		"name": "Prometheus",
+		"port": 9090
+	},
+	"kerberos": {
+		"name": "Kerberos",
+		"port": 88
+	},
+	"astro": {
+		"name": "Astro",
+		"port": 4321
 	}
 }
