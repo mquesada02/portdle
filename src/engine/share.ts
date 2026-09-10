@@ -1,6 +1,6 @@
 import type { DailyCategory } from "./types";
 
-const CATEGORY_LABEL: Record<DailyCategory, string> = {
+export const CATEGORY_LABEL: Record<DailyCategory, string> = {
 	mixed: "Mixed",
 	protocols: "Protocols",
 	applications: "Applications",
