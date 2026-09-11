@@ -89,7 +89,7 @@ The Daily becomes deducible the way Wordle is. Every committed row shows a mark 
 
 ### Fuzzy search
 
-- Search in the inverted orientation of Blitz uses the `fuzzysort` library (v4) behind the existing search index and search function. Keys are the entry name and its aliases. Results are the library's ranking, ties broken by name, capped at 20, still name-only. A score threshold excludes weak matches; its value is whatever makes the literal test cases below pass and is not otherwise tuned. Empty or whitespace query lists nothing. Description and blurb are never indexed.
+- Search in the inverted orientation of Blitz uses the `uFuzzy` library (`@leeoniya/ufuzzy`) behind the existing search index and search function. Keys are the entry name and its aliases. Results are ordered by the library's best rank per entry, ties broken by name, capped at 20, still name-only. Single-error typo tolerance (one substitution, transposition, insertion, or deletion) is configured; the exact configuration is whatever makes the literal test cases below pass and is not otherwise tuned. Empty or whitespace query lists nothing. Description and blurb are never indexed.
 - This supersedes the v1 design spec's prefix-index search section.
 - Adding the dependency is the one exception to "no new dependencies" made by this spec; it has no dependencies of its own.
 
@@ -127,6 +127,6 @@ A good test exercises a public seam with literal inputs and asserts what a playe
 
 ## Further Notes
 
-- Author calls not covered by the interview, listed so they can be overruled: the library is `fuzzysort` (tiny, no dependencies, keys for name and aliases, score threshold); search ties are broken by name; the tracker strip hides after the Daily ends; the old Help address redirects to the Daily rather than 404ing; tiles and tracker digits expose their mark as text for assistive tech in the form "digit, mark" (tracker digits never typed read "digit, unknown"), and present tiles carry a visible cue besides hue, so marks are not color-only.
+- Author calls not covered by the interview, listed so they can be overruled: the library is `uFuzzy` (`@leeoniya/ufuzzy`; tiny, no dependencies, keys for name and aliases, single-error typo tolerance); search ties are broken by name; the tracker strip hides after the Daily ends; the old Help address redirects to the Daily rather than 404ing; tiles and tracker digits expose their mark as text for assistive tech in the form "digit, mark" (tracker digits never typed read "digit, unknown"), and present tiles carry a visible cue besides hue, so marks are not color-only.
 - Supersedes, in the UI redesign spec: the "no yellow or partial-hint state" design-language rule (marks add present and its yellow rendering), the end card's "Best —" fallback (a number always shows), the four-item nav and the Help page.
 - Glossary: `CONTEXT.md` gains Mark and Tracker strip; How-to becomes the only help surface; Nav drops to three items.

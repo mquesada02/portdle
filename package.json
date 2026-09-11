@@ -22,6 +22,7 @@
 		"gen:schedule": "tsx scripts/gen-schedule.ts"
 	},
 	"dependencies": {
+		"@leeoniya/ufuzzy": "^1.0.19",
 		"@tanstack/react-router": "^1.170.33",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8"

@@ -258,10 +258,10 @@ test("non-empty inverted query with no hits shows No matches", async () => {
 	expect(screen.queryByRole("option")).toBeNull();
 });
 
-test("prefix lists a canonical name after debounce", async () => {
+test("fuzzy fragment lists a canonical name after debounce", async () => {
 	await startInvertedFake();
 	const box = screen.getByRole("combobox", { name: "Service name" });
-	fireEvent.change(box, { target: { value: "htt" } });
+	fireEvent.change(box, { target: { value: "ttp" } });
 	expect(screen.queryByRole("option", { name: "HTTP" })).toBeNull();
 	await vi.advanceTimersByTimeAsync(200);
 	expect(screen.getByRole("option", { name: "HTTP" })).toBeTruthy();
