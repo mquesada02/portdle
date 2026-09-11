@@ -78,7 +78,7 @@ The strip at the top of the shell holding the wordmark and the theme toggle.
 _Avoid_: Header, app bar
 
 **Nav**:
-The four-item navigation: Daily, Blitz, History, Help. Renders as a tab bar on phone and as top-bar links on desktop.
+The three-item navigation: Daily, Blitz, History. Renders as a tab bar on phone and as top-bar links on desktop.
 _Avoid_: Menu, sidebar
 
 **Tab bar**:
@@ -104,6 +104,14 @@ _Avoid_: Box, square (reserve "square" for the share line emoji)
 One cell of the active row, an input for a single digit.
 _Avoid_: Cell, field, box
 
+**Mark**:
+The per-digit result on a committed row: placed (right digit, right position), present (digit elsewhere in the port), or absent.
+_Avoid_: Color, hint, status, green/yellow/gray (colors are how marks render, not what they are)
+
+**Tracker strip**:
+The display-only 0 to 9 row under the board showing each digit's best-known mark across all committed rows.
+_Avoid_: Keyboard, keypad, digit bar
+
 **Try counter**:
 The `n / 6` readout above the board showing committed tries.
 _Avoid_: Progress, attempts
@@ -125,8 +133,8 @@ The spoiler-free text copied to the clipboard after a Daily ends.
 _Avoid_: Result, share card
 
 **How-to**:
-The first-visit rules dialog. Help shows the same rules as a page.
-_Avoid_: Tutorial, onboarding, intro
+The rules dialog, opened on first visit and from the top bar. The only help surface.
+_Avoid_: Tutorial, onboarding, intro, Help page
 
 **HUD**:
 The Blitz run readout: lives, score, remaining time.
