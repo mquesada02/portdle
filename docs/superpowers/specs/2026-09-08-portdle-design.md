@@ -172,6 +172,8 @@ Flavor-text-only JSON edits do not require this script. A2 is the freeze+tail sh
 
 `pnpm gen:schedule --check` exits non-zero if running the generator would change any schedule file, or if validation (blurbs, frozen identity, floors, coverage) fails.
 
+The freeze runs automatically once a day via `.github/workflows/daily-freeze.yml`, which runs `pnpm gen:schedule` and, when it changed a schedule file, commits and pushes the result and dispatches `ci.yml` so the site redeploys. It can also be triggered on demand from the Actions tab (`workflow_dispatch`) or run locally with `pnpm gen:schedule`.
+
 ### 6.3 Same-day distinctness
 
 The three Dailies on one UTC date must be **three different `id`s**. Protocols vs Applications cannot share an `id` (globally unique), so the only collisions to fix are Mixed vs that day’s Protocols or Applications.
