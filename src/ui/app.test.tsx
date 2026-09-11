@@ -43,6 +43,16 @@ test("first visit shows How-to on any route", async () => {
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
 });
 
+test("How-to explains what green, yellow, and gray mean", async () => {
+	await renderApp({});
+	const dialog = screen.getByRole("dialog", { name: "How-to" });
+	expect(
+		within(dialog).getByText(
+			"After each try, green means right digit in the right place, yellow means the digit is in the port elsewhere, gray means it is not in the port.",
+		),
+	).toBeTruthy();
+});
+
 test("dismiss sets howToSeen and does not auto-open again", async () => {
 	const user = userEvent.setup();
 	const persist = await renderApp({});
