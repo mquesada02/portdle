@@ -175,10 +175,10 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 				</p>
 				<p className="mt-4">
 					<Link
-						to="/help"
+						to="/blitz"
 						className="text-sm font-medium underline underline-offset-4"
 					>
-						Help
+						Play Blitz
 					</Link>
 				</p>
 			</main>
