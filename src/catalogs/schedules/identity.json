@@ -22,5 +22,17 @@
 	"astro": {
 		"name": "Astro",
 		"port": 4321
+	},
+	"amqp": {
+		"name": "AMQP",
+		"port": 5672
+	},
+	"dhcp": {
+		"name": "DHCP",
+		"port": 67
+	},
+	"svelte": {
+		"name": "SvelteKit",
+		"port": 5173
 	}
 }
