@@ -2,6 +2,7 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
+import { digitLength } from "../engine/guess";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
@@ -133,7 +134,9 @@ test("Share shows the share line in a text area when the clipboard is unavailabl
 	await user.click(screen.getByRole("button", { name: "Share" }));
 	expect(screen.queryByRole("button", { name: "Copied!" })).toBeNull();
 	const textbox = screen.getByRole("textbox") as HTMLTextAreaElement;
-	expect(textbox.value).toContain("Portdle");
+	expect(textbox.value).toBe(
+		`Portdle · Mixed · ${UTC_TODAY} · 1/6\n\n${"🟩".repeat(digitLength(mixedAnswer.port))}`,
+	);
 });
 
 test("winning a Daily during the page session calls the page scroll", async () => {
