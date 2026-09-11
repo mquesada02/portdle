@@ -61,8 +61,9 @@ function recordBest(
 	const key = bestsKey(state);
 	const bests = persist.readBlitzBests();
 	const best = bests[key];
-	const newBest = best !== undefined && state.score > best;
-	if (best === undefined || state.score > best) {
+	const beatsStored = best === undefined || state.score > best;
+	const newBest = beatsStored && state.score > 0;
+	if (beatsStored) {
 		const result = persist.writeBlitzBests({ ...bests, [key]: state.score });
 		return { ok: result.ok, newBest };
 	}
@@ -376,6 +377,8 @@ export function BlitzPage() {
 	if (ended) {
 		const key = bestsKey(run);
 		const best = persist.readBlitzBests()[key];
+		const displayBest =
+			best === undefined ? run.score : Math.max(best, run.score);
 		return (
 			<main className="mx-auto w-full max-w-md px-4 pb-6 text-center sm:max-w-lg">
 				<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
@@ -387,7 +390,7 @@ export function BlitzPage() {
 					Score {run.score}
 				</p>
 				<p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-					{best === undefined ? "Best —" : `Best ${best}`}
+					{`Best ${displayBest}`}
 				</p>
 				{newBest ? (
 					<span className="mt-2 inline-block rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
