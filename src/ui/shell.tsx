@@ -31,7 +31,6 @@ const NAV = [
 	},
 	{ to: "/blitz", label: "Blitz", icon: BOLT, matchPaths: ["/blitz"] },
 	{ to: "/history", label: "History", icon: CLOCK, matchPaths: ["/history"] },
-	{ to: "/help", label: "Help", icon: HELP, matchPaths: ["/help"] },
 ] as const;
 
 function NavIcon({ d }: { d: string }) {
@@ -148,7 +147,7 @@ export function Shell() {
 					</a>
 					<nav
 						aria-label="Main"
-						className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] md:static md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
+						className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] md:static md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
 					>
 						{NAV.map((item) => {
 							const isActive = (item.matchPaths as readonly string[]).includes(
