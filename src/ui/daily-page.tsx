@@ -8,6 +8,7 @@ import {
 	digitLength,
 	evaluateDefaultGuess,
 } from "../engine/guess";
+import { bestMarkByDigit, computeMarks, type Mark } from "../engine/marks";
 import { CATEGORY_LABEL } from "../engine/share";
 import { applyDailyFinish, emptyStats } from "../engine/stats";
 import {
@@ -61,23 +62,71 @@ function DailySwitcher({ category }: { category: DailyCategory }) {
 	);
 }
 
-function Tiles({ guess, length }: { guess: CommittedGuess; length: number }) {
+// One color per mark, shared by the tiles and the tracker strip. Placed
+// reuses the correct-guess green, absent reuses the existing miss gray;
+// present is the one new mark color this ticket adds. Both placed and
+// present use dark text for contrast against their bright backgrounds
+// (white-on-emerald-500 and white-on-yellow-500 both fail WCAG AA; dark
+// zinc-900 text passes on both). Placed and present keep one shade for
+// both themes (their saturated colors already read clearly on light and
+// dark surfaces); absent, closer to gray, needs a dark: shade to stay
+// legible against both.
+const MARK_BACKGROUND: Record<Mark, string> = {
+	placed: "bg-emerald-500 text-zinc-900",
+	present: "bg-yellow-500 text-zinc-900",
+	absent: "bg-zinc-500 text-white dark:bg-zinc-600",
+};
+
+const MARK_BORDER: Record<Mark, string> = {
+	placed: "border-emerald-500",
+	present: "border-yellow-500",
+	absent: "border-zinc-500 dark:border-zinc-600",
+};
+
+function tileMarkClasses(mark: Mark): string {
+	return `${MARK_BORDER[mark]} ${MARK_BACKGROUND[mark]}`;
+}
+
+// The accessible text every tile and tracker digit exposes, in the form
+// "digit, mark" (or "digit, unknown" when the digit has never been typed).
+function markLabel(digit: string, mark: Mark | undefined): string {
+	return mark ? `${digit}, ${mark}` : `${digit}, unknown`;
+}
+
+function Tiles({
+	guess,
+	length,
+	answerPort,
+}: {
+	guess: CommittedGuess;
+	length: number;
+	answerPort: number;
+}) {
 	const digits = padPort(guess.port, length).split("");
-	const color =
-		guess.result === "correct"
-			? "border-emerald-500 bg-emerald-500 text-white"
-			: "border-zinc-500 bg-zinc-500 text-white dark:border-zinc-600 dark:bg-zinc-600";
+	const marks = computeMarks(digits.join(""), padPort(answerPort, length));
 	return (
 		<div className="flex gap-1.5">
-			{SLOT_KEYS.slice(0, length).map((key, index) => (
-				<span
-					key={key}
-					className={`animate-pop flex h-14 w-12 items-center justify-center rounded-md border-2 font-mono text-2xl font-bold ${color}`}
-					style={{ animationDelay: `${index * 40}ms` }}
-				>
-					{digits[index]}
-				</span>
-			))}
+			{SLOT_KEYS.slice(0, length).map((key, index) => {
+				const digit = digits[index] ?? "";
+				const mark = marks[index] ?? "absent";
+				return (
+					<span
+						key={key}
+						role="img"
+						aria-label={markLabel(digit, mark)}
+						className={`animate-pop relative flex h-14 w-12 items-center justify-center rounded-md border-2 font-mono text-2xl font-bold ${tileMarkClasses(mark)}`}
+						style={{ animationDelay: `${index * 40}ms` }}
+					>
+						{digit}
+						{mark === "present" ? (
+							<span
+								aria-hidden="true"
+								className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full bg-zinc-900"
+							/>
+						) : null}
+					</span>
+				);
+			})}
 		</div>
 	);
 }
@@ -133,15 +182,66 @@ function Row({
 	guess,
 	length,
 	catalog,
+	answerPort,
 }: {
 	guess: CommittedGuess;
 	length: number;
 	catalog: CatalogEntry[];
+	answerPort: number;
 }) {
 	return (
 		<RowShell caption={<RowCaption guess={guess} catalog={catalog} />}>
-			<Tiles guess={guess} length={length} />
+			<Tiles guess={guess} length={length} answerPort={answerPort} />
 		</RowShell>
+	);
+}
+
+const TRACKER_DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+// Same palette as the tiles, without the border (the strip's digits are
+// small, borderless chips rather than bordered squares).
+function trackerMarkClasses(mark: Mark | undefined): string {
+	if (mark === undefined) {
+		return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+	}
+	return MARK_BACKGROUND[mark];
+}
+
+// Display-only best-known mark for each digit 0-9. The aggregation itself
+// (best mark per digit, placed over present over absent) is the engine's
+// bestMarkByDigit; this component only pads each committed row and renders
+// the result.
+function TrackerStrip({
+	guesses,
+	length,
+	answerPort,
+}: {
+	guesses: CommittedGuess[];
+	length: number;
+	answerPort: number;
+}) {
+	const paddedAnswer = padPort(answerPort, length);
+	const typedRows = guesses.map((guess) => padPort(guess.port, length));
+	const bestByDigit = bestMarkByDigit(typedRows, paddedAnswer);
+	return (
+		<fieldset className="mt-4">
+			<legend className="sr-only">Tracker strip</legend>
+			<div className="flex justify-center gap-1">
+				{TRACKER_DIGITS.map((digit) => {
+					const mark = bestByDigit.get(digit);
+					return (
+						<span
+							key={digit}
+							role="img"
+							aria-label={markLabel(digit, mark)}
+							className={`flex h-8 w-6 items-center justify-center rounded font-mono text-xs font-semibold ${trackerMarkClasses(mark)}`}
+						>
+							{digit}
+						</span>
+					);
+				})}
+			</div>
+		</fieldset>
 	);
 }
 
@@ -269,6 +369,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 						guess={guess}
 						length={length}
 						catalog={catalog}
+						answerPort={puzzle.port}
 					/>
 				))}
 				{frozen ? null : (
@@ -284,6 +385,13 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 					</RowShell>
 				)}
 			</div>
+			{frozen ? null : (
+				<TrackerStrip
+					guesses={board?.guesses ?? []}
+					length={length}
+					answerPort={puzzle.port}
+				/>
+			)}
 			<p
 				aria-live="polite"
 				className="mt-3 min-h-5 text-center text-sm text-zinc-600 dark:text-zinc-400"
