@@ -1,3 +1,4 @@
+import type { Mark } from "./marks";
 import type { DailyCategory } from "./types";
 
 export const CATEGORY_LABEL: Record<DailyCategory, string> = {
@@ -6,15 +7,23 @@ export const CATEGORY_LABEL: Record<DailyCategory, string> = {
 	applications: "Applications",
 };
 
+const SQUARE: Record<Mark, string> = {
+	placed: "🟩",
+	present: "🟨",
+	absent: "⬜",
+};
+
+function rowLine(marks: Mark[]): string {
+	return marks.map((mark) => SQUARE[mark]).join("");
+}
+
 export function formatShare(input: {
 	category: DailyCategory;
 	date: string;
 	status: "won" | "lost";
-	committed: number;
+	rows: Mark[][];
 }): string {
-	if (input.status === "lost") {
-		return `Portdle · ${CATEGORY_LABEL[input.category]} · ${input.date} · X/6\n\n⬜⬜⬜⬜⬜⬜`;
-	}
-	const squares = `${"⬜".repeat(Math.max(0, input.committed - 1))}🟩`;
-	return `Portdle · ${CATEGORY_LABEL[input.category]} · ${input.date} · ${input.committed}/6\n\n${squares}`;
+	const tries = input.status === "lost" ? "X/6" : `${input.rows.length}/6`;
+	const grid = input.rows.map(rowLine).join("\n");
+	return `Portdle · ${CATEGORY_LABEL[input.category]} · ${input.date} · ${tries}\n\n${grid}`;
 }
