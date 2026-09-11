@@ -107,10 +107,13 @@ test("catalog miss names the service spends a life and advances", async () => {
 	await user.type(portDigits(), padToAnswer(missPort, first));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getByRole("img", { name: "Lives: 2" })).toBeTruthy();
-	expect(screen.getByText(missPort === 80 ? "HTTP" : "chargen")).toBeTruthy();
-	expect(screen.getByRole("heading", { level: 1 }).textContent).not.toBe(
-		first.name,
-	);
+	const heading = screen.getByRole("heading", { level: 1 });
+	expect(heading.textContent).not.toBe(first.name);
+	const identifiedName = missPort === 80 ? "HTTP" : "chargen";
+	const identifiedMatches = screen
+		.getAllByText(identifiedName)
+		.filter((element) => element !== heading);
+	expect(identifiedMatches.length).toBeGreaterThan(0);
 });
 
 test("incomplete enter is invalid and does not spend a life", async () => {
@@ -298,7 +301,10 @@ const CROWDED_BLURBS: Record<number, string[]> = {
 		"Ruby web framework",
 		"Metrics dashboards",
 	],
-	5173: ["Frontend bundler dev server", "Svelte app framework"],
+	5173: [
+		"Frontend bundler dev server",
+		"Full-stack app framework built on Vite",
+	],
 	8080: [
 		"Bundler dev server",
 		"CI server",

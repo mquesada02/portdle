@@ -15,7 +15,7 @@
 		"port": 5173,
 		"transport": "tcp",
 		"description": "SvelteKit is the official application framework built on Svelte, handling routing, server rendering, and bundling. Its dev server runs on Vite under the hood, which is why it shares Vite's default port, 5173.",
-		"blurb": "Svelte app framework",
+		"blurb": "Full-stack app framework built on Vite",
 		"answerEligible": true,
 		"sources": [
 			{

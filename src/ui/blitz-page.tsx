@@ -452,14 +452,16 @@ export function BlitzPage() {
 					<Typeahead catalog={categoryCatalog} onSubmit={submitInverted} />
 				) : (
 					<>
-						<DigitSlots
-							length={digitLength(puzzle.port)}
-							value={digits}
-							disabled={false}
-							onChange={setDigits}
-							onSubmit={submitGuess}
-							shakeKey={shakeKey}
-						/>
+						<div className="flex justify-center">
+							<DigitSlots
+								length={digitLength(puzzle.port)}
+								value={digits}
+								disabled={false}
+								onChange={setDigits}
+								onSubmit={submitGuess}
+								shakeKey={shakeKey}
+							/>
+						</div>
 						<button
 							type="button"
 							className={`mt-3 ${PRIMARY_BUTTON}`}
