@@ -4,217 +4,353 @@
 		"name": "Vite",
 		"port": 5173,
 		"transport": "tcp",
-		"description": "Vite default development server.",
+		"description": "Vite is a frontend build tool and development server that serves modules over native ES imports during development and bundles with Rollup for production. Its dev server defaults to port 5173.",
 		"blurb": "Frontend bundler dev server",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [{ "label": "Vite docs", "url": "https://vite.dev/guide/" }]
 	},
 	{
 		"id": "svelte",
 		"name": "SvelteKit",
 		"port": 5173,
 		"transport": "tcp",
-		"description": "SvelteKit development server.",
+		"description": "SvelteKit is the official application framework built on Svelte, handling routing, server rendering, and bundling. Its dev server runs on Vite under the hood, which is why it shares Vite's default port, 5173.",
 		"blurb": "Svelte app framework",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "SvelteKit docs",
+				"url": "https://svelte.dev/docs/kit/introduction"
+			}
+		]
 	},
 	{
 		"id": "cra",
 		"name": "Create React App",
 		"port": 3000,
 		"transport": "tcp",
-		"description": "Create React App development server.",
+		"description": "Create React App was Meta's official, zero-config tool for scaffolding a React project, running a development server that defaulted to port 3000. The React team formally deprecated it in February 2025 in favor of tools like Vite.",
 		"blurb": "Legacy React starter",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Create React App docs",
+				"url": "https://create-react-app.dev/"
+			},
+			{
+				"label": "Sunsetting Create React App",
+				"url": "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
+			}
+		]
 	},
 	{
 		"id": "next",
 		"name": "Next.js",
 		"port": 3000,
 		"transport": "tcp",
-		"description": "Next.js development server.",
+		"description": "Next.js is a React framework providing server-side rendering, static generation, and file-based routing. Its development server defaults to port 3000, a default shared by several Node-based frameworks.",
 		"blurb": "React meta-framework",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [{ "label": "Next.js docs", "url": "https://nextjs.org/docs" }]
 	},
 	{
 		"id": "nuxt",
 		"name": "Nuxt",
 		"port": 3000,
 		"transport": "tcp",
-		"description": "Nuxt development server.",
+		"description": "Nuxt is a Vue framework offering server-side rendering, static generation, and file-based routing, playing a similar role for Vue that Next.js plays for React. Its dev server also defaults to port 3000.",
 		"blurb": "Vue meta-framework",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [{ "label": "Nuxt docs", "url": "https://nuxt.com/docs" }]
 	},
 	{
 		"id": "rails",
 		"name": "Rails",
 		"port": 3000,
 		"transport": "tcp",
-		"description": "Ruby on Rails development server.",
+		"description": "Ruby on Rails is a full-stack web framework for Ruby. Its built-in server has defaulted to port 3000 since Rails' earliest releases, a default many later frameworks copied.",
 		"blurb": "Ruby web framework",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{ "label": "Rails guides", "url": "https://guides.rubyonrails.org/" }
+		]
 	},
 	{
 		"id": "grafana",
 		"name": "Grafana",
 		"port": 3000,
 		"transport": "tcp",
-		"description": "Grafana metrics dashboards.",
+		"description": "Grafana is an observability platform for building dashboards from metrics, logs, and traces across many data sources. Its web UI defaults to port 3000, the same default several JavaScript dev servers also use.",
 		"blurb": "Metrics dashboards",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Grafana docs",
+				"url": "https://grafana.com/docs/grafana/latest/"
+			}
+		]
 	},
 	{
 		"id": "angular",
 		"name": "Angular",
 		"port": 4200,
 		"transport": "tcp",
-		"description": "Angular development server.",
-		"answerEligible": true
+		"description": "Angular is a TypeScript-based frontend framework maintained by Google. Its CLI's development server defaults to port 4200, a value set by the framework's own convention.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Angular CLI docs",
+				"url": "https://angular.dev/tools/cli/serve"
+			}
+		]
 	},
 	{
 		"id": "astro",
 		"name": "Astro",
 		"port": 4321,
 		"transport": "tcp",
-		"description": "Astro development server.",
-		"answerEligible": true
+		"description": "Astro is a frontend framework focused on shipping mostly static, content-driven sites with minimal client-side JavaScript. Its dev server defaults to port 4321, a playful rocket-countdown nod chosen by the project.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Astro CLI reference",
+				"url": "https://docs.astro.build/en/reference/cli-reference/"
+			}
+		]
 	},
 	{
 		"id": "flask",
 		"name": "Flask",
 		"port": 5000,
 		"transport": "tcp",
-		"description": "Flask development server.",
-		"answerEligible": true
+		"description": "Flask is a lightweight Python web framework. Its built-in development server defaults to port 5000, which on modern macOS often conflicts with the built-in AirPlay Receiver service.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Flask server docs",
+				"url": "https://flask.palletsprojects.com/en/stable/server/"
+			}
+		]
 	},
 	{
 		"id": "django",
 		"name": "Django",
 		"port": 8000,
 		"transport": "tcp",
-		"description": "Django development server.",
-		"answerEligible": true
+		"description": "Django is a full-featured Python web framework. Its `runserver` development command defaults to port 8000, a common convention for Python web apps.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Django runserver docs",
+				"url": "https://docs.djangoproject.com/en/stable/ref/django-admin/#runserver"
+			}
+		]
 	},
 	{
 		"id": "webpack",
 		"name": "webpack-dev-server",
 		"port": 8080,
 		"transport": "tcp",
-		"description": "webpack development server.",
+		"description": "webpack-dev-server serves a webpack-bundled application and reloads it in the browser as source files change during development. It defaults to port 8080, one of the most common alternate HTTP ports.",
 		"blurb": "Bundler dev server",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "webpack-dev-server docs",
+				"url": "https://webpack.js.org/configuration/dev-server/"
+			}
+		]
 	},
 	{
 		"id": "jenkins",
 		"name": "Jenkins",
 		"port": 8080,
 		"transport": "tcp",
-		"description": "Jenkins CI server.",
+		"description": "Jenkins is an open-source automation server used to build, test, and deploy software through configurable pipelines. Its web UI defaults to port 8080, its long-standing installer default.",
 		"blurb": "CI server",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Jenkins install docs",
+				"url": "https://www.jenkins.io/doc/book/installing/"
+			}
+		]
 	},
 	{
 		"id": "tomcat",
 		"name": "Tomcat",
 		"port": 8080,
 		"transport": "tcp",
-		"description": "Apache Tomcat servlet container.",
+		"description": "Apache Tomcat is a Java servlet container that runs Java web applications and JSPs. It has shipped with port 8080 as its default HTTP connector since its earliest releases.",
 		"blurb": "Java servlet container",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Tomcat docs",
+				"url": "https://tomcat.apache.org/tomcat-10.1-doc/"
+			}
+		]
 	},
 	{
 		"id": "storybook",
 		"name": "Storybook",
 		"port": 6006,
 		"transport": "tcp",
-		"description": "Storybook component explorer.",
-		"answerEligible": true
+		"description": "Storybook is a tool for building and testing UI components in isolation, outside a full application. Its dev server defaults to port 6006, a value the project chose with no special registry meaning.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "Storybook docs", "url": "https://storybook.js.org/docs" }
+		]
 	},
 	{
 		"id": "kibana",
 		"name": "Kibana",
 		"port": 5601,
 		"transport": "tcp",
-		"description": "Kibana observability UI.",
-		"answerEligible": true
+		"description": "Kibana is the visualization and dashboard front end for Elasticsearch, letting users search, chart, and explore indexed data. Its web UI defaults to port 5601.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Kibana settings docs",
+				"url": "https://www.elastic.co/guide/en/kibana/current/settings.html"
+			}
+		]
 	},
 	{
 		"id": "elasticsearch",
 		"name": "Elasticsearch",
 		"port": 9200,
 		"transport": "tcp",
-		"description": "Elasticsearch HTTP API.",
-		"answerEligible": true
+		"description": "Elasticsearch is a distributed search and analytics engine. It exposes its REST API on port 9200 by default, with a separate port, 9300, reserved for inter-node cluster communication.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Elasticsearch REST API docs",
+				"url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html"
+			}
+		]
 	},
 	{
 		"id": "prometheus",
 		"name": "Prometheus",
 		"port": 9090,
 		"transport": "tcp",
-		"description": "Prometheus metrics server.",
-		"answerEligible": true
+		"description": "Prometheus is a monitoring system that scrapes and stores time-series metrics from configured targets, with its own query language for alerting and dashboards. Its web UI and API default to port 9090.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Prometheus docs",
+				"url": "https://prometheus.io/docs/introduction/overview/"
+			}
+		]
 	},
 	{
 		"id": "consul",
 		"name": "Consul",
 		"port": 8500,
 		"transport": "tcp",
-		"description": "Consul HTTP API.",
-		"answerEligible": true
+		"description": "Consul is a service networking tool from HashiCorp providing service discovery, health checking, and a key-value store. Its HTTP API and web UI default to port 8500.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Consul docs",
+				"url": "https://developer.hashicorp.com/consul/docs"
+			}
+		]
 	},
 	{
 		"id": "vault",
 		"name": "Vault",
 		"port": 8200,
 		"transport": "tcp",
-		"description": "HashiCorp Vault API.",
-		"answerEligible": true
+		"description": "Vault is HashiCorp's tool for securely storing and controlling access to secrets such as API keys, passwords, and certificates. Its API defaults to port 8200.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Vault docs",
+				"url": "https://developer.hashicorp.com/vault/docs"
+			}
+		]
 	},
 	{
 		"id": "minio",
 		"name": "MinIO",
 		"port": 9000,
 		"transport": "tcp",
-		"description": "MinIO object storage API.",
-		"answerEligible": true
+		"description": "MinIO is a self-hosted object storage server compatible with the Amazon S3 API, commonly used to run S3-style storage on-premises or in development, defaulting to port 9000 for that S3 API. MinIO Inc. discontinued the open-source project in 2026 in favor of its commercial AIStor product.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "MinIO GitHub", "url": "https://github.com/minio/minio" }
+		]
 	},
 	{
 		"id": "rabbitmq-ui",
 		"name": "RabbitMQ UI",
 		"port": 15672,
 		"transport": "tcp",
-		"description": "RabbitMQ management UI.",
-		"answerEligible": true
+		"description": "RabbitMQ's management plugin provides a web UI and HTTP API for monitoring and managing the message broker's queues, exchanges, and connections. It listens on port 15672, separate from the broker's own AMQP port, 5672.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "RabbitMQ management docs",
+				"url": "https://www.rabbitmq.com/docs/management"
+			}
+		]
 	},
 	{
 		"id": "pgadmin",
 		"name": "pgAdmin",
 		"port": 5050,
 		"transport": "tcp",
-		"description": "pgAdmin web interface.",
-		"answerEligible": true
+		"description": "pgAdmin is a web-based administration and query tool for PostgreSQL. The project's official Docker image is commonly published to host port 5050 in its own setup examples, mapped to port 80 inside the container.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "pgAdmin container docs",
+				"url": "https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html"
+			}
+		]
 	},
 	{
 		"id": "docker",
 		"name": "Docker API",
 		"port": 2375,
 		"transport": "tcp",
-		"description": "Docker Engine API.",
-		"answerEligible": true
+		"description": "The Docker Engine API lets clients and tools manage containers, images, and networks remotely. Port 2375 is its plain, unencrypted convention; Docker recommends port 2376 with TLS for anything beyond local testing.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Docker remote access docs",
+				"url": "https://docs.docker.com/engine/daemon/remote-access/"
+			}
+		]
 	},
 	{
 		"id": "kubernetes",
 		"name": "Kubernetes API",
 		"port": 6443,
 		"transport": "tcp",
-		"description": "Kubernetes API server.",
-		"answerEligible": true
+		"description": "The Kubernetes API server is the cluster's control-plane front end, handling every read and write to cluster state. Port 6443 is its conventional secure default across most cluster setups.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Kubernetes ports and protocols",
+				"url": "https://kubernetes.io/docs/reference/networking/ports-and-protocols/"
+			}
+		]
 	},
 	{
 		"id": "mongo-express",
 		"name": "mongo-express",
 		"port": 8081,
 		"transport": "tcp",
-		"description": "MongoDB admin web UI.",
-		"answerEligible": false
+		"description": "mongo-express is a web-based admin UI for browsing and editing MongoDB databases and collections. Its default port, 8081, is set by the project's own configuration.",
+		"answerEligible": false,
+		"sources": [
+			{
+				"label": "mongo-express GitHub",
+				"url": "https://github.com/mongo-express/mongo-express"
+			}
+		]
 	}
 ]

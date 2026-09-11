@@ -9,12 +9,29 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
+import protocolsJson from "../catalogs/protocols.json";
+import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
+import { MissPopover } from "./miss-popover";
 
 const mixedAnswer = dailyOn("mixed");
+
+// FTP's description and first source are read from the production catalog
+// rather than hardcoded, so this file does not need updating every time
+// catalog content changes (see docs/superpowers/specs/2026-09-11-t43-content.md).
+const protocols = protocolsJson as CatalogEntry[];
+const ftp = protocols.find((entry) => entry.id === "ftp");
+if (!ftp) {
+	throw new Error("FTP fixture entry missing from protocols catalog");
+}
+const ftpDescription = ftp.description;
+const ftpSource = ftp.sources?.[0];
+if (!ftpSource) {
+	throw new Error("FTP fixture entry has no source to test against");
+}
 
 async function renderDaily() {
 	stubMatchMedia();
@@ -41,7 +58,7 @@ test("a catalog miss with sources renders a tappable trigger, closed until opene
 	await renderDaily();
 	await missOn(user, 21);
 	expect(screen.getByRole("button", { name: "FTP" })).toBeTruthy();
-	expect(screen.queryByText("File Transfer Protocol.")).toBeNull();
+	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
 
 test("hovering the trigger opens the popover with name, port, description, and a source anchor", async () => {
@@ -51,11 +68,9 @@ test("hovering the trigger opens the popover with name, port, description, and a
 	const trigger = screen.getByRole("button", { name: "FTP" });
 	fireEvent.mouseEnter(trigger);
 	expect(screen.getByText("21")).toBeTruthy();
-	expect(screen.getByText("File Transfer Protocol.")).toBeTruthy();
-	const source = screen.getByRole("link", { name: "RFC 959" });
-	expect(source.getAttribute("href")).toBe(
-		"https://www.rfc-editor.org/rfc/rfc959",
-	);
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
+	const source = screen.getByRole("link", { name: ftpSource.label });
+	expect(source.getAttribute("href")).toBe(ftpSource.url);
 	expect(source.getAttribute("target")).toBe("_blank");
 	expect(source.getAttribute("rel")).toBe("noreferrer");
 });
@@ -72,7 +87,7 @@ test("moving the pointer from the trigger into the panel keeps it open", async (
 	if (panel) {
 		fireEvent.mouseEnter(panel);
 	}
-	expect(screen.getByText("File Transfer Protocol.")).toBeTruthy();
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
 });
 
 test("moving off and letting the grace timer elapse closes the popover", async () => {
@@ -82,12 +97,12 @@ test("moving off and letting the grace timer elapse closes the popover", async (
 	const trigger = screen.getByRole("button", { name: "FTP" });
 	vi.useFakeTimers();
 	fireEvent.mouseEnter(trigger);
-	expect(screen.getByText("File Transfer Protocol.")).toBeTruthy();
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.mouseLeave(trigger);
 	await act(async () => {
 		await vi.advanceTimersByTimeAsync(150);
 	});
-	expect(screen.queryByText("File Transfer Protocol.")).toBeNull();
+	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
 
 test("clicking the trigger toggles a pinned-open state that persists independent of hover", async () => {
@@ -102,9 +117,9 @@ test("clicking the trigger toggles a pinned-open state that persists independent
 	await act(async () => {
 		await vi.advanceTimersByTimeAsync(150);
 	});
-	expect(screen.getByText("File Transfer Protocol.")).toBeTruthy();
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.click(trigger);
-	expect(screen.queryByText("File Transfer Protocol.")).toBeNull();
+	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
 
 test("focusing the trigger with the keyboard opens the popover and blur closes it", async () => {
@@ -113,9 +128,9 @@ test("focusing the trigger with the keyboard opens the popover and blur closes i
 	await missOn(user, 21);
 	const trigger = screen.getByRole("button", { name: "FTP" });
 	fireEvent.focus(trigger);
-	expect(screen.getByText("File Transfer Protocol.")).toBeTruthy();
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.blur(trigger);
-	expect(screen.queryByText("File Transfer Protocol.")).toBeNull();
+	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
 
 test("Escape closes an open popover", async () => {
@@ -124,9 +139,9 @@ test("Escape closes an open popover", async () => {
 	await missOn(user, 21);
 	const trigger = screen.getByRole("button", { name: "FTP" });
 	fireEvent.click(trigger);
-	expect(screen.getByText("File Transfer Protocol.")).toBeTruthy();
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.keyDown(window, { key: "Escape" });
-	expect(screen.queryByText("File Transfer Protocol.")).toBeNull();
+	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
 
 test("a pointer-down outside the trigger and panel closes it", async () => {
@@ -135,18 +150,27 @@ test("a pointer-down outside the trigger and panel closes it", async () => {
 	await missOn(user, 21);
 	const trigger = screen.getByRole("button", { name: "FTP" });
 	fireEvent.click(trigger);
-	expect(screen.getByText("File Transfer Protocol.")).toBeTruthy();
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.pointerDown(document.body);
-	expect(screen.queryByText("File Transfer Protocol.")).toBeNull();
+	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
 
-test("an entry with no sources shows no sources block", async () => {
-	const user = userEvent.setup();
-	await renderDaily();
-	await missOn(user, 80);
-	const trigger = screen.getByRole("button", { name: "HTTP" });
+test("an entry with no sources shows no sources block", () => {
+	// Every production entry now carries at least one source (t43), so this
+	// exercises MissPopover directly with a fixture entry that has none,
+	// rather than relying on the catalog to happen to have a sourceless row.
+	const entryWithNoSources: CatalogEntry = {
+		id: "test-fixture-no-sources",
+		name: "Test Fixture",
+		port: 1,
+		transport: "tcp",
+		description: "A fixture entry with no sources.",
+		answerEligible: false,
+	};
+	render(<MissPopover entry={entryWithNoSources} />);
+	const trigger = screen.getByRole("button", { name: "Test Fixture" });
 	fireEvent.mouseEnter(trigger);
-	expect(screen.getByText("Hypertext Transfer Protocol.")).toBeTruthy();
+	expect(screen.getByText(entryWithNoSources.description)).toBeTruthy();
 	const panelId = trigger.getAttribute("aria-controls");
 	const panel = document.getElementById(panelId ?? "");
 	expect(panel).not.toBeNull();

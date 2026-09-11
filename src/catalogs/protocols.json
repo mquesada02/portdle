@@ -4,7 +4,7 @@
 		"name": "FTP",
 		"port": 21,
 		"transport": "tcp",
-		"description": "File Transfer Protocol.",
+		"description": "FTP (File Transfer Protocol) is a client-server protocol for uploading and downloading files between hosts, using a separate control connection and data connection. It has used port 21 for control commands since the earliest Internet standards.",
 		"answerEligible": true,
 		"sources": [
 			{ "label": "RFC 959", "url": "https://www.rfc-editor.org/rfc/rfc959" }
@@ -15,377 +15,577 @@
 		"name": "SSH",
 		"port": 22,
 		"transport": "tcp",
-		"description": "Secure Shell remote login.",
-		"answerEligible": true
+		"description": "SSH (Secure Shell) is a protocol for encrypted remote login and command execution between hosts, replacing Telnet for anything security-sensitive. IANA registered it on port 22 in 1995.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 4253", "url": "https://www.rfc-editor.org/rfc/rfc4253" }
+		]
 	},
 	{
 		"id": "telnet",
 		"name": "Telnet",
 		"port": 23,
 		"transport": "tcp",
-		"description": "Telnet protocol.",
-		"answerEligible": true
+		"description": "Telnet is a protocol for interactive, text-based remote terminal sessions over a network. It sends all traffic, including passwords, in plain text, which is why SSH has replaced it for anything security-sensitive.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 854", "url": "https://www.rfc-editor.org/rfc/rfc854" }
+		]
 	},
 	{
 		"id": "smtp",
 		"name": "SMTP",
 		"port": 25,
 		"transport": "tcp",
-		"description": "Simple Mail Transfer Protocol.",
-		"answerEligible": true
+		"description": "SMTP (Simple Mail Transfer Protocol) is the protocol mail servers use to relay email to one another. Port 25 has been its standard server-to-server delivery port since the protocol was defined.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 5321", "url": "https://www.rfc-editor.org/rfc/rfc5321" }
+		]
 	},
 	{
 		"id": "dns",
 		"name": "DNS",
 		"port": 53,
 		"transport": "both",
-		"description": "Domain Name System.",
-		"answerEligible": true
+		"description": "DNS (Domain Name System) translates human-readable domain names into IP addresses and other records. It mostly runs over UDP for speed on port 53, falling back to TCP for larger responses such as zone transfers.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 1035", "url": "https://www.rfc-editor.org/rfc/rfc1035" }
+		]
 	},
 	{
 		"id": "dhcp",
 		"name": "DHCP",
 		"port": 67,
 		"transport": "udp",
-		"description": "Dynamic Host Configuration Protocol.",
-		"answerEligible": true
+		"description": "DHCP (Dynamic Host Configuration Protocol) automatically assigns IP addresses and network settings to devices joining a network. Servers listen on port 67 while clients receive replies on port 68.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 2131", "url": "https://www.rfc-editor.org/rfc/rfc2131" }
+		]
 	},
 	{
 		"id": "tftp",
 		"name": "TFTP",
 		"port": 69,
 		"transport": "udp",
-		"description": "Trivial File Transfer Protocol.",
-		"answerEligible": true
+		"description": "TFTP (Trivial File Transfer Protocol) is a stripped-down file transfer protocol with no login or directory listing, commonly used to boot diskless devices and network hardware over UDP.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 1350", "url": "https://www.rfc-editor.org/rfc/rfc1350" }
+		]
 	},
 	{
 		"id": "http",
 		"name": "HTTP",
 		"port": 80,
 		"transport": "tcp",
-		"description": "Hypertext Transfer Protocol.",
-		"answerEligible": true
+		"description": "HTTP (Hypertext Transfer Protocol) is the request-response protocol that underlies the web, fetching pages, APIs, and other resources. Port 80 has been its default, unencrypted port since the web's earliest days.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 9110", "url": "https://www.rfc-editor.org/rfc/rfc9110" }
+		]
 	},
 	{
 		"id": "pop3",
 		"name": "POP3",
 		"port": 110,
 		"transport": "tcp",
-		"description": "Post Office Protocol version 3.",
-		"answerEligible": true
+		"description": "POP3 (Post Office Protocol version 3) lets a mail client download messages from a server, typically removing them from the server afterward. IMAP has mostly replaced it because IMAP keeps mail synced across devices.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 1939", "url": "https://www.rfc-editor.org/rfc/rfc1939" }
+		]
 	},
 	{
 		"id": "ntp",
 		"name": "NTP",
 		"port": 123,
 		"transport": "udp",
-		"description": "Network Time Protocol.",
-		"answerEligible": true
+		"description": "NTP (Network Time Protocol) synchronizes computer clocks over a network to a common reference time. It is one of the oldest Internet protocols still in wide use, with its design dating to the 1980s.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 5905", "url": "https://www.rfc-editor.org/rfc/rfc5905" }
+		]
 	},
 	{
 		"id": "imap",
 		"name": "IMAP",
 		"port": 143,
 		"transport": "tcp",
-		"description": "Internet Message Access Protocol.",
-		"answerEligible": true
+		"description": "IMAP (Internet Message Access Protocol) lets a mail client read and manage messages that stay stored on the server, keeping read state and folders synced across multiple devices.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "RFC 9051 (IMAP4rev2)",
+				"url": "https://www.rfc-editor.org/rfc/rfc9051"
+			}
+		]
 	},
 	{
 		"id": "snmp",
 		"name": "SNMP",
 		"port": 161,
 		"transport": "udp",
-		"description": "Simple Network Management Protocol.",
-		"answerEligible": true
+		"description": "SNMP (Simple Network Management Protocol) lets network devices such as routers and switches expose status and configuration data to monitoring tools. Agents listen for queries on port 161, and devices send unsolicited traps on port 162.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "RFC 3411 (SNMPv3 framework)",
+				"url": "https://www.rfc-editor.org/rfc/rfc3411"
+			}
+		]
 	},
 	{
 		"id": "ldap",
 		"name": "LDAP",
 		"port": 389,
 		"transport": "tcp",
-		"description": "Lightweight Directory Access Protocol.",
-		"answerEligible": true
+		"description": "LDAP (Lightweight Directory Access Protocol) queries and modifies directory services such as user and group records. It is the protocol behind most enterprise identity systems, including Active Directory.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 4511", "url": "https://www.rfc-editor.org/rfc/rfc4511" }
+		]
 	},
 	{
 		"id": "https",
 		"name": "HTTPS",
 		"port": 443,
 		"transport": "tcp",
-		"description": "HTTP over TLS.",
-		"answerEligible": true
+		"description": "HTTPS is HTTP carried over a TLS-encrypted connection, protecting requests and responses from eavesdropping and tampering. Port 443 became the default encrypted web port in the mid-1990s and now carries most web traffic.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "RFC 8446 (TLS 1.3)",
+				"url": "https://www.rfc-editor.org/rfc/rfc8446"
+			}
+		]
 	},
 	{
 		"id": "smtps",
 		"name": "SMTPS",
 		"port": 465,
 		"transport": "tcp",
-		"description": "SMTP over TLS.",
-		"answerEligible": true
+		"description": "SMTPS is SMTP wrapped in an implicit TLS connection from the start, rather than upgrading mid-session with STARTTLS. Port 465 was reassigned to this purpose after RFC 8314 recommended implicit TLS for mail.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 8314", "url": "https://www.rfc-editor.org/rfc/rfc8314" }
+		]
 	},
 	{
 		"id": "submission",
 		"name": "Submission",
 		"port": 587,
 		"transport": "tcp",
-		"description": "Mail message submission.",
-		"answerEligible": true
+		"description": "Message submission is the protocol a mail client uses to hand a new message to its own outgoing server, distinct from server-to-server relay on port 25. It typically requires authentication and STARTTLS on port 587.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 6409", "url": "https://www.rfc-editor.org/rfc/rfc6409" }
+		]
 	},
 	{
 		"id": "ldaps",
 		"name": "LDAPS",
 		"port": 636,
 		"transport": "tcp",
-		"description": "LDAP over TLS.",
-		"answerEligible": true
+		"description": "LDAPS is LDAP wrapped in implicit TLS from the start of the connection, rather than upgrading via StartTLS on port 389. Port 636 is its dedicated encrypted directory-service port.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Microsoft LDAPS docs",
+				"url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/enable-ldap-over-ssl-3rd-certification-authority"
+			}
+		]
 	},
 	{
 		"id": "imaps",
 		"name": "IMAPS",
 		"port": 993,
 		"transport": "tcp",
-		"description": "IMAP over TLS.",
-		"answerEligible": true
+		"description": "IMAPS is IMAP wrapped in implicit TLS from the start of the connection. Port 993 is its dedicated encrypted port, following the implicit-TLS guidance in RFC 8314.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 8314", "url": "https://www.rfc-editor.org/rfc/rfc8314" }
+		]
 	},
 	{
 		"id": "pop3s",
 		"name": "POP3S",
 		"port": 995,
 		"transport": "tcp",
-		"description": "POP3 over TLS.",
-		"answerEligible": true
+		"description": "POP3S is POP3 wrapped in implicit TLS from the start of the connection. Port 995 is its dedicated encrypted port, following the same implicit-TLS guidance as IMAPS and SMTPS.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 8314", "url": "https://www.rfc-editor.org/rfc/rfc8314" }
+		]
 	},
 	{
 		"id": "mysql",
 		"name": "MySQL",
 		"port": 3306,
 		"transport": "tcp",
-		"description": "MySQL database protocol.",
-		"answerEligible": true
+		"description": "MySQL is a relational database. Its server listens on port 3306 for the MySQL client protocol that drivers and command-line tools use to authenticate and run queries.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "MySQL docs",
+				"url": "https://dev.mysql.com/doc/refman/8.4/en/connecting.html"
+			}
+		]
 	},
 	{
 		"id": "rdp",
 		"name": "RDP",
 		"port": 3389,
 		"transport": "tcp",
-		"description": "Remote Desktop Protocol.",
-		"answerEligible": true
+		"description": "RDP (Remote Desktop Protocol) is Microsoft's protocol for graphical remote access to a Windows machine's desktop. It has used port 3389 since Windows NT 4.0 Terminal Server Edition.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Microsoft: Understanding RDP",
+				"url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/remote/understanding-remote-desktop-protocol"
+			}
+		]
 	},
 	{
 		"id": "postgresql",
 		"name": "PostgreSQL",
 		"port": 5432,
 		"transport": "tcp",
-		"description": "PostgreSQL database protocol.",
+		"description": "PostgreSQL is a relational database. Its server listens on port 5432 for the frontend/backend protocol that clients use to authenticate, run queries, and stream results.",
 		"aliases": ["postgres"],
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "PostgreSQL protocol docs",
+				"url": "https://www.postgresql.org/docs/current/protocol.html"
+			}
+		]
 	},
 	{
 		"id": "vnc",
 		"name": "VNC",
 		"port": 5900,
 		"transport": "tcp",
-		"description": "Virtual Network Computing.",
-		"answerEligible": true
+		"description": "VNC (Virtual Network Computing) shares a remote desktop's screen and input over the RFB protocol. Its first display listens on port 5900, with each additional display adding one to the port number.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "RFC 6143 (RFB)",
+				"url": "https://www.rfc-editor.org/rfc/rfc6143"
+			}
+		]
 	},
 	{
 		"id": "redis",
 		"name": "Redis",
 		"port": 6379,
 		"transport": "tcp",
-		"description": "Redis in-memory data store.",
-		"answerEligible": true
+		"description": "Redis is an in-memory data store used as a cache, message broker, and fast key-value database. Port 6379 is its IANA-registered default, listed under the service name \"redis\".",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "Redis docs", "url": "https://redis.io/docs/latest/" },
+			{
+				"label": "IANA service names",
+				"url": "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml"
+			}
+		]
 	},
 	{
 		"id": "http-alt",
 		"name": "HTTP-alt",
 		"port": 8080,
 		"transport": "tcp",
-		"description": "Alternate HTTP port.",
+		"description": "HTTP-alt is the common fallback port for web servers and proxies when port 80 is unavailable or reserved, widely used for local development and alternate HTTP services. IANA registers 8080 under the service name \"http-alt\".",
 		"blurb": "Common alternate web port.",
-		"answerEligible": true
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "IANA service names",
+				"url": "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml"
+			}
+		]
 	},
 	{
 		"id": "kerberos",
 		"name": "Kerberos",
 		"port": 88,
 		"transport": "both",
-		"description": "Kerberos authentication.",
-		"answerEligible": true
+		"description": "Kerberos is a network authentication protocol that uses tickets issued by a trusted key distribution center, letting users and services prove their identity without sending passwords over the network.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 4120", "url": "https://www.rfc-editor.org/rfc/rfc4120" }
+		]
 	},
 	{
 		"id": "bgp",
 		"name": "BGP",
 		"port": 179,
 		"transport": "tcp",
-		"description": "Border Gateway Protocol.",
-		"answerEligible": true
+		"description": "BGP (Border Gateway Protocol) is the routing protocol that exchanges reachability information between autonomous systems on the Internet. It is the protocol that decides how traffic crosses between ISPs.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 4271", "url": "https://www.rfc-editor.org/rfc/rfc4271" }
+		]
 	},
 	{
 		"id": "irc",
 		"name": "IRC",
 		"port": 6667,
 		"transport": "tcp",
-		"description": "Internet Relay Chat.",
-		"answerEligible": true
+		"description": "IRC (Internet Relay Chat) is a text-based, real-time group chat protocol organized around channels on a server. Port 6667 is its traditional, unencrypted default.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 2812", "url": "https://www.rfc-editor.org/rfc/rfc2812" }
+		]
 	},
 	{
 		"id": "sip",
 		"name": "SIP",
 		"port": 5060,
 		"transport": "both",
-		"description": "Session Initiation Protocol.",
-		"answerEligible": true
+		"description": "SIP (Session Initiation Protocol) sets up, modifies, and tears down voice, video, and messaging sessions such as VoIP calls. It only handles the signaling; a separate protocol, RTP, carries the actual media.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 3261", "url": "https://www.rfc-editor.org/rfc/rfc3261" }
+		]
 	},
 	{
 		"id": "mqtt",
 		"name": "MQTT",
 		"port": 1883,
 		"transport": "tcp",
-		"description": "MQTT telemetry transport.",
-		"answerEligible": true
+		"description": "MQTT is a lightweight publish-subscribe messaging protocol designed for constrained devices and unreliable networks, widely used in IoT. Port 1883 is its IANA-registered, unencrypted default.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "MQTT specification",
+				"url": "https://mqtt.org/mqtt-specification/"
+			}
+		]
 	},
 	{
 		"id": "amqp",
 		"name": "AMQP",
 		"port": 5672,
 		"transport": "tcp",
-		"description": "Advanced Message Queuing Protocol.",
-		"answerEligible": true
+		"description": "AMQP (Advanced Message Queuing Protocol) is a message-queuing protocol for reliably routing messages between producers and consumers, used by brokers such as RabbitMQ. Port 5672 is its IANA-registered default.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "OASIS AMQP 1.0 overview",
+				"url": "https://docs.oasis-open.org/amqp/core/v1.0/os/amqp-core-overview-v1.0-os.html"
+			},
+			{
+				"label": "RabbitMQ AMQP concepts",
+				"url": "https://www.rabbitmq.com/tutorials/amqp-concepts.html"
+			}
+		]
 	},
 	{
 		"id": "git",
 		"name": "Git",
 		"port": 9418,
 		"transport": "tcp",
-		"description": "Git native transfer protocol.",
-		"answerEligible": true
+		"description": "The Git protocol is a fast, unauthenticated transport for fetching from a repository served by `git daemon`. Git-over-SSH and Git-over-HTTPS, which add authentication, have largely superseded it.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "git-daemon docs",
+				"url": "https://git-scm.com/docs/git-daemon"
+			}
+		]
 	},
 	{
 		"id": "rsync",
 		"name": "Rsync",
 		"port": 873,
 		"transport": "tcp",
-		"description": "Rsync file synchronization.",
-		"answerEligible": true
+		"description": "Rsync synchronizes files and directories between systems, transferring only the changed portions of files to minimize bandwidth. Running as a standalone daemon, it listens on port 873.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "rsync docs",
+				"url": "https://download.samba.org/pub/rsync/rsync.1"
+			}
+		]
 	},
 	{
 		"id": "nfs",
 		"name": "NFS",
 		"port": 2049,
 		"transport": "both",
-		"description": "Network File System.",
-		"answerEligible": true
+		"description": "NFS (Network File System) lets a client mount and use a remote directory as if it were local. Port 2049 has been its main port since early NFS versions; NFS version 4 consolidated its auxiliary services onto that one port too, no longer needing a separate port-mapper service.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "RFC 7530 (NFSv4)",
+				"url": "https://www.rfc-editor.org/rfc/rfc7530"
+			}
+		]
 	},
 	{
 		"id": "smb",
 		"name": "SMB",
 		"port": 445,
 		"transport": "tcp",
-		"description": "Server Message Block.",
-		"answerEligible": true
+		"description": "SMB (Server Message Block) shares files, printers, and named pipes between Windows systems and compatible clients such as Samba. Port 445 carries SMB directly over TCP, replacing the older NetBIOS-based ports.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "Microsoft SMB overview",
+				"url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/file-server-smb-overview"
+			}
+		]
 	},
 	{
 		"id": "iscsi",
 		"name": "iSCSI",
 		"port": 3260,
 		"transport": "tcp",
-		"description": "Internet Small Computer Systems Interface.",
-		"answerEligible": true
+		"description": "iSCSI (Internet Small Computer Systems Interface) carries SCSI storage commands over TCP/IP, letting a client mount a remote block device as if it were a local disk.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 7143", "url": "https://www.rfc-editor.org/rfc/rfc7143" }
+		]
 	},
 	{
 		"id": "syslog",
 		"name": "Syslog",
 		"port": 514,
 		"transport": "udp",
-		"description": "Syslog message transport.",
-		"answerEligible": true
+		"description": "Syslog is a standard for forwarding log messages from devices and applications to a central logging server. Port 514 is its traditional UDP port, though many deployments now use TLS on other ports for reliability and security.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 5424", "url": "https://www.rfc-editor.org/rfc/rfc5424" }
+		]
 	},
 	{
 		"id": "radius",
 		"name": "RADIUS",
 		"port": 1812,
 		"transport": "udp",
-		"description": "Remote Authentication Dial-In User Service.",
-		"answerEligible": true
+		"description": "RADIUS (Remote Authentication Dial-In User Service) centralizes authentication, authorization, and accounting for network access, commonly used by VPNs, Wi-Fi, and switches. Port 1812 replaced an earlier, conflicting port.",
+		"answerEligible": true,
+		"sources": [
+			{ "label": "RFC 2865", "url": "https://www.rfc-editor.org/rfc/rfc2865" }
+		]
 	},
 	{
 		"id": "openvpn",
 		"name": "OpenVPN",
 		"port": 1194,
 		"transport": "udp",
-		"description": "OpenVPN tunnel.",
-		"answerEligible": true
+		"description": "OpenVPN is an open-source VPN protocol and software that tunnels traffic over an encrypted TLS connection. Port 1194 is its IANA-registered default, usually run over UDP.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "OpenVPN community docs",
+				"url": "https://openvpn.net/community-docs/"
+			}
+		]
 	},
 	{
 		"id": "wireguard",
 		"name": "WireGuard",
 		"port": 51820,
 		"transport": "udp",
-		"description": "WireGuard VPN.",
-		"answerEligible": true
+		"description": "WireGuard is a modern VPN protocol built around a small codebase and current cryptography, tunneling traffic over UDP. Port 51820 is its conventional default, though it is not a formally registered IANA port.",
+		"answerEligible": true,
+		"sources": [
+			{
+				"label": "WireGuard quick start",
+				"url": "https://www.wireguard.com/quickstart/"
+			}
+		]
 	},
 	{
 		"id": "echo",
 		"name": "Echo",
 		"port": 7,
 		"transport": "tcp",
-		"description": "Echo protocol.",
-		"answerEligible": false
+		"description": "The Echo protocol simply sends back whatever data it receives, historically used to test that a host is reachable and responsive. It predates ICMP ping as a connectivity check.",
+		"answerEligible": false,
+		"sources": [
+			{ "label": "RFC 862", "url": "https://www.rfc-editor.org/rfc/rfc862" }
+		]
 	},
 	{
 		"id": "discard",
 		"name": "Discard",
 		"port": 9,
 		"transport": "tcp",
-		"description": "Discard protocol.",
-		"answerEligible": false
+		"description": "The Discard protocol silently drops any data sent to it, used historically to test outbound connectivity and to generate throwaway network traffic.",
+		"answerEligible": false,
+		"sources": [
+			{ "label": "RFC 863", "url": "https://www.rfc-editor.org/rfc/rfc863" }
+		]
 	},
 	{
 		"id": "daytime",
 		"name": "Daytime",
 		"port": 13,
 		"transport": "tcp",
-		"description": "Daytime protocol.",
-		"answerEligible": false
+		"description": "The Daytime protocol returns the current date and time as human-readable text when a client connects, a simple predecessor to NTP for checking a server's clock.",
+		"answerEligible": false,
+		"sources": [
+			{ "label": "RFC 867", "url": "https://www.rfc-editor.org/rfc/rfc867" }
+		]
 	},
 	{
 		"id": "chargen",
 		"name": "chargen",
 		"port": 19,
 		"transport": "tcp",
-		"description": "Character generator protocol.",
-		"answerEligible": false
+		"description": "Character Generator (chargen) sends a continuous stream of test characters to any client that connects, historically used to test network throughput. It is now mostly disabled, since it has been abused to amplify UDP denial-of-service attacks.",
+		"answerEligible": false,
+		"sources": [
+			{ "label": "RFC 864", "url": "https://www.rfc-editor.org/rfc/rfc864" }
+		]
 	},
 	{
 		"id": "whois",
 		"name": "WHOIS",
 		"port": 43,
 		"transport": "tcp",
-		"description": "WHOIS directory service.",
-		"answerEligible": false
+		"description": "WHOIS looks up registration information for a domain name or IP address block, such as its owner and registrar. It is a simple text query-response protocol with no built-in authentication.",
+		"answerEligible": false,
+		"sources": [
+			{ "label": "RFC 3912", "url": "https://www.rfc-editor.org/rfc/rfc3912" }
+		]
 	},
 	{
 		"id": "gopher",
 		"name": "Gopher",
 		"port": 70,
 		"transport": "tcp",
-		"description": "Gopher document protocol.",
-		"answerEligible": false
+		"description": "Gopher is a menu-driven document retrieval protocol that predates the web, organizing content into hierarchical, text-based listings. HTTP and the web largely displaced it during the 1990s.",
+		"answerEligible": false,
+		"sources": [
+			{ "label": "RFC 1436", "url": "https://www.rfc-editor.org/rfc/rfc1436" }
+		]
 	},
 	{
 		"id": "finger",
 		"name": "Finger",
 		"port": 79,
 		"transport": "tcp",
-		"description": "Finger user information.",
-		"answerEligible": false
+		"description": "Finger returns information about a user on a remote system, such as their login name and last login time. It is rarely run today because it can leak personal and account details to anyone who asks.",
+		"answerEligible": false,
+		"sources": [
+			{ "label": "RFC 1288", "url": "https://www.rfc-editor.org/rfc/rfc1288" }
+		]
 	},
 	{
 		"id": "ident",
 		"name": "Ident",
 		"port": 113,
 		"transport": "tcp",
-		"description": "Identification protocol.",
-		"answerEligible": false
+		"description": "Ident (the Identification Protocol) tells a remote server which local user owns a given TCP connection, historically used by IRC networks and mail servers to log or authenticate connecting users.",
+		"answerEligible": false,
+		"sources": [
+			{ "label": "RFC 1413", "url": "https://www.rfc-editor.org/rfc/rfc1413" }
+		]
 	}
 ]
