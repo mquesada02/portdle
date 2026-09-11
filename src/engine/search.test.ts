@@ -1,7 +1,14 @@
 import { expect, test } from "vitest";
+import applicationsJson from "../catalogs/applications.json";
+import protocolsJson from "../catalogs/protocols.json";
+import { catalogFor } from "./catalog";
 import { buildSearchIndex, searchNames } from "./search";
 import { chargen, http, telnet } from "./test-fixtures";
 import type { CatalogEntry } from "./types";
+
+const protocols = protocolsJson as CatalogEntry[];
+const applications = applicationsJson as CatalogEntry[];
+const production = catalogFor("mixed", protocols, applications);
 
 const https: CatalogEntry = {
 	id: "https",
@@ -13,7 +20,7 @@ const https: CatalogEntry = {
 	answerEligible: true,
 };
 
-test("search prefix name and alias not description or blurb", () => {
+test("search matches name and alias by fragment, not description or blurb", () => {
 	const idx = buildSearchIndex([https, http]);
 	expect(searchNames(idx, "ht").map((hit) => hit.id)).toEqual([
 		"http",
@@ -24,30 +31,15 @@ test("search prefix name and alias not description or blurb", () => {
 	expect(searchNames(idx, "HTTP over")).toEqual([]);
 	expect(searchNames(idx, "")).toEqual([]);
 	expect(searchNames(idx, "   ")).toEqual([]);
-	expect(searchNames(idx, "HTTPS").map((hit) => hit.id)).toEqual(["https"]);
+	expect(searchNames(idx, "HTTPS").map((hit) => hit.id)).toEqual([
+		"https",
+		"http",
+	]);
 });
 
 test("alias hit shows canonical name", () => {
 	const idx = buildSearchIndex([https]);
 	expect(searchNames(idx, "ssl")).toEqual([{ id: "https", name: "HTTPS" }]);
-});
-
-test("name-prefix ranks before alias-prefix then localeCompare", () => {
-	const other: CatalogEntry = {
-		id: "other",
-		name: "Other",
-		aliases: ["htfoo"],
-		port: 1,
-		transport: "tcp",
-		description: "x",
-		answerEligible: true,
-	};
-	const idx = buildSearchIndex([other, https, http]);
-	expect(searchNames(idx, "ht").map((hit) => hit.id)).toEqual([
-		"http",
-		"https",
-		"other",
-	]);
 });
 
 test("search includes miss-only and retired", () => {
@@ -66,4 +58,63 @@ test("search caps at 20", () => {
 		answerEligible: true,
 	}));
 	expect(searchNames(buildSearchIndex(catalog), "name")).toHaveLength(20);
+});
+
+test("fuzzy fragment: sql finds PostgreSQL and MySQL, nothing unrelated", () => {
+	const idx = buildSearchIndex(production);
+	expect(
+		searchNames(idx, "sql")
+			.map((hit) => hit.id)
+			.sort(),
+	).toEqual(["mysql", "postgresql"]);
+});
+
+test("fuzzy typo: postgers finds PostgreSQL first", () => {
+	const idx = buildSearchIndex(production);
+	const hits = searchNames(idx, "postgers");
+	expect(hits[0]?.id).toBe("postgresql");
+});
+
+test("alias postgres finds PostgreSQL", () => {
+	const idx = buildSearchIndex(production);
+	expect(searchNames(idx, "postgres").map((hit) => hit.id)).toEqual([
+		"postgresql",
+	]);
+});
+
+test("nonsense query finds nothing", () => {
+	const idx = buildSearchIndex(production);
+	expect(searchNames(idx, "zzzz")).toEqual([]);
+});
+
+test("description text never matches", () => {
+	const idx = buildSearchIndex([http]);
+	expect(searchNames(idx, "Hypertext")).toEqual([]);
+	expect(searchNames(idx, "Transfer Protocol")).toEqual([]);
+});
+
+test("equally good matches are tie-broken by locale-aware name order", () => {
+	const cat: CatalogEntry = {
+		id: "cat",
+		name: "Cat",
+		port: 1,
+		transport: "tcp",
+		description: "x",
+		answerEligible: true,
+	};
+	const bat: CatalogEntry = {
+		id: "bat",
+		name: "bat",
+		port: 2,
+		transport: "tcp",
+		description: "x",
+		answerEligible: true,
+	};
+	// "Cat" and "bat" match "at" identically (same length, same position),
+	// so the result order depends entirely on the tie-break. Plain code-unit
+	// comparison would put "Cat" first (uppercase "C" < lowercase "b"); a
+	// locale-aware comparison puts "bat" first, matching "bat".localeCompare(
+	// "Cat") < 0.
+	const idx = buildSearchIndex([cat, bat]);
+	expect(searchNames(idx, "at").map((hit) => hit.id)).toEqual(["bat", "cat"]);
 });
