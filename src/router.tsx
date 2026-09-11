@@ -3,11 +3,11 @@ import {
 	createRoute,
 	createRouter,
 	type RouterHistory,
+	redirect,
 } from "@tanstack/react-router";
 import type { Persist } from "./persist/storage";
 import { BlitzPage } from "./ui/blitz-page";
 import { DailyPage } from "./ui/daily-page";
-import { HelpPage } from "./ui/help-page";
 import { HistoryPage } from "./ui/history-page";
 import { Shell } from "./ui/shell";
 
@@ -56,10 +56,14 @@ const historyRoute = createRoute({
 	component: HistoryPage,
 });
 
+// The Help page is gone; this route stays registered only so the old
+// address keeps resolving, redirecting straight to the Daily.
 const helpRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/help",
-	component: HelpPage,
+	beforeLoad: () => {
+		throw redirect({ to: "/" });
+	},
 });
 
 const routeTree = rootRoute.addChildren([

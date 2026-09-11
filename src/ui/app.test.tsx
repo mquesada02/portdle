@@ -79,23 +79,6 @@ test("How to play button reopens How-to after it is dismissed", async () => {
 	expect(screen.getByRole("dialog", { name: "How-to" })).toBeTruthy();
 });
 
-test("Help still shows the rules after How-to is seen", async () => {
-	const persist = createPersist(memoryStore());
-	persist.writeHowToSeen();
-	await renderApp({ persist, path: "/portdle/help" });
-	expect(screen.queryByRole("dialog", { name: "How-to" })).toBeNull();
-	expect(screen.getByRole("heading", { level: 1, name: "Help" })).toBeTruthy();
-	const main = screen.getByRole("main");
-	expect(
-		within(main).getByText("Guess the port for the named service."),
-	).toBeTruthy();
-	expect(
-		within(main).getByText(
-			"6 tries. A miss names the service if that port is in this catalog.",
-		),
-	).toBeTruthy();
-});
-
 test("theme control toggles opposite of effective theme onto html.dark", async () => {
 	const user = userEvent.setup();
 	const persist = await renderApp({ prefersDark: false });
@@ -112,7 +95,7 @@ test("theme control toggles opposite of effective theme onto html.dark", async (
 
 test("nav links and theme control are present for keyboard users", async () => {
 	await renderApp({ persist: createPersist(memoryStore()) });
-	const names = ["Daily", "Blitz", "History", "Help"];
+	const names = ["Daily", "Blitz", "History"];
 	for (const name of names) {
 		const link = screen.getByRole("link", { name });
 		expect(link.tabIndex).not.toBe(-1);
@@ -142,19 +125,15 @@ test("Daily nav link is active on all three Daily routes and no other route", as
 		expect(
 			screen.queryByRole("link", { name: "History", current: "page" }),
 		).toBeNull();
-		expect(
-			screen.queryByRole("link", { name: "Help", current: "page" }),
-		).toBeNull();
 	}
 });
 
-test("Blitz, History, and Help nav links are active only on their own route", async () => {
+test("Blitz and History nav links are active only on their own route", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const cases = [
 		["/portdle/blitz", "Blitz"],
 		["/portdle/history", "History"],
-		["/portdle/help", "Help"],
 	] as const;
 	for (const [path, name] of cases) {
 		cleanup();
@@ -179,7 +158,7 @@ test("failed write shows the shared Progress notice", async () => {
 	expect(screen.getByRole("status").textContent).toBe("Progress may not save.");
 });
 
-test("placeholder headings exist on each route", async () => {
+test("each route shows its heading, and the old Help address lands on the Daily", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const cases = [
@@ -188,7 +167,7 @@ test("placeholder headings exist on each route", async () => {
 		["/portdle/applications", dailyOn("applications").name],
 		["/portdle/blitz", "Blitz"],
 		["/portdle/history", "History"],
-		["/portdle/help", "Help"],
+		["/portdle/help", dailyOn("mixed").name],
 	] as const;
 	for (const [path, heading] of cases) {
 		cleanup();

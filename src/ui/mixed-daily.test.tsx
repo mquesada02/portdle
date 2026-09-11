@@ -101,7 +101,7 @@ test("Daily switcher marks the current category and links to the other two Daili
 });
 
 test("Daily switcher and its Protocols and Applications links appear only on the three Daily routes", async () => {
-	await renderDaily({ path: "/portdle/help" });
+	await renderDaily({ path: "/portdle/blitz" });
 	expect(screen.queryByRole("link", { name: "Mixed" })).toBeNull();
 	expect(screen.queryByRole("link", { name: "Protocols" })).toBeNull();
 	expect(screen.queryByRole("link", { name: "Applications" })).toBeNull();
@@ -339,13 +339,13 @@ test("how-to still appears on first mixed visit", async () => {
 	).toBeTruthy();
 });
 
-test("uncovered date is puzzle unavailable with help link", async () => {
+test("uncovered date is puzzle unavailable with a Play Blitz link", async () => {
 	await renderDaily({ utcToday: "2026-08-01" });
 	expect(
 		screen.getByRole("heading", { level: 1, name: "Puzzle unavailable" }),
 	).toBeTruthy();
 	expect(
-		within(screen.getByRole("main")).getByRole("link", { name: "Help" }),
+		within(screen.getByRole("main")).getByRole("link", { name: "Play Blitz" }),
 	).toBeTruthy();
 });
 
