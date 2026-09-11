@@ -208,7 +208,7 @@ test("correct guess wins, reveals, stats, and copies share text", async () => {
 	expect(screen.getByText("Played")).toBeTruthy();
 	expect(screen.getByText("100")).toBeTruthy();
 	await user.click(screen.getByRole("button", { name: "Share" }));
-	expect(copied[0]).toBe(`Portdle · Mixed · ${UTC_TODAY} · 1/6\n\n🟩`);
+	expect(copied[0]).toBe(`Portdle · Mixed · ${UTC_TODAY} · 1/6\n\n🟩🟩🟩🟩`);
 	expect(persist.readDaily("mixed", UTC_TODAY)?.status).toBe("won");
 	expect(persist.readLastPlayed("mixed")).toBe(UTC_TODAY);
 	expect(persist.readLastSeenUtc()).toBe(UTC_TODAY);
@@ -245,7 +245,7 @@ test("six misses lose, freeze, and share X/6", async () => {
 	expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
 	await user.click(screen.getByRole("button", { name: "Share" }));
 	expect(copied[0]).toBe(
-		`Portdle · Mixed · ${UTC_TODAY} · X/6\n\n⬜⬜⬜⬜⬜⬜`,
+		`Portdle · Mixed · ${UTC_TODAY} · X/6\n\n🟨🟩⬜🟩\n🟨🟩⬜⬜\n🟨🟩⬜🟨\n🟨🟩🟩⬜\n🟨🟩🟩⬜\n🟨🟩🟩🟨`,
 	);
 });
 
@@ -424,5 +424,5 @@ test("protocols share uses the Protocols label", async () => {
 	);
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	await user.click(screen.getByRole("button", { name: "Share" }));
-	expect(copied[0]).toBe(`Portdle · Protocols · ${UTC_TODAY} · 1/6\n\n🟩`);
+	expect(copied[0]).toBe(`Portdle · Protocols · ${UTC_TODAY} · 1/6\n\n🟩🟩🟩`);
 });

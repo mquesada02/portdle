@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { digitLength } from "../engine/guess";
+import { computeMarks } from "../engine/marks";
 import { formatShare } from "../engine/share";
 import { winPercent } from "../engine/stats";
 import type {
@@ -116,11 +118,18 @@ export function DailyReveal({
 		if (board.status !== "won" && board.status !== "lost") {
 			return;
 		}
+		// Same padding convention the board's tiles use: pad the typed port and
+		// the answer port to the answer's digit length before computing marks.
+		const length = digitLength(puzzle.port);
+		const answerDigits = String(puzzle.port).padStart(length, "0");
+		const rows = board.guesses.map((guess) =>
+			computeMarks(String(guess.port).padStart(length, "0"), answerDigits),
+		);
 		const text = formatShare({
 			category,
 			date: utcToday,
 			status: board.status,
-			committed: board.guesses.length,
+			rows,
 		});
 		try {
 			if (navigator.clipboard?.writeText) {
