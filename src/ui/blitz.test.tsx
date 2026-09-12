@@ -453,6 +453,8 @@ const CROWDED_BLURBS: Record<number, string[]> = {
 	],
 };
 
+const CROWDED_PORTS = Object.keys(CROWDED_BLURBS).map(Number);
+
 async function startInvertedUntil(ports: number[]) {
 	for (let attempt = 0; attempt < 40; attempt += 1) {
 		cleanup();
@@ -471,14 +473,13 @@ async function startInvertedUntil(ports: number[]) {
 }
 
 test("unique inverted heading shows the port number only", async () => {
-	const crowdedPorts = Object.keys(CROWDED_BLURBS).map(Number);
 	const port = await startInvertedUntil(
 		catalog
 			.filter(
 				(entry) =>
 					entry.answerEligible &&
 					!entry.retired &&
-					!crowdedPorts.includes(entry.port),
+					!CROWDED_PORTS.includes(entry.port),
 			)
 			.map((entry) => entry.port),
 	);
@@ -491,9 +492,7 @@ test("unique inverted heading shows the port number only", async () => {
 });
 
 test("crowded inverted heading shows that port's blurb", async () => {
-	const port = await startInvertedUntil(
-		Object.keys(CROWDED_BLURBS).map(Number),
-	);
+	const port = await startInvertedUntil(CROWDED_PORTS);
 	const blurbs = CROWDED_BLURBS[port];
 	if (!blurbs) {
 		throw new Error("missing blurbs");
@@ -528,4 +527,180 @@ test("history still has heading History", async () => {
 	});
 	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
 	await screen.findByRole("heading", { level: 1, name: "History" });
+});
+
+test("a correct Blitz round records the prompt as Correct in the codex store", async () => {
+	const user = userEvent.setup();
+	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const answer = currentEntry();
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readCodex()[answer.id]).toEqual({
+		state: "correct",
+		fresh: true,
+	});
+});
+
+test("a Default miss on a known port records the prompt as Missed and the port's owner as Identified", async () => {
+	const user = userEvent.setup();
+	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const answer = currentEntry();
+	const missPort = answer.port === 80 ? 19 : 80;
+	await user.type(portDigits(), padToAnswer(missPort, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readCodex()[answer.id]).toEqual({
+		state: "missed",
+		fresh: true,
+	});
+	const ownerId = missPort === 80 ? "http" : "chargen";
+	expect(persist.readCodex()[ownerId]).toEqual({
+		state: "identified",
+		fresh: true,
+	});
+});
+
+test("a Default miss on an unowned port records the prompt as Missed and nothing else", async () => {
+	const user = userEvent.setup();
+	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const answer = currentEntry();
+	await user.type(portDigits(), padToAnswer(1, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readCodex()).toEqual({
+		[answer.id]: { state: "missed", fresh: true },
+	});
+});
+
+test("a mid-run miss writes the codex before the run ends", async () => {
+	const user = userEvent.setup();
+	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const answer = currentEntry();
+	const missPort = answer.port === 80 ? 19 : 80;
+	await user.type(portDigits(), padToAnswer(missPort, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByRole("img", { name: "Lives: 2" })).toBeTruthy();
+	expect(persist.readCodex()[answer.id]).toEqual({
+		state: "missed",
+		fresh: true,
+	});
+});
+
+test("an invalid Blitz guess leaves the codex store unchanged", async () => {
+	const user = userEvent.setup();
+	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	await user.type(portDigits(), "1");
+	await user.keyboard("{Enter}");
+	expect(screen.getByText("Not a valid port.")).toBeTruthy();
+	expect(persist.readCodex()).toEqual({});
+});
+
+test("a timeout mid-prompt leaves the codex store unchanged", async () => {
+	const persist = await renderBlitz();
+	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "Start" }));
+	await vi.advanceTimersByTimeAsync(60_000);
+	expect(screen.getByText("Time's up")).toBeTruthy();
+	expect(persist.readCodex()).toEqual({});
+});
+
+test("visiting History leaves the codex store unchanged", async () => {
+	stubMatchMedia();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	persist.writeCodex({ http: { state: "correct", fresh: false } });
+	const history = createMemoryHistory({
+		initialEntries: ["/portdle/history"],
+	});
+	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	await screen.findByRole("heading", { level: 1, name: "History" });
+	expect(persist.readCodex()).toEqual({
+		http: { state: "correct", fresh: false },
+	});
+});
+
+async function startInvertedWhere(matches: (port: number) => boolean) {
+	for (let attempt = 0; attempt < 40; attempt += 1) {
+		cleanup();
+		document.documentElement.classList.remove("dark");
+		vi.useRealTimers();
+		const persist = await renderBlitz();
+		fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
+		vi.useFakeTimers();
+		fireEvent.click(screen.getByRole("button", { name: "Start" }));
+		const port = headingPort();
+		if (matches(port)) {
+			return { persist, port };
+		}
+	}
+	throw new Error("no matching heading found");
+}
+
+test("an Inverted miss on a unique port records the prompt as Missed and the pick as Identified", async () => {
+	const { persist, port } = await startInvertedWhere(
+		(candidate) => !CROWDED_PORTS.includes(candidate),
+	);
+	const promptEntry = catalog.find(
+		(entry) => entry.port === port && entry.answerEligible && !entry.retired,
+	);
+	if (!promptEntry) {
+		throw new Error("missing prompt entry");
+	}
+	const pick =
+		catalog.find((entry) => entry.name === "HTTP" && entry.port !== port) ??
+		catalog.find((entry) => entry.port !== port);
+	if (!pick) {
+		throw new Error("missing miss row");
+	}
+	await pickListed(pick.name);
+	expect(persist.readCodex()[promptEntry.id]).toEqual({
+		state: "missed",
+		fresh: true,
+	});
+	expect(persist.readCodex()[pick.id]).toEqual({
+		state: "identified",
+		fresh: true,
+	});
+});
+
+async function startInvertedSamePortMiss() {
+	// The dealt prompt among a crowded port's entries is not directly
+	// observable from the UI (Inverted shows only the port). A fixed
+	// same-port candidate is picked each attempt; if it happens to be the
+	// actual prompt (a real "correct" outcome, not a miss), the whole attempt
+	// is redone from a fresh run rather than picked again mid-round, since a
+	// correct guess advances to a new, possibly non-crowded, prompt.
+	for (let attempt = 0; attempt < 10; attempt += 1) {
+		const { persist, port } = await startInvertedWhere((candidate) =>
+			CROWDED_PORTS.includes(candidate),
+		);
+		const samePortPick = catalog.find((entry) => entry.port === port);
+		if (!samePortPick) {
+			throw new Error("missing same-port pick candidate");
+		}
+		await pickListed(samePortPick.name);
+		if (screen.queryByText("Wrong service, same port.")) {
+			return { persist, port, samePortPick };
+		}
+	}
+	throw new Error("could not produce a same-port miss");
+}
+
+test("a same-port Inverted pick records the prompt as Missed and the pick as Identified", async () => {
+	const { persist, port, samePortPick } = await startInvertedSamePortMiss();
+	expect(persist.readCodex()[samePortPick.id]).toEqual({
+		state: "identified",
+		fresh: true,
+	});
+	const missedSiblings = catalog.filter((entry) => {
+		if (entry.port !== port || entry.id === samePortPick.id) {
+			return false;
+		}
+		const record = persist.readCodex()[entry.id];
+		return record?.state === "missed" && record.fresh === true;
+	});
+	expect(missedSiblings.length).toBe(1);
 });
