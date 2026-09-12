@@ -2,6 +2,7 @@ import { Link, useRouteContext } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { applications, protocols, schedules } from "../catalogs/production";
 import { catalogFor } from "../engine/catalog";
+import { applyCodexEncounter } from "../engine/codex";
 import { getDaily } from "../engine/daily";
 import {
 	applyCommittedGuess,
@@ -14,6 +15,7 @@ import { applyDailyFinish, emptyStats } from "../engine/stats";
 import {
 	type CatalogEntry,
 	type CategoryStats,
+	type CodexEncounter,
 	DAILY_CATEGORIES,
 	type DailyCategory,
 	type DailyPersist,
@@ -296,6 +298,11 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 		}
 	}
 
+	function recordEncounter(encounter: CodexEncounter) {
+		const next = applyCodexEncounter(persist.readCodex(), encounter);
+		return persist.writeCodex(next);
+	}
+
 	function submitGuess() {
 		const stored = persist.readDaily(category, utcToday);
 		if (stored?.status === "won" || stored?.status === "lost") {
@@ -331,7 +338,18 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 		setMessage("");
 		setBoard(next);
 		noteWrite(persist.writeDaily(category, utcToday, next));
+		if (result.status === "miss" && result.identified) {
+			noteWrite(
+				recordEncounter({ state: "identified", id: result.identified.id }),
+			);
+		}
 		if (next.status === "won" || next.status === "lost") {
+			noteWrite(
+				recordEncounter({
+					state: next.status === "won" ? "correct" : "missed",
+					id: puzzle.id,
+				}),
+			);
 			setFinishedThisSession(true);
 			if (persist.readLastPlayed(category) !== utcToday) {
 				const gapped = categoryStreakGap(persist, category, utcToday);

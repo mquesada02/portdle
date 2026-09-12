@@ -426,3 +426,59 @@ test("protocols share uses the Protocols label", async () => {
 	await user.click(screen.getByRole("button", { name: "Share" }));
 	expect(copied[0]).toBe(`Portdle · Protocols · ${UTC_TODAY} · 1/6\n\n🟩🟩🟩`);
 });
+
+test("winning a Daily records its target as Correct in the codex store", async () => {
+	const user = userEvent.setup();
+	const persist = await renderDaily();
+	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readCodex()[mixedAnswer.id]).toEqual({
+		state: "correct",
+		fresh: true,
+	});
+});
+
+test("losing a Daily records its target as Missed in the codex store", async () => {
+	const user = userEvent.setup();
+	const persist = await renderDaily();
+	for (const port of [80, 19, 23, 1, 2, 3]) {
+		await user.type(portDigits(), padToAnswer(port, mixedAnswer));
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+	}
+	expect(persist.readCodex()[mixedAnswer.id]).toEqual({
+		state: "missed",
+		fresh: true,
+	});
+});
+
+test("a Daily try on a known wrong port records that entry as Identified", async () => {
+	const user = userEvent.setup();
+	const persist = await renderDaily();
+	await user.type(portDigits(), padToAnswer(80, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readCodex().http).toEqual({
+		state: "identified",
+		fresh: true,
+	});
+});
+
+test("an invalid Daily guess leaves the codex store unchanged", async () => {
+	const user = userEvent.setup();
+	const persist = await renderDaily();
+	await user.type(portDigits(), "51");
+	await user.keyboard("{Enter}");
+	expect(screen.getByText("Not enough digits.")).toBeTruthy();
+	expect(persist.readCodex()).toEqual({});
+});
+
+test("a duplicate Daily try leaves the codex store unchanged beyond the first try", async () => {
+	const user = userEvent.setup();
+	const persist = await renderDaily();
+	await user.type(portDigits(), padToAnswer(80, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	const afterFirst = persist.readCodex();
+	await user.type(portDigits(), padToAnswer(80, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Already guessed.")).toBeTruthy();
+	expect(persist.readCodex()).toEqual(afterFirst);
+});
