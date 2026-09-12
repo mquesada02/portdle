@@ -346,3 +346,48 @@ test("writeCodex setItem throw returns ok false", () => {
 		persist.writeCodex({ http: { state: "correct", fresh: true } }),
 	).toEqual({ ok: false });
 });
+
+test("codexSort missing is name and round-trips port", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.readCodexSort()).toBe("name");
+	expect(persist.writeCodexSort("port")).toEqual({ ok: true });
+	expect(persist.readCodexSort()).toBe("port");
+	expect(store.data.has("portdle:v1:codexSort")).toBe(true);
+});
+
+test("a codexSort value outside name and port reads as name", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	store.data.set("portdle:v1:codexSort", JSON.stringify("port-asc"));
+	expect(persist.readCodexSort()).toBe("name");
+});
+
+test("corrupt codexSort JSON is name without dropping theme", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.writeTheme("dark")).toEqual({ ok: true });
+	store.data.set("portdle:v1:codexSort", "{not json");
+	expect(persist.readCodexSort()).toBe("name");
+	expect(persist.readTheme()).toBe("dark");
+});
+
+test("writing codexSort does not touch daily, stats, blitzBests, or codex keys", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.writeCodexSort("port")).toEqual({ ok: true });
+	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
+	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
+	expect(store.data.has("portdle:v1:blitzBests")).toBe(false);
+	expect(store.data.has("portdle:v1:codex")).toBe(false);
+});
+
+test("writeCodexSort setItem throw returns ok false", () => {
+	const persist = createPersist({
+		getItem: () => null,
+		setItem: () => {
+			throw new Error("quota");
+		},
+	});
+	expect(persist.writeCodexSort("port")).toEqual({ ok: false });
+});
