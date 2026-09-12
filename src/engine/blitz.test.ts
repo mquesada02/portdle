@@ -386,3 +386,191 @@ test("miss when remainingIds is empty reshuffles startPool", () => {
 		[afterMiss.state.currentId, ...afterMiss.state.remainingIds].sort(),
 	).toEqual(["c", "d"]);
 });
+
+test("committed correct round appends a round with no wrong answer", () => {
+	const started = startMixed();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const answer = entries.find((entry) => entry.id === started.currentId);
+	if (!answer) {
+		throw new Error("missing");
+	}
+	const next = reduceDefault(started, answer.port);
+	expect(next.state.rounds).toEqual([
+		{
+			id: answer.id,
+			name: answer.name,
+			port: answer.port,
+			outcome: "correct",
+			wrong: null,
+		},
+	]);
+});
+
+test("default miss on an owned port appends a typed round with the owner", () => {
+	const started = startMixed();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const answer = entries.find((entry) => entry.id === started.currentId);
+	if (!answer) {
+		throw new Error("missing");
+	}
+	const next = reduceDefault(started, 80);
+	expect(next.state.rounds).toEqual([
+		{
+			id: answer.id,
+			name: answer.name,
+			port: answer.port,
+			outcome: "miss",
+			wrong: {
+				kind: "typed",
+				port: 80,
+				owner: { id: "http", name: "HTTP", port: 80 },
+			},
+		},
+	]);
+});
+
+test("default miss on an unowned port appends a typed round with no owner", () => {
+	const started = startMixed();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const answer = entries.find((entry) => entry.id === started.currentId);
+	if (!answer) {
+		throw new Error("missing");
+	}
+	const next = reduceDefault(started, 9999);
+	expect(next.state.rounds).toEqual([
+		{
+			id: answer.id,
+			name: answer.name,
+			port: answer.port,
+			outcome: "miss",
+			wrong: { kind: "typed", port: 9999, owner: null },
+		},
+	]);
+});
+
+test("inverted miss appends a picked round", () => {
+	const started = startMixedInverted();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const answer = entries.find((entry) => entry.id === started.currentId);
+	if (!answer) {
+		throw new Error("missing");
+	}
+	const next = reduceInverted(started, "http");
+	expect(next.state.rounds).toEqual([
+		{
+			id: answer.id,
+			name: answer.name,
+			port: answer.port,
+			outcome: "miss",
+			wrong: { kind: "picked", pick: { id: "http", name: "HTTP", port: 80 } },
+		},
+	]);
+});
+
+test("same-port inverted pick still appends a picked round", () => {
+	const portA: CatalogEntry = {
+		id: "port-a",
+		name: "Port A",
+		port: 9200,
+		transport: "tcp",
+		description: "port-a",
+		answerEligible: true,
+	};
+	const portB: CatalogEntry = {
+		id: "port-b",
+		name: "Port B",
+		port: 9200,
+		transport: "tcp",
+		description: "port-b",
+		answerEligible: true,
+	};
+	const started = startBlitz({
+		category: "applications",
+		orientation: "inverted",
+		mode: "sprint",
+		utcToday: "2026-09-09",
+		protocols: [],
+		applications: [portA, portB],
+		schedules,
+		rng,
+	});
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const answer = [portA, portB].find((entry) => entry.id === started.currentId);
+	const pick = [portA, portB].find((entry) => entry.id !== started.currentId);
+	if (!answer || !pick) {
+		throw new Error("missing");
+	}
+	const next = reduceBlitz({
+		state: started,
+		event: { type: "inverted-guess", id: pick.id },
+		protocols: [],
+		applications: [portA, portB],
+		rng,
+	});
+	expect(next.state.rounds).toEqual([
+		{
+			id: answer.id,
+			name: answer.name,
+			port: answer.port,
+			outcome: "miss",
+			wrong: {
+				kind: "picked",
+				pick: { id: pick.id, name: pick.name, port: pick.port },
+			},
+		},
+	]);
+});
+
+test("invalid guess appends nothing to rounds", () => {
+	const started = startMixed();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const next = reduceDefault(started, "12");
+	expect(next.state.rounds).toEqual([]);
+});
+
+test("timeout appends nothing to rounds", () => {
+	const started = startMixed();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const timed = reduceBlitz({
+		state: started,
+		event: { type: "timeout" },
+		protocols: [http, chargen, telnet],
+		applications: entries,
+		rng,
+	});
+	expect(timed.state.rounds).toEqual([]);
+});
+
+test("round number reads 3 after two committed rounds", () => {
+	const started = startMixed();
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const firstAnswer = entries.find((entry) => entry.id === started.currentId);
+	if (!firstAnswer) {
+		throw new Error("missing");
+	}
+	const afterFirst = reduceDefault(started, firstAnswer.port);
+	const secondAnswer = entries.find(
+		(entry) => entry.id === afterFirst.state.currentId,
+	);
+	if (!secondAnswer) {
+		throw new Error("missing");
+	}
+	const afterSecond = reduceDefault(afterFirst.state, secondAnswer.port);
+	expect(afterSecond.state.rounds.length + 1).toBe(3);
+});
