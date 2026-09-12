@@ -34,5 +34,17 @@
 	"svelte": {
 		"name": "SvelteKit",
 		"port": 5173
+	},
+	"ftp": {
+		"name": "FTP",
+		"port": 21
+	},
+	"imaps": {
+		"name": "IMAPS",
+		"port": 993
+	},
+	"rails": {
+		"name": "Rails",
+		"port": 3000
 	}
 }
