@@ -11,7 +11,10 @@ import type {
 	GuessResult,
 	InvertedGuessResult,
 	Orientation,
+	Round,
+	RoundOutcome,
 	ScheduleFile,
+	WrongAnswer,
 } from "./types";
 import { DAILY_CATEGORIES } from "./types";
 
@@ -82,6 +85,7 @@ export function startBlitz(input: {
 		score: 0,
 		startPool,
 		ended: null,
+		rounds: [],
 		...dealt,
 	};
 }
@@ -94,19 +98,34 @@ function advance(state: BlitzState, rng: () => number): BlitzState {
 	return { ...state, ...deal(shuffled) };
 }
 
+function buildRound(
+	answer: CatalogEntry,
+	outcome: RoundOutcome,
+	wrong: WrongAnswer | null,
+): Round {
+	return {
+		id: answer.id,
+		name: answer.name,
+		port: answer.port,
+		outcome,
+		wrong,
+	};
+}
+
 function afterCommitted(
 	state: BlitzState,
 	rng: () => number,
-	outcome: "correct" | "miss",
+	round: Round,
 ): BlitzState {
-	if (outcome === "correct") {
-		return advance({ ...state, score: state.score + 1 }, rng);
+	const rounds = [...state.rounds, round];
+	if (round.outcome === "correct") {
+		return advance({ ...state, score: state.score + 1, rounds }, rng);
 	}
 	const lives = state.lives - 1;
 	if (lives === 0) {
-		return { ...state, lives, ended: "lives" };
+		return { ...state, lives, rounds, ended: "lives" };
 	}
-	return advance({ ...state, lives }, rng);
+	return advance({ ...state, lives, rounds }, rng);
 }
 
 export function reduceBlitz(input: {
@@ -145,8 +164,16 @@ export function reduceBlitz(input: {
 		if (inverted.status === "duplicate") {
 			return { state, inverted };
 		}
+		const wrong: WrongAnswer | null =
+			inverted.status === "miss"
+				? { kind: "picked", pick: inverted.identified }
+				: null;
 		return {
-			state: afterCommitted(state, rng, inverted.status),
+			state: afterCommitted(
+				state,
+				rng,
+				buildRound(answer, inverted.status, wrong),
+			),
 			inverted,
 		};
 	}
@@ -159,8 +186,12 @@ export function reduceBlitz(input: {
 	if (guess.status === "invalid" || guess.status === "duplicate") {
 		return { state, guess };
 	}
+	const wrong: WrongAnswer | null =
+		guess.status === "miss"
+			? { kind: "typed", port: guess.port, owner: guess.identified }
+			: null;
 	return {
-		state: afterCommitted(state, rng, guess.status),
+		state: afterCommitted(state, rng, buildRound(answer, guess.status, wrong)),
 		guess,
 	};
 }

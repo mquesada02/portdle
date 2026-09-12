@@ -10,6 +10,7 @@ import type {
 	CatalogEntry,
 	DailyCategory,
 	Orientation,
+	Round,
 } from "../engine/types";
 import type { Persist } from "../persist/storage";
 import { DigitSlots } from "./digit-slots";
@@ -139,6 +140,65 @@ function Hearts({ lives }: { lives: number }) {
 				<HeartIcon key={index} filled={index < lives} />
 			))}
 		</span>
+	);
+}
+
+function RoundOutcomeDot({ outcome }: { outcome: Round["outcome"] }) {
+	return (
+		<span
+			role="img"
+			aria-label={outcome}
+			className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
+				outcome === "correct"
+					? "bg-emerald-500"
+					: "bg-zinc-500 dark:bg-zinc-600"
+			}`}
+		/>
+	);
+}
+
+function WrongAnswerText({ wrong }: { wrong: Round["wrong"] }) {
+	if (!wrong) {
+		return null;
+	}
+	if (wrong.kind === "typed") {
+		return wrong.owner ? (
+			<>
+				you typed <span className="font-mono">{wrong.port}</span> (
+				{wrong.owner.name})
+			</>
+		) : (
+			<>
+				you typed <span className="font-mono">{wrong.port}</span>
+			</>
+		);
+	}
+	return <>you picked {wrong.pick.name}</>;
+}
+
+function RoundLine({ round }: { round: Round }) {
+	return (
+		<li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+			<RoundOutcomeDot outcome={round.outcome} />
+			<span>{round.name}</span>
+			<span className="font-mono">{round.port}</span>
+			{round.wrong ? (
+				<span className="text-zinc-500 dark:text-zinc-400">
+					<WrongAnswerText wrong={round.wrong} />
+				</span>
+			) : null}
+		</li>
+	);
+}
+
+function RoundLog({ rounds }: { rounds: Round[] }) {
+	return (
+		<ul className="mt-4 space-y-1.5 text-left">
+			{rounds.map((round, index) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: a round's id is the prompt entry's catalog id, which can repeat across rounds; RoundLine holds no state, so index-derived keys are safe here.
+				<RoundLine key={`${round.id}-${index}`} round={round} />
+			))}
+		</ul>
 	);
 }
 
@@ -410,6 +470,10 @@ export function BlitzPage() {
 				>
 					Play again
 				</button>
+				<h2 className="mt-6 text-sm font-semibold">
+					{`Rounds (${run.rounds.length})`}
+				</h2>
+				<RoundLog rounds={run.rounds} />
 			</main>
 		);
 	}
@@ -432,6 +496,7 @@ export function BlitzPage() {
 			<ProgressNotice show={saveWarning} />
 			<div className="mt-4 flex items-center justify-between gap-4">
 				<Hearts lives={run.lives} />
+				<p className="text-sm font-medium">{`Round ${run.rounds.length + 1}`}</p>
 				<p className="text-sm font-medium">Score {run.score}</p>
 				{remaining !== null ? (
 					<span className="font-mono text-sm text-zinc-700 dark:text-zinc-300">
@@ -478,6 +543,7 @@ export function BlitzPage() {
 			>
 				{message}
 			</p>
+			<RoundLog rounds={run.rounds.slice(-3).reverse()} />
 		</main>
 	);
 }

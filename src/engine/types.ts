@@ -60,6 +60,18 @@ export type BlitzBests = Partial<
 	Record<`${DailyCategory}|${Orientation}|${BlitzMode}`, number>
 >;
 
+export type RoundOutcome = "correct" | "miss";
+export type WrongAnswer =
+	| { kind: "typed"; port: number; owner: Identified | null }
+	| { kind: "picked"; pick: Identified };
+export type Round = {
+	id: string;
+	name: string;
+	port: number;
+	outcome: RoundOutcome;
+	wrong: WrongAnswer | null;
+};
+
 export type BlitzState = {
 	category: DailyCategory;
 	orientation: Orientation;
@@ -70,6 +82,7 @@ export type BlitzState = {
 	currentId: string;
 	startPool: string[];
 	ended: null | "lives" | "timeout";
+	rounds: Round[];
 };
 
 export type BlitzEvent =
