@@ -30,7 +30,12 @@ const NAV = [
 		matchPaths: ["/", "/protocols", "/applications"],
 	},
 	{ to: "/blitz", label: "Blitz", icon: BOLT, matchPaths: ["/blitz"] },
-	{ to: "/history", label: "History", icon: CLOCK, matchPaths: ["/history"] },
+	{
+		to: "/history",
+		label: "History",
+		icon: CLOCK,
+		matchPaths: ["/history", "/history/blitz"],
+	},
 ] as const;
 
 function NavIcon({ d }: { d: string }) {
