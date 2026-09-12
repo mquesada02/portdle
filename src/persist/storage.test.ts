@@ -291,3 +291,58 @@ test("writeBlitzRuns setItem throw returns ok false", () => {
 	});
 	expect(persist.writeBlitzRuns([fakeRun()])).toEqual({ ok: false });
 });
+
+test("codex missing is empty object and round-trips", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.readCodex()).toEqual({});
+	expect(
+		persist.writeCodex({ http: { state: "correct", fresh: true } }),
+	).toEqual({ ok: true });
+	expect(persist.readCodex()).toEqual({
+		http: { state: "correct", fresh: true },
+	});
+	expect(store.data.has("portdle:v1:codex")).toBe(true);
+});
+
+test("a codex record with a state outside identified, missed, and correct reads as empty", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	store.data.set(
+		"portdle:v1:codex",
+		JSON.stringify({ http: { state: "seen", fresh: true } }),
+	);
+	expect(persist.readCodex()).toEqual({});
+});
+
+test("corrupt codex JSON is empty without dropping theme", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.writeTheme("dark")).toEqual({ ok: true });
+	store.data.set("portdle:v1:codex", "{not json");
+	expect(persist.readCodex()).toEqual({});
+	expect(persist.readTheme()).toBe("dark");
+});
+
+test("writing codex does not write daily, stats, or blitzBests keys", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(
+		persist.writeCodex({ http: { state: "missed", fresh: false } }),
+	).toEqual({ ok: true });
+	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
+	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
+	expect(store.data.has("portdle:v1:blitzBests")).toBe(false);
+});
+
+test("writeCodex setItem throw returns ok false", () => {
+	const persist = createPersist({
+		getItem: () => null,
+		setItem: () => {
+			throw new Error("quota");
+		},
+	});
+	expect(
+		persist.writeCodex({ http: { state: "correct", fresh: true } }),
+	).toEqual({ ok: false });
+});

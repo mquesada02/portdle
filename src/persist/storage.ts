@@ -3,6 +3,7 @@ import type {
 	BlitzMode,
 	BlitzRun,
 	CategoryStats,
+	CodexMap,
 	DailyCategory,
 	DailyPersist,
 	Identified,
@@ -23,6 +24,7 @@ const HOW_TO_SEEN_KEY = "portdle:v1:howToSeen";
 const LAST_SEEN_UTC_KEY = "portdle:v1:lastSeenUtc";
 const BLITZ_BESTS_KEY = "portdle:v1:blitzBests";
 const BLITZ_RUNS_KEY = "portdle:v1:blitzRuns";
+const CODEX_KEY = "portdle:v1:codex";
 
 function dailyKey(category: DailyCategory, date: string): string {
 	return `portdle:v1:daily:${category}:${date}`;
@@ -193,6 +195,24 @@ function isBlitzRuns(value: unknown): value is BlitzRun[] {
 	return Array.isArray(value) && value.every(isBlitzRun);
 }
 
+function isCodexMap(value: unknown): value is CodexMap {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		return false;
+	}
+	return Object.values(value).every((record) => {
+		if (record === null || typeof record !== "object") {
+			return false;
+		}
+		const row = record as Record<string, unknown>;
+		return (
+			(row.state === "identified" ||
+				row.state === "missed" ||
+				row.state === "correct") &&
+			typeof row.fresh === "boolean"
+		);
+	});
+}
+
 function isCategoryStats(value: unknown): value is CategoryStats {
 	if (value === null || typeof value !== "object") {
 		return false;
@@ -236,6 +256,8 @@ export type Persist = {
 	writeBlitzBests(value: BlitzBests): { ok: true } | { ok: false };
 	readBlitzRuns(): BlitzRun[];
 	writeBlitzRuns(value: BlitzRun[]): { ok: true } | { ok: false };
+	readCodex(): CodexMap;
+	writeCodex(value: CodexMap): { ok: true } | { ok: false };
 };
 
 export function createPersist(store: KeyValueStore): Persist {
@@ -294,6 +316,13 @@ export function createPersist(store: KeyValueStore): Persist {
 		},
 		writeBlitzRuns(value) {
 			return writeJson(store, BLITZ_RUNS_KEY, value);
+		},
+		readCodex() {
+			const value = readJson(store, CODEX_KEY);
+			return isCodexMap(value) ? value : {};
+		},
+		writeCodex(value) {
+			return writeJson(store, CODEX_KEY, value);
 		},
 	};
 }
