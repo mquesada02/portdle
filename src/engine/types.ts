@@ -104,3 +104,4 @@ export type CodexState = "identified" | "missed" | "correct";
 export type CodexRecord = { state: CodexState; fresh: boolean };
 export type CodexMap = Record<string, CodexRecord>;
 export type CodexEncounter = { state: CodexState; id: string };
+export type CodexSort = "name" | "port";
