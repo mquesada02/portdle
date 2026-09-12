@@ -105,7 +105,7 @@ test("theme control toggles opposite of effective theme onto html.dark", async (
 
 test("nav links and theme control are present for keyboard users", async () => {
 	await renderApp({ persist: createPersist(memoryStore()) });
-	const names = ["Daily", "Blitz", "History"];
+	const names = ["Daily", "Blitz", "History", "Codex"];
 	for (const name of names) {
 		const link = screen.getByRole("link", { name });
 		expect(link.tabIndex).not.toBe(-1);
@@ -138,12 +138,27 @@ test("Daily nav link is active on all three Daily routes and no other route", as
 	}
 });
 
-test("Blitz and History nav links are active only on their own route", async () => {
+test("nav has exactly four links, in order Daily, Blitz, History, Codex", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist });
+	const mainNav = screen.getByRole("navigation", { name: "Main" });
+	const links = within(mainNav).getAllByRole("link");
+	expect(links.map((link) => link.textContent)).toEqual([
+		"Daily",
+		"Blitz",
+		"History",
+		"Codex",
+	]);
+});
+
+test("Blitz, History, and Codex nav links are active only on their own route", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const cases = [
 		["/portdle/blitz", "Blitz"],
 		["/portdle/history", "History"],
+		["/portdle/codex", "Codex"],
 	] as const;
 	for (const [path, name] of cases) {
 		cleanup();
@@ -180,6 +195,7 @@ test("each route shows its heading, and the old Help address lands on the Daily"
 		["/portdle/applications", dailyOn("applications").name],
 		["/portdle/blitz", "Blitz"],
 		["/portdle/history", "History"],
+		["/portdle/codex", "Codex"],
 		["/portdle/help", dailyOn("mixed").name],
 	] as const;
 	for (const [path, heading] of cases) {
@@ -189,4 +205,14 @@ test("each route shows its heading, and the old Help address lands on the Daily"
 			screen.getByRole("heading", { level: 1, name: heading }),
 		).toBeTruthy();
 	}
+});
+
+test("How-to lists seven rules, the last naming the Codex", async () => {
+	await renderApp({});
+	const dialog = screen.getByRole("dialog", { name: "How-to" });
+	const rules = within(dialog).getAllByRole("listitem");
+	expect(rules).toHaveLength(7);
+	expect(rules.at(-1)?.textContent).toBe(
+		"The Codex collects every service you meet.",
+	);
 });

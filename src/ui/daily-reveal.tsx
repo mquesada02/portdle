@@ -12,7 +12,7 @@ import type {
 
 const TRIES = [1, 2, 3, 4, 5, 6] as const;
 
-function transportLabel(transport: CatalogEntry["transport"]): string {
+export function transportLabel(transport: CatalogEntry["transport"]): string {
 	if (transport === "tcp") {
 		return "TCP";
 	}

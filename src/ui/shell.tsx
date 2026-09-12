@@ -21,6 +21,8 @@ const BOLT = "M13 3 4 14h7l-1 7 9-11h-7l1-7z";
 const CLOCK = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2";
 const HELP =
 	"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01";
+const BOOK =
+	"M4 5.5a1.5 1.5 0 0 1 1.5-1.5H11a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H5.5A1.5 1.5 0 0 1 4 15.5zM20 5.5a1.5 1.5 0 0 0-1.5-1.5H13a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h5.5a1.5 1.5 0 0 0 1.5-1.5z";
 
 const NAV = [
 	{
@@ -36,6 +38,7 @@ const NAV = [
 		icon: CLOCK,
 		matchPaths: ["/history", "/history/blitz"],
 	},
+	{ to: "/codex", label: "Codex", icon: BOOK, matchPaths: ["/codex"] },
 ] as const;
 
 function NavIcon({ d }: { d: string }) {
@@ -152,7 +155,7 @@ export function Shell() {
 					</a>
 					<nav
 						aria-label="Main"
-						className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] md:static md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
+						className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] md:static md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
 					>
 						{NAV.map((item) => {
 							const isActive = (item.matchPaths as readonly string[]).includes(

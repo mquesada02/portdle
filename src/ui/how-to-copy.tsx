@@ -5,6 +5,7 @@ export const HOW_TO_RULES = [
 	"6 tries. A miss names the service if that port is in this catalog.",
 	"Three Dailies: Mixed, Protocols, Applications.",
 	"Blitz is a separate timed mode.",
+	"The Codex collects every service you meet.",
 ] as const;
 
 export function HowToRulesList() {
