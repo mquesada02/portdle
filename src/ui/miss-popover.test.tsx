@@ -179,9 +179,10 @@ test("an entry with no sources shows no sources block", () => {
 	}
 });
 
-test("grid placement drops focus-opens; Enter toggles it and Escape closes it", async () => {
-	// No production caller uses placement="grid" yet (a future Codex ticket
-	// will), so this exercises it directly with a fixture entry, per
+test("grid placement with a custom trigger drops focus-opens; Enter toggles it and Escape closes it", async () => {
+	// No production caller uses placement="grid" or a custom trigger yet (a
+	// future Codex ticket will, standing in for a card), so this exercises
+	// both together directly with a fixture entry, per
 	// docs/superpowers/specs/2026-09-12-t74-miss-popover-placement.md.
 	const user = userEvent.setup();
 	const entry: CatalogEntry = {
@@ -192,8 +193,18 @@ test("grid placement drops focus-opens; Enter toggles it and Escape closes it", 
 		description: "A fixture entry for the grid placement.",
 		answerEligible: false,
 	};
-	render(<MissPopover entry={entry} placement="grid" />);
-	const trigger = screen.getByRole("button", { name: "Grid Fixture" });
+	render(
+		<MissPopover
+			entry={entry}
+			placement="grid"
+			trigger={(triggerProps) => (
+				<button type="button" {...triggerProps}>
+					Custom Trigger Button
+				</button>
+			)}
+		/>,
+	);
+	const trigger = screen.getByRole("button", { name: "Custom Trigger Button" });
 	await user.tab();
 	expect(document.activeElement).toBe(trigger);
 	expect(screen.queryByText(entry.description)).toBeNull();

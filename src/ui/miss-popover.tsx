@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { CatalogEntry } from "../engine/types";
 
@@ -10,17 +11,40 @@ import type { CatalogEntry } from "../engine/types";
 // toggles pinned. Escape clears all three. A pointer-down outside both clears
 // pinned and hovered. Placement decides two things: whether focus alone
 // counts toward open (inline only), and where the panel sits relative to the
-// trigger.
+// trigger. The trigger element itself is supplied by the caller via the
+// `trigger` render prop, which receives the interaction wiring
+// (`triggerProps`) to spread onto it; MissPopover still owns all the state
+// above. Left unset, `trigger` defaults to today's Daily text-link button.
 type MissPopoverPlacement = "inline" | "grid";
+
+export type MissPopoverTriggerProps = {
+	"aria-expanded": boolean;
+	"aria-controls": string;
+	onMouseEnter: () => void;
+	onMouseLeave: () => void;
+	onFocus: () => void;
+	onBlur: () => void;
+	onClick: () => void;
+};
 
 export function MissPopover({
 	entry,
 	placement,
 	lastColumn = false,
+	trigger = (triggerProps) => (
+		<button
+			type="button"
+			{...triggerProps}
+			className="rounded text-xs text-zinc-500 underline decoration-dotted underline-offset-2 hover:text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 dark:hover:text-zinc-200 dark:focus:ring-zinc-100/20"
+		>
+			{entry.name}
+		</button>
+	),
 }: {
 	entry: CatalogEntry;
 	placement: MissPopoverPlacement;
 	lastColumn?: boolean;
+	trigger?: (triggerProps: MissPopoverTriggerProps) => ReactNode;
 }) {
 	const id = useId();
 	const [pinned, setPinned] = useState(false);
@@ -81,21 +105,19 @@ export function MissPopover({
 			? `top-full mt-1 ${lastColumn ? "right-0" : "left-0"}`
 			: "top-full left-1/2 mt-1 -translate-x-1/2 sm:right-0 sm:left-auto sm:translate-x-0";
 
+	const triggerProps: MissPopoverTriggerProps = {
+		"aria-expanded": open,
+		"aria-controls": `${id}-panel`,
+		onMouseEnter: enter,
+		onMouseLeave: leave,
+		onFocus: () => setFocused(true),
+		onBlur: () => setFocused(false),
+		onClick: () => setPinned((current) => !current),
+	};
+
 	return (
 		<span className="relative inline-block" data-popover={id}>
-			<button
-				type="button"
-				aria-expanded={open}
-				aria-controls={`${id}-panel`}
-				onMouseEnter={enter}
-				onMouseLeave={leave}
-				onFocus={() => setFocused(true)}
-				onBlur={() => setFocused(false)}
-				onClick={() => setPinned((current) => !current)}
-				className="rounded text-xs text-zinc-500 underline decoration-dotted underline-offset-2 hover:text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 dark:hover:text-zinc-200 dark:focus:ring-zinc-100/20"
-			>
-				{entry.name}
-			</button>
+			{trigger(triggerProps)}
 			{open ? (
 				<span
 					id={`${id}-panel`}
