@@ -52,6 +52,7 @@ afterEach(() => {
 test("a finished run writes one run record with the played rounds, score zero included", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
@@ -90,6 +91,7 @@ test("a fifty-first run evicts the oldest", async () => {
 	persist.writeBlitzRuns(seeded);
 	const user = userEvent.setup();
 	await renderBlitz({ persist });
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();

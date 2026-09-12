@@ -52,6 +52,7 @@ afterEach(() => {
 test("genuine first run shows Best n and New best when the score is above zero", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
 	await user.type(portDigits(), padToAnswer(answer.port, answer));
@@ -66,6 +67,7 @@ test("genuine first run shows Best n and New best when the score is above zero",
 test("zero-score first run shows Best 0 and no New best badge", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
@@ -79,6 +81,7 @@ test("a lower second run keeps the higher stored best and shows no badge", async
 	const persist = createPersist(memoryStore());
 	persist.writeBlitzBests({ "mixed|default|sprint": 5 });
 	await renderBlitz({ persist });
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();

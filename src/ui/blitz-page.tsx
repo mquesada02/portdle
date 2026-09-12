@@ -1,19 +1,23 @@
 import { useRouteContext } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { applications, protocols, schedules } from "../catalogs/production";
 import { buildRun, prependRun, reduceBlitz, startBlitz } from "../engine/blitz";
 import { catalogFor, invertedBlurb } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
 import { digitLength } from "../engine/guess";
 import type {
+	BlitzBests,
 	BlitzMode,
+	BlitzRun,
 	BlitzState,
 	CatalogEntry,
 	CodexEncounter,
 	DailyCategory,
 	Orientation,
 } from "../engine/types";
+import { DAILY_CATEGORIES } from "../engine/types";
 import type { Persist } from "../persist/storage";
+import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { DigitSlots } from "./digit-slots";
 import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
 import { ProgressNotice } from "./notice";
@@ -31,6 +35,8 @@ const MODES: Array<{ value: BlitzMode; label: string }> = [
 	{ value: "marathon", label: "Marathon (5m)" },
 	{ value: "survival", label: "Survival" },
 ];
+const ORIENTATION_ORDER: Orientation[] = ["default", "inverted"];
+const MODE_ORDER: BlitzMode[] = MODES.map((item) => item.value);
 const PRIMARY_BUTTON =
 	"w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900";
 
@@ -79,6 +85,41 @@ function currentEntry(state: BlitzState): CatalogEntry | undefined {
 	);
 }
 
+// Ordered by category (Mixed, Protocols, Applications), then orientation
+// (Default, Inverted), then mode (Sprint, Marathon, Survival), per the arena's
+// fixed Bests order.
+function sortedBests(bests: BlitzBests): Array<{
+	category: DailyCategory;
+	orientation: Orientation;
+	mode: BlitzMode;
+	score: number;
+}> {
+	return Object.entries(bests)
+		.map(([key, score]) => {
+			const [category, orientation, mode] = key.split("|") as [
+				DailyCategory,
+				Orientation,
+				BlitzMode,
+			];
+			return { category, orientation, mode, score };
+		})
+		.sort((a, b) => {
+			const byCategory =
+				DAILY_CATEGORIES.indexOf(a.category) -
+				DAILY_CATEGORIES.indexOf(b.category);
+			if (byCategory !== 0) {
+				return byCategory;
+			}
+			const byOrientation =
+				ORIENTATION_ORDER.indexOf(a.orientation) -
+				ORIENTATION_ORDER.indexOf(b.orientation);
+			if (byOrientation !== 0) {
+				return byOrientation;
+			}
+			return MODE_ORDER.indexOf(a.mode) - MODE_ORDER.indexOf(b.mode);
+		});
+}
+
 function Pill({
 	name,
 	checked,
@@ -107,6 +148,52 @@ function Pill({
 			/>
 			{label}
 		</label>
+	);
+}
+
+// The title alone (inside the label) is the radio's accessible name; the
+// caption sits outside the label as a sibling, wired via aria-describedby, so
+// it becomes the accessible description instead of joining the name.
+function OrientationCard({
+	name,
+	checked,
+	title,
+	caption,
+	onChange,
+}: {
+	name: string;
+	checked: boolean;
+	title: string;
+	caption: string;
+	onChange: () => void;
+}) {
+	const captionId = `${name}-${title.toLowerCase()}-caption`;
+	return (
+		<div
+			className={`rounded-lg border px-3 py-2 transition-colors ${
+				checked
+					? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-800"
+					: "border-zinc-300 dark:border-zinc-700"
+			}`}
+		>
+			<label className="flex cursor-pointer items-center gap-2">
+				<input
+					type="radio"
+					name={name}
+					checked={checked}
+					onChange={onChange}
+					aria-describedby={captionId}
+					className="sr-only"
+				/>
+				<span className="text-sm font-semibold">{title}</span>
+			</label>
+			<span
+				id={captionId}
+				className="mt-0.5 block text-xs text-zinc-600 dark:text-zinc-400"
+			>
+				{caption}
+			</span>
+		</div>
 	);
 }
 
@@ -145,11 +232,239 @@ function Hearts({ lives }: { lives: number }) {
 	);
 }
 
+function LastRun({ run }: { run: BlitzRun | undefined }) {
+	if (!run) {
+		return (
+			<p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+				No runs yet. Start one and it will show here.
+			</p>
+		);
+	}
+	return (
+		<div className="mt-2 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+			<div className="flex items-start justify-between gap-3">
+				<div>
+					<span className="inline-flex flex-wrap gap-1">
+						<SetupBadges
+							category={run.category}
+							orientation={run.orientation}
+							mode={run.mode}
+						/>
+					</span>
+					<p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+						{run.ended === "timeout" ? "Time's up" : "Out of lives"} ·{" "}
+						{localDate(run.endedAt)} {localTime(run.endedAt)}
+					</p>
+				</div>
+				<p className="text-3xl font-bold tabular-nums">Score {run.score}</p>
+			</div>
+			<details className="mt-3">
+				<summary className="cursor-pointer text-sm text-zinc-600 dark:text-zinc-400">
+					{`Rounds (${run.rounds.length})`}
+				</summary>
+				<RoundLog rounds={run.rounds} />
+			</details>
+		</div>
+	);
+}
+
+function BestsTable({ bests }: { bests: BlitzBests }) {
+	const rows = sortedBests(bests);
+	if (rows.length === 0) {
+		return null;
+	}
+	return (
+		<section className="mt-8">
+			<h2 className="text-sm font-semibold">Bests</h2>
+			<table className="mt-2 w-full text-sm">
+				<tbody>
+					{rows.map((row) => (
+						<tr
+							key={`${row.category}|${row.orientation}|${row.mode}`}
+							className="border-t border-zinc-200 dark:border-zinc-800"
+						>
+							<td className="py-2">
+								<span className="inline-flex flex-wrap gap-1">
+									<SetupBadges
+										category={row.category}
+										orientation={row.orientation}
+										mode={row.mode}
+									/>
+								</span>
+							</td>
+							<td className="py-2 text-right font-mono font-semibold">
+								Score {row.score}
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</section>
+	);
+}
+
+function SetupDialog({
+	open,
+	category,
+	orientation,
+	mode,
+	poolError,
+	onCategoryChange,
+	onOrientationChange,
+	onModeChange,
+	onStart,
+	onCancel,
+}: {
+	open: boolean;
+	category: DailyCategory;
+	orientation: Orientation;
+	mode: BlitzMode;
+	poolError: string;
+	onCategoryChange: (value: DailyCategory) => void;
+	onOrientationChange: (value: Orientation) => void;
+	onModeChange: (value: BlitzMode) => void;
+	onStart: () => void;
+	onCancel: () => void;
+}) {
+	const dialogRef = useRef<HTMLDialogElement>(null);
+
+	useEffect(() => {
+		const dialog = dialogRef.current;
+		if (!dialog) {
+			return;
+		}
+		if (open && !dialog.open) {
+			dialog.showModal();
+		} else if (!open && dialog.open) {
+			dialog.close();
+		}
+	}, [open]);
+
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.key === "Escape") {
+				onCancel();
+			}
+		}
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [open, onCancel]);
+
+	return (
+		// biome-ignore lint/a11y/useKeyWithClickEvents: Escape is handled by the document-level listener above; Cancel is the click's keyboard equivalent.
+		<dialog
+			ref={dialogRef}
+			aria-labelledby="blitz-setup-title"
+			className="m-auto max-w-sm bg-transparent p-0 backdrop:bg-black/50 dark:backdrop:bg-black/70"
+			onClick={(event) => {
+				if (event.target === dialogRef.current) {
+					onCancel();
+				}
+			}}
+		>
+			<div className="w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-xl dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
+				<h2 id="blitz-setup-title" className="text-xl font-bold">
+					New run
+				</h2>
+				<fieldset className="mt-4">
+					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+						Daily category
+					</legend>
+					<div className="mt-2 flex flex-wrap gap-2">
+						{CATEGORIES.map((item) => (
+							<Pill
+								key={item.value}
+								name="blitz-category"
+								checked={category === item.value}
+								label={item.label}
+								onChange={() => onCategoryChange(item.value)}
+							/>
+						))}
+					</div>
+				</fieldset>
+				<fieldset className="mt-4">
+					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+						Orientation
+					</legend>
+					<div className="mt-2 grid grid-cols-2 gap-2">
+						<OrientationCard
+							name="blitz-orientation"
+							checked={orientation === "default"}
+							title="Default"
+							caption="See a service, type its port."
+							onChange={() => onOrientationChange("default")}
+						/>
+						<OrientationCard
+							name="blitz-orientation"
+							checked={orientation === "inverted"}
+							title="Inverted"
+							caption="See a port, pick the service."
+							onChange={() => onOrientationChange("inverted")}
+						/>
+					</div>
+				</fieldset>
+				<fieldset className="mt-4">
+					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+						Mode
+					</legend>
+					<div className="mt-2 flex flex-wrap gap-2">
+						{MODES.map((item) => (
+							<Pill
+								key={item.value}
+								name="blitz-mode"
+								checked={mode === item.value}
+								label={item.label}
+								onChange={() => onModeChange(item.value)}
+							/>
+						))}
+					</div>
+				</fieldset>
+				<button
+					type="button"
+					className={`mt-6 ${PRIMARY_BUTTON}`}
+					onClick={onStart}
+				>
+					Start
+				</button>
+				{poolError ? (
+					<p
+						aria-live="polite"
+						className="mt-3 rounded-md bg-rose-100 px-3 py-2 text-sm text-rose-900 dark:bg-rose-900/40 dark:text-rose-200"
+					>
+						{poolError}
+					</p>
+				) : null}
+				<button
+					type="button"
+					className="mt-3 w-full rounded-lg py-2 text-sm font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+					onClick={onCancel}
+				>
+					Cancel
+				</button>
+			</div>
+		</dialog>
+	);
+}
+
 export function BlitzPage() {
 	const { persist, utcToday } = useRouteContext({ from: "__root__" });
-	const [category, setCategory] = useState<DailyCategory>("mixed");
-	const [orientation, setOrientation] = useState<Orientation>("default");
-	const [mode, setMode] = useState<BlitzMode>("sprint");
+	// Read once, at mount: the dialog preselects the last run's setup, or the
+	// fixed fallback when there is none.
+	const [initialSetup] = useState(() => {
+		const lastRun = persist.readBlitzRuns()[0];
+		return {
+			category: lastRun?.category ?? "mixed",
+			orientation: lastRun?.orientation ?? "default",
+			mode: lastRun?.mode ?? "sprint",
+		};
+	});
+	const [category, setCategory] = useState(initialSetup.category);
+	const [orientation, setOrientation] = useState(initialSetup.orientation);
+	const [mode, setMode] = useState(initialSetup.mode);
+	const [dialogOpen, setDialogOpen] = useState(false);
 	const [run, setRun] = useState<BlitzState | null>(null);
 	const [digits, setDigits] = useState("");
 	const [message, setMessage] = useState("");
@@ -237,6 +552,7 @@ export function BlitzPage() {
 		setShakeKey(0);
 		setNewBest(false);
 		setRun(started);
+		setDialogOpen(false);
 		const ms = durationMs(mode);
 		if (ms === null) {
 			setDeadline(null);
@@ -245,6 +561,11 @@ export function BlitzPage() {
 			setDeadline(Date.now() + ms);
 			setRemaining(ms / 1000);
 		}
+	}
+
+	function closeDialog() {
+		setDialogOpen(false);
+		setPoolError("");
 	}
 
 	function recordEncounters(encounters: CodexEncounter[]): { ok: boolean } {
@@ -362,77 +683,39 @@ export function BlitzPage() {
 	}
 
 	if (!run) {
+		const lastRun = persist.readBlitzRuns()[0];
+		const bests = persist.readBlitzBests();
 		return (
-			<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
-				<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
-				<ProgressNotice show={saveWarning} />
-				<fieldset className="mt-6">
-					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-						Daily category
-					</legend>
-					<div className="mt-2 flex flex-wrap gap-2">
-						{CATEGORIES.map((item) => (
-							<Pill
-								key={item.value}
-								name="blitz-category"
-								checked={category === item.value}
-								label={item.label}
-								onChange={() => setCategory(item.value)}
-							/>
-						))}
-					</div>
-				</fieldset>
-				<fieldset className="mt-4">
-					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-						Orientation
-					</legend>
-					<div className="mt-2 flex flex-wrap gap-2">
-						<Pill
-							name="blitz-orientation"
-							checked={orientation === "default"}
-							label="Default"
-							onChange={() => setOrientation("default")}
-						/>
-						<Pill
-							name="blitz-orientation"
-							checked={orientation === "inverted"}
-							label="Inverted"
-							onChange={() => setOrientation("inverted")}
-						/>
-					</div>
-				</fieldset>
-				<fieldset className="mt-4">
-					<legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-						Mode
-					</legend>
-					<div className="mt-2 flex flex-wrap gap-2">
-						{MODES.map((item) => (
-							<Pill
-								key={item.value}
-								name="blitz-mode"
-								checked={mode === item.value}
-								label={item.label}
-								onChange={() => setMode(item.value)}
-							/>
-						))}
-					</div>
-				</fieldset>
-				<button
-					type="button"
-					className={`mt-6 ${PRIMARY_BUTTON}`}
-					onClick={start}
-				>
-					Start
-				</button>
-				{poolError ? (
-					<p
-						aria-live="polite"
-						className="mt-3 rounded-md bg-rose-100 px-3 py-2 text-sm text-rose-900 dark:bg-rose-900/40 dark:text-rose-200"
+			<>
+				<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
+					<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
+					<ProgressNotice show={saveWarning} />
+					<button
+						type="button"
+						className={`mt-4 ${PRIMARY_BUTTON}`}
+						onClick={() => setDialogOpen(true)}
 					>
-						{poolError}
-					</p>
-				) : null}
-			</main>
+						New run
+					</button>
+					<section className="mt-8">
+						<h2 className="text-sm font-semibold">Last run</h2>
+						<LastRun run={lastRun} />
+					</section>
+					<BestsTable bests={bests} />
+				</main>
+				<SetupDialog
+					open={dialogOpen}
+					category={category}
+					orientation={orientation}
+					mode={mode}
+					poolError={poolError}
+					onCategoryChange={setCategory}
+					onOrientationChange={setOrientation}
+					onModeChange={setMode}
+					onStart={start}
+					onCancel={closeDialog}
+				/>
+			</>
 		);
 	}
 
