@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
-import { historyRows } from "./history";
+import { groupBlitzRunsByDate, historyRows } from "./history";
 import { http, vite } from "./test-fixtures";
-import type { ScheduleFile } from "./types";
+import type { BlitzRun, ScheduleFile } from "./types";
 
 const unfinishedToday = {
 	mixed: false,
@@ -241,5 +241,28 @@ test("two cycles both contribute past days", () => {
 			name: "Vite",
 			port: 5173,
 		},
+	]);
+});
+
+function fakeRun(endedAt: string, score: number): BlitzRun {
+	return {
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		ended: "timeout",
+		endedAt,
+		score,
+		rounds: [],
+	};
+}
+
+test("groupBlitzRunsByDate groups three runs across two local dates newest first", () => {
+	const localDate = (endedAt: string) => endedAt.slice(0, 10);
+	const newest = fakeRun("2026-09-10T12:00:00.000Z", 3);
+	const middle = fakeRun("2026-09-10T08:00:00.000Z", 2);
+	const oldest = fakeRun("2026-09-09T12:00:00.000Z", 1);
+	expect(groupBlitzRunsByDate([newest, middle, oldest], localDate)).toEqual([
+		{ date: "2026-09-10", runs: [newest, middle] },
+		{ date: "2026-09-09", runs: [oldest] },
 	]);
 });

@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import type { BlitzRun } from "../engine/types";
 import { memoryStore } from "../test/helpers";
 import { createPersist } from "./storage";
 
@@ -223,4 +224,70 @@ test("lastSeenUtc round-trips and corrupt is null", () => {
 	expect(persist.readLastSeenUtc()).toBe("2026-09-09");
 	store.data.set("portdle:v1:lastSeenUtc", "{not json");
 	expect(persist.readLastSeenUtc()).toBeNull();
+});
+
+function fakeRun(): BlitzRun {
+	return {
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		ended: "timeout",
+		endedAt: "2026-09-09T12:00:00.000Z",
+		score: 2,
+		rounds: [
+			{ id: "http", name: "HTTP", port: 80, outcome: "correct", wrong: null },
+		],
+	};
+}
+
+test("blitzRuns missing is empty array and round-trips", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.readBlitzRuns()).toEqual([]);
+	const run = fakeRun();
+	expect(persist.writeBlitzRuns([run])).toEqual({ ok: true });
+	expect(persist.readBlitzRuns()).toEqual([run]);
+	expect(store.data.has("portdle:v1:blitzRuns")).toBe(true);
+});
+
+test("corrupt JSON blitzRuns reads as no runs without dropping theme", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.writeTheme("dark")).toEqual({ ok: true });
+	store.data.set("portdle:v1:blitzRuns", "{not json");
+	expect(persist.readBlitzRuns()).toEqual([]);
+	expect(persist.readTheme()).toBe("dark");
+});
+
+test("non-array blitzRuns reads as no runs", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	store.data.set("portdle:v1:blitzRuns", JSON.stringify({ not: "array" }));
+	expect(persist.readBlitzRuns()).toEqual([]);
+});
+
+test("a run missing rounds reads the whole blitzRuns value as no runs", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	const { rounds: _rounds, ...withoutRounds } = fakeRun();
+	store.data.set("portdle:v1:blitzRuns", JSON.stringify([withoutRounds]));
+	expect(persist.readBlitzRuns()).toEqual([]);
+});
+
+test("writing blitzRuns does not write daily or stats keys", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.writeBlitzRuns([fakeRun()])).toEqual({ ok: true });
+	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
+	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
+});
+
+test("writeBlitzRuns setItem throw returns ok false", () => {
+	const persist = createPersist({
+		getItem: () => null,
+		setItem: () => {
+			throw new Error("quota");
+		},
+	});
+	expect(persist.writeBlitzRuns([fakeRun()])).toEqual({ ok: false });
 });

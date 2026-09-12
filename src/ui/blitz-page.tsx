@@ -1,7 +1,7 @@
 import { useRouteContext } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { applications, protocols, schedules } from "../catalogs/production";
-import { reduceBlitz, startBlitz } from "../engine/blitz";
+import { buildRun, prependRun, reduceBlitz, startBlitz } from "../engine/blitz";
 import { catalogFor, invertedBlurb } from "../engine/catalog";
 import { digitLength } from "../engine/guess";
 import type {
@@ -10,12 +10,12 @@ import type {
 	CatalogEntry,
 	DailyCategory,
 	Orientation,
-	Round,
 } from "../engine/types";
 import type { Persist } from "../persist/storage";
 import { DigitSlots } from "./digit-slots";
 import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
 import { ProgressNotice } from "./notice";
+import { RoundLog } from "./round-log";
 import { Typeahead } from "./typeahead";
 
 const EMPTY_POOL = "Cannot start Blitz: not enough unused answers today.";
@@ -143,65 +143,6 @@ function Hearts({ lives }: { lives: number }) {
 	);
 }
 
-function RoundOutcomeDot({ outcome }: { outcome: Round["outcome"] }) {
-	return (
-		<span
-			role="img"
-			aria-label={outcome}
-			className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
-				outcome === "correct"
-					? "bg-emerald-500"
-					: "bg-zinc-500 dark:bg-zinc-600"
-			}`}
-		/>
-	);
-}
-
-function WrongAnswerText({ wrong }: { wrong: Round["wrong"] }) {
-	if (!wrong) {
-		return null;
-	}
-	if (wrong.kind === "typed") {
-		return wrong.owner ? (
-			<>
-				you typed <span className="font-mono">{wrong.port}</span> (
-				{wrong.owner.name})
-			</>
-		) : (
-			<>
-				you typed <span className="font-mono">{wrong.port}</span>
-			</>
-		);
-	}
-	return <>you picked {wrong.pick.name}</>;
-}
-
-function RoundLine({ round }: { round: Round }) {
-	return (
-		<li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-			<RoundOutcomeDot outcome={round.outcome} />
-			<span>{round.name}</span>
-			<span className="font-mono">{round.port}</span>
-			{round.wrong ? (
-				<span className="text-zinc-500 dark:text-zinc-400">
-					<WrongAnswerText wrong={round.wrong} />
-				</span>
-			) : null}
-		</li>
-	);
-}
-
-function RoundLog({ rounds }: { rounds: Round[] }) {
-	return (
-		<ul className="mt-4 space-y-1.5 text-left">
-			{rounds.map((round, index) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: a round's id is the prompt entry's catalog id, which can repeat across rounds; RoundLine holds no state, so index-derived keys are safe here.
-				<RoundLine key={`${round.id}-${index}`} round={round} />
-			))}
-		</ul>
-	);
-}
-
 export function BlitzPage() {
 	const { persist, utcToday } = useRouteContext({ from: "__root__" });
 	const [category, setCategory] = useState<DailyCategory>("mixed");
@@ -259,9 +200,16 @@ export function BlitzPage() {
 		if (!run?.ended) {
 			return;
 		}
-		const result = recordBest(persist, run);
-		setNewBest(result.newBest);
-		if (!result.ok) {
+		const runRecord = buildRun({
+			state: run,
+			clock: () => new Date().toISOString(),
+		});
+		const runsResult = persist.writeBlitzRuns(
+			prependRun(persist.readBlitzRuns(), runRecord),
+		);
+		const bestResult = recordBest(persist, run);
+		setNewBest(bestResult.newBest);
+		if (!runsResult.ok || !bestResult.ok) {
 			setSaveWarning(true);
 		}
 	}, [persist, run]);

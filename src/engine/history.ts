@@ -1,5 +1,10 @@
 import { getDaily } from "./daily";
-import type { CatalogEntry, DailyCategory, ScheduleFile } from "./types";
+import type {
+	BlitzRun,
+	CatalogEntry,
+	DailyCategory,
+	ScheduleFile,
+} from "./types";
 import { DAILY_CATEGORIES } from "./types";
 import { addUtcDays } from "./utc";
 
@@ -58,4 +63,23 @@ export function historyRows(input: {
 		);
 	});
 	return rows;
+}
+
+export type BlitzRunGroup = { date: string; runs: BlitzRun[] };
+
+export function groupBlitzRunsByDate(
+	runs: BlitzRun[],
+	localDate: (endedAt: string) => string,
+): BlitzRunGroup[] {
+	const groups: BlitzRunGroup[] = [];
+	for (const run of runs) {
+		const date = localDate(run.endedAt);
+		const current = groups.at(-1);
+		if (current && current.date === date) {
+			current.runs.push(run);
+		} else {
+			groups.push({ date, runs: [run] });
+		}
+	}
+	return groups;
 }

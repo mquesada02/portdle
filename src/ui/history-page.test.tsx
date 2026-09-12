@@ -1,6 +1,8 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
+import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { dailyOn } from "../test/dailies";
 import { memoryStore, stubMatchMedia } from "../test/helpers";
@@ -12,13 +14,36 @@ const EPOCH = "2026-09-09";
 
 async function renderHistory(
 	persist: ReturnType<typeof createPersist> = createPersist(memoryStore()),
+	path = "/portdle/history",
 ) {
 	stubMatchMedia();
 	const history = createMemoryHistory({
-		initialEntries: ["/portdle/history"],
+		initialEntries: [path],
 	});
 	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
 	await screen.findByRole("navigation", { name: "Main" });
+}
+
+function fakeRun(overrides: Partial<BlitzRun> = {}): BlitzRun {
+	return {
+		category: "protocols",
+		orientation: "default",
+		mode: "sprint",
+		ended: "timeout",
+		endedAt: "2026-09-09T12:00:00.000Z",
+		score: 3,
+		rounds: [
+			{ id: "http", name: "HTTP", port: 80, outcome: "correct", wrong: null },
+			{
+				id: "chargen",
+				name: "chargen",
+				port: 19,
+				outcome: "miss",
+				wrong: { kind: "typed", port: 21, owner: null },
+			},
+		],
+		...overrides,
+	};
 }
 
 function historyList() {
@@ -163,4 +188,109 @@ test("first History visit still shows How-to", async () => {
 	expect(
 		screen.getByRole("heading", { level: 1, name: "History" }),
 	).toBeTruthy();
+});
+
+test("/history shows the History switcher with Daily selected", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderHistory(persist);
+	expect(
+		screen.getByRole("navigation", { name: "History switcher" }),
+	).toBeTruthy();
+	expect(
+		screen.getByRole("link", { name: "Daily", current: "page" }),
+	).toBeTruthy();
+	expect(
+		screen.queryByRole("link", { name: "Blitz", current: "page" }),
+	).toBeNull();
+});
+
+test("/history/blitz shows the History switcher with Blitz selected", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderHistory(persist, "/portdle/history/blitz");
+	expect(
+		screen.getByRole("heading", { level: 1, name: "History" }),
+	).toBeTruthy();
+	expect(
+		screen.getByRole("navigation", { name: "History switcher" }),
+	).toBeTruthy();
+	expect(
+		screen.getByRole("link", { name: "Blitz", current: "page" }),
+	).toBeTruthy();
+	expect(
+		screen.queryByRole("link", { name: "Daily", current: "page" }),
+	).toBeNull();
+	expect(screen.getByRole("list", { name: "History" })).toBeTruthy();
+});
+
+test("the nav's History link is current on both /history and /history/blitz", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	for (const path of ["/portdle/history", "/portdle/history/blitz"] as const) {
+		cleanup();
+		await renderHistory(persist, path);
+		expect(
+			screen.getByRole("link", { name: "History", current: "page" }),
+		).toBeTruthy();
+	}
+});
+
+test("with no stored runs the Blitz segment reads No runs yet", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderHistory(persist, "/portdle/history/blitz");
+	expect(screen.getByText("No runs yet.")).toBeTruthy();
+});
+
+test("a seeded Blitz run shows its setup badges reason and score", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	const run = fakeRun();
+	persist.writeBlitzRuns([run]);
+	await renderHistory(persist, "/portdle/history/blitz");
+	const list = screen.getByRole("list", { name: "History" });
+	const dateHeading = within(list).getByRole("heading", { level: 2 });
+	expect(dateHeading.textContent).toBe(run.endedAt.slice(0, 10));
+	expect(list.textContent).toContain("Protocols");
+	expect(list.textContent).toContain("Default");
+	expect(list.textContent).toContain("Sprint");
+	expect(list.textContent).not.toContain("Sprint (1m)");
+	expect(list.textContent).toContain("Time's up");
+	expect(list.textContent).toContain("Score 3");
+});
+
+test("a seeded Blitz run's Rounds disclosure reveals its round log in play order", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	const run = fakeRun();
+	persist.writeBlitzRuns([run]);
+	await renderHistory(persist, "/portdle/history/blitz");
+	const summary = screen.getByText("Rounds (2)");
+	await user.click(summary);
+	const details = summary.closest("details");
+	if (!details) {
+		throw new Error("missing details element");
+	}
+	const lines = within(details).getAllByRole("listitem");
+	expect(lines).toHaveLength(2);
+	const [first, second] = lines;
+	if (!first || !second) {
+		throw new Error("missing round log lines");
+	}
+	expect(within(first).getByRole("img", { name: "correct" })).toBeTruthy();
+	expect(first.textContent).toContain("HTTP");
+	expect(within(second).getByRole("img", { name: "miss" })).toBeTruthy();
+	expect(second.textContent).toContain("chargen");
+	expect(second.textContent).toContain("you typed 21");
+});
+
+test("Blitz segment contains no links", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	persist.writeBlitzRuns([fakeRun()]);
+	await renderHistory(persist, "/portdle/history/blitz");
+	const list = screen.getByRole("list", { name: "History" });
+	expect(within(list).queryAllByRole("link").length).toBe(0);
 });

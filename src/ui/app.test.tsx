@@ -148,9 +148,12 @@ test("Blitz and History nav links are active only on their own route", async () 
 	for (const [path, name] of cases) {
 		cleanup();
 		await renderApp({ persist, path });
-		expect(screen.getByRole("link", { name, current: "page" })).toBeTruthy();
+		const mainNav = screen.getByRole("navigation", { name: "Main" });
 		expect(
-			screen.queryByRole("link", { name: "Daily", current: "page" }),
+			within(mainNav).getByRole("link", { name, current: "page" }),
+		).toBeTruthy();
+		expect(
+			within(mainNav).queryByRole("link", { name: "Daily", current: "page" }),
 		).toBeNull();
 	}
 });

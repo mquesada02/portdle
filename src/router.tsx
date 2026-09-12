@@ -53,7 +53,17 @@ const blitzRoute = createRoute({
 const historyRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/history",
-	component: HistoryPage,
+	component: function HistoryDailyPage() {
+		return <HistoryPage segment="daily" />;
+	},
+});
+
+const historyBlitzRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/history/blitz",
+	component: function HistoryBlitzPage() {
+		return <HistoryPage segment="blitz" />;
+	},
 });
 
 // The Help page is gone; this route stays registered only so the old
@@ -72,6 +82,7 @@ const routeTree = rootRoute.addChildren([
 	applicationsRoute,
 	blitzRoute,
 	historyRoute,
+	historyBlitzRoute,
 	helpRoute,
 ]);
 
