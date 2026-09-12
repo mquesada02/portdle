@@ -3,27 +3,12 @@ import { applications, protocols, schedules } from "../catalogs/production";
 import type { HistoryRow } from "../engine/history";
 import { groupBlitzRunsByDate, historyRows } from "../engine/history";
 import { CATEGORY_LABEL } from "../engine/share";
-import type {
-	BlitzMode,
-	BlitzRun,
-	DailyPersist,
-	Orientation,
-} from "../engine/types";
+import type { BlitzRun, DailyPersist } from "../engine/types";
 import type { Persist } from "../persist/storage";
+import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { RoundLog } from "./round-log";
 
 const HEADING_ID = "history-heading";
-
-const ORIENTATION_LABEL: Record<Orientation, string> = {
-	default: "Default",
-	inverted: "Inverted",
-};
-
-const MODE_LABEL: Record<BlitzMode, string> = {
-	sprint: "Sprint",
-	marathon: "Marathon",
-	survival: "Survival",
-};
 
 const ENDED_LABEL: Record<BlitzRun["ended"], string> = {
 	lives: "Out of lives",
@@ -96,40 +81,15 @@ function DailySegmentList({
 	);
 }
 
-// Shape, sizing, and light/dark colors match the Daily segment's category
-// badge above; spacing between badges comes from the row's flex gap instead
-// of a margin utility, since this badge sits in a flex row rather than
-// inline text flow.
-function BlitzBadge({ children }: { children: string }) {
-	return (
-		<span className="inline-block rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-			{children}
-		</span>
-	);
-}
-
-function localDate(endedAt: string): string {
-	const date = new Date(endedAt);
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-function localTime(endedAt: string): string {
-	const date = new Date(endedAt);
-	const hours = String(date.getHours()).padStart(2, "0");
-	const minutes = String(date.getMinutes()).padStart(2, "0");
-	return `${hours}:${minutes}`;
-}
-
 function BlitzRunRow({ run }: { run: BlitzRun }) {
 	return (
 		<li>
 			<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-				<BlitzBadge>{CATEGORY_LABEL[run.category]}</BlitzBadge>
-				<BlitzBadge>{ORIENTATION_LABEL[run.orientation]}</BlitzBadge>
-				<BlitzBadge>{MODE_LABEL[run.mode]}</BlitzBadge>
+				<SetupBadges
+					category={run.category}
+					orientation={run.orientation}
+					mode={run.mode}
+				/>
 				<span>{ENDED_LABEL[run.ended]}</span>
 				<span className="font-mono">{localTime(run.endedAt)}</span>
 				<span>Score {run.score}</span>
