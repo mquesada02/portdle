@@ -3,11 +3,13 @@ import { useEffect, useState } from "react";
 import { applications, protocols, schedules } from "../catalogs/production";
 import { buildRun, prependRun, reduceBlitz, startBlitz } from "../engine/blitz";
 import { catalogFor, invertedBlurb } from "../engine/catalog";
+import { applyCodexEncounter } from "../engine/codex";
 import { digitLength } from "../engine/guess";
 import type {
 	BlitzMode,
 	BlitzState,
 	CatalogEntry,
+	CodexEncounter,
 	DailyCategory,
 	Orientation,
 } from "../engine/types";
@@ -245,7 +247,51 @@ export function BlitzPage() {
 		}
 	}
 
-	function applyResult(result: ReturnType<typeof reduceBlitz>) {
+	function recordEncounters(encounters: CodexEncounter[]): { ok: boolean } {
+		const next = encounters.reduce(
+			(map, encounter) => applyCodexEncounter(map, encounter),
+			persist.readCodex(),
+		);
+		return persist.writeCodex(next);
+	}
+
+	function encountersFor(
+		result: ReturnType<typeof reduceBlitz>,
+		promptId: string,
+	): CodexEncounter[] {
+		if (
+			result.guess &&
+			result.guess.status !== "invalid" &&
+			result.guess.status !== "duplicate"
+		) {
+			if (result.guess.status === "correct") {
+				return [{ state: "correct", id: promptId }];
+			}
+			const encounters: CodexEncounter[] = [{ state: "missed", id: promptId }];
+			if (result.guess.identified) {
+				encounters.push({
+					state: "identified",
+					id: result.guess.identified.id,
+				});
+			}
+			return encounters;
+		}
+		if (result.inverted && result.inverted.status !== "duplicate") {
+			if (result.inverted.status === "correct") {
+				return [{ state: "correct", id: promptId }];
+			}
+			return [
+				{ state: "missed", id: promptId },
+				{ state: "identified", id: result.inverted.identified.id },
+			];
+		}
+		return [];
+	}
+
+	function applyResult(
+		result: ReturnType<typeof reduceBlitz>,
+		promptId: string,
+	) {
 		if (
 			result.guess?.status === "invalid" ||
 			result.guess?.status === "duplicate"
@@ -257,6 +303,10 @@ export function BlitzPage() {
 		if (result.inverted?.status === "duplicate") {
 			setMessage(invertedGuessMessage(result.inverted));
 			return;
+		}
+		const encounters = encountersFor(result, promptId);
+		if (encounters.length > 0 && !recordEncounters(encounters).ok) {
+			setSaveWarning(true);
 		}
 		setDigits("");
 		if (result.inverted) {
@@ -271,6 +321,7 @@ export function BlitzPage() {
 		if (!run || run.ended) {
 			return;
 		}
+		const promptId = run.currentId;
 		applyResult(
 			reduceBlitz({
 				state: run,
@@ -279,6 +330,7 @@ export function BlitzPage() {
 				applications,
 				rng: Math.random,
 			}),
+			promptId,
 		);
 	}
 
@@ -286,6 +338,7 @@ export function BlitzPage() {
 		if (!run || run.ended) {
 			return;
 		}
+		const promptId = run.currentId;
 		applyResult(
 			reduceBlitz({
 				state: run,
@@ -294,6 +347,7 @@ export function BlitzPage() {
 				applications,
 				rng: Math.random,
 			}),
+			promptId,
 		);
 	}
 
