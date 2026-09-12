@@ -1,5 +1,11 @@
 import { createMemoryHistory } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { applications, protocols } from "../catalogs/production";
@@ -98,6 +104,22 @@ test("correct port increments score", async () => {
 	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
 });
 
+test("HUD reads Round 1 at start and Round 3 after two committed rounds", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	expect(screen.getByText("Round 1")).toBeTruthy();
+	const first = currentEntry();
+	await user.type(portDigits(), padToAnswer(first.port, first));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Round 2")).toBeTruthy();
+	const second = currentEntry();
+	const missPort = second.port === 80 ? 19 : 80;
+	await user.type(portDigits(), padToAnswer(missPort, second));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Round 3")).toBeTruthy();
+});
+
 test("catalog miss names the service spends a life and advances", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
@@ -114,6 +136,78 @@ test("catalog miss names the service spends a life and advances", async () => {
 		.getAllByText(identifiedName)
 		.filter((element) => element !== heading);
 	expect(identifiedMatches.length).toBeGreaterThan(0);
+});
+
+test("round log miss line reads you typed port and name for an owned port", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const first = currentEntry();
+	const missPort = first.port === 80 ? 19 : 80;
+	await user.type(portDigits(), padToAnswer(missPort, first));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	const identifiedName = missPort === 80 ? "HTTP" : "chargen";
+	const lines = screen.getAllByRole("listitem");
+	expect(lines).toHaveLength(1);
+	const line = lines[0];
+	if (!line) {
+		throw new Error("missing round log line");
+	}
+	expect(within(line).getByRole("img", { name: "miss" })).toBeTruthy();
+	expect(line.textContent).toContain(first.name);
+	expect(line.textContent).toContain(
+		`you typed ${missPort} (${identifiedName})`,
+	);
+});
+
+test("round log shows two lines newest first with correct and unowned miss copy", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const first = currentEntry();
+	await user.type(portDigits(), padToAnswer(first.port, first));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	const second = currentEntry();
+	await user.type(portDigits(), "0".repeat(String(second.port).length));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	const lines = screen.getAllByRole("listitem");
+	expect(lines).toHaveLength(2);
+	const [newest, oldest] = lines;
+	if (!newest || !oldest) {
+		throw new Error("missing round log lines");
+	}
+	expect(within(newest).getByRole("img", { name: "miss" })).toBeTruthy();
+	expect(newest.textContent).toContain(second.name);
+	expect(newest.textContent).toContain("you typed 0");
+	expect(newest.textContent).not.toContain("(");
+	expect(within(oldest).getByRole("img", { name: "correct" })).toBeTruthy();
+	expect(oldest.textContent).toContain(first.name);
+});
+
+test("round log keeps only the last three rounds after four", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	for (let i = 0; i < 4; i += 1) {
+		const answer = currentEntry();
+		await user.type(portDigits(), padToAnswer(answer.port, answer));
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+	}
+	expect(screen.getAllByRole("listitem")).toHaveLength(3);
+});
+
+test("invalid guess leaves the round log unchanged", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const first = currentEntry();
+	await user.type(portDigits(), padToAnswer(first.port, first));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getAllByRole("listitem")).toHaveLength(1);
+	await user.type(portDigits(), "1");
+	await user.keyboard("{Enter}");
+	expect(screen.getByText("Not a valid port.")).toBeTruthy();
+	expect(screen.getAllByRole("listitem")).toHaveLength(1);
 });
 
 test("incomplete enter is invalid and does not spend a life", async () => {
@@ -152,9 +246,34 @@ test("three misses end with Out of lives and write a new best", async () => {
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
-	expect(screen.getByText(/HTTP|chargen/)).toBeTruthy();
+	expect(screen.getAllByText(/HTTP|chargen/).length).toBeGreaterThan(0);
 	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(0);
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
+});
+
+test("end card lists Rounds heading with every round line in play order", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const first = currentEntry();
+	await user.type(portDigits(), padToAnswer(first.port, first));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	expect(
+		screen.getByRole("heading", { level: 2, name: "Rounds (4)" }),
+	).toBeTruthy();
+	const lines = screen.getAllByRole("listitem");
+	expect(lines).toHaveLength(4);
+	const [oldest, ...misses] = lines;
+	if (!oldest) {
+		throw new Error("missing round log line");
+	}
+	expect(within(oldest).getByRole("img", { name: "correct" })).toBeTruthy();
+	expect(oldest.textContent).toContain(first.name);
+	for (const line of misses) {
+		expect(within(line).getByRole("img", { name: "miss" })).toBeTruthy();
+	}
 });
 
 test("play again returns to setup and a lower score does not lower best", async () => {
@@ -291,6 +410,27 @@ test("listed miss shows name is port and spends a life", async () => {
 	await pickListed(pick.name);
 	expect(screen.getByText(`${pick.name} is ${pick.port}`)).toBeTruthy();
 	expect(screen.getByRole("img", { name: "Lives: 2" })).toBeTruthy();
+});
+
+test("inverted round log miss line reads you picked name", async () => {
+	await startInvertedFake();
+	const port = headingPort();
+	const miss = catalog.find(
+		(entry) => entry.name === "HTTP" && entry.port !== port,
+	);
+	const pick = miss ?? catalog.find((entry) => entry.port !== port);
+	if (!pick) {
+		throw new Error("missing miss row");
+	}
+	await pickListed(pick.name);
+	const lines = screen.getAllByRole("listitem");
+	expect(lines).toHaveLength(1);
+	const line = lines[0];
+	if (!line) {
+		throw new Error("missing round log line");
+	}
+	expect(within(line).getByRole("img", { name: "miss" })).toBeTruthy();
+	expect(line.textContent).toContain(`you picked ${pick.name}`);
 });
 
 const CROWDED_BLURBS: Record<number, string[]> = {
