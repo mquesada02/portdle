@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
-import { reduceBlitz, startBlitz } from "./blitz";
+import { buildRun, prependRun, reduceBlitz, startBlitz } from "./blitz";
 import { digitLength } from "./guess";
 import { chargen, http, telnet, vite } from "./test-fixtures";
-import type { CatalogEntry, ScheduleFile } from "./types";
+import type { BlitzRun, BlitzState, CatalogEntry, ScheduleFile } from "./types";
 
 const entries: CatalogEntry[] = ["a", "b", "c", "d"].map((id, index) => ({
 	id,
@@ -573,4 +573,88 @@ test("round number reads 3 after two committed rounds", () => {
 	}
 	const afterSecond = reduceDefault(afterFirst.state, secondAnswer.port);
 	expect(afterSecond.state.rounds.length + 1).toBe(3);
+});
+
+const clock = () => "2026-09-09T12:00:00.000Z";
+
+function endedState(overrides: Partial<BlitzState>): BlitzState {
+	return {
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		lives: 0,
+		score: 2,
+		remainingIds: [],
+		currentId: "a",
+		startPool: ["a", "b"],
+		ended: "lives",
+		rounds: [
+			{ id: "a", name: "A", port: 4000, outcome: "correct", wrong: null },
+		],
+		...overrides,
+	};
+}
+
+test("buildRun snapshots the setup end reason score and rounds from a lives-ended state", () => {
+	const state = endedState({});
+	expect(buildRun({ state, clock })).toEqual({
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		ended: "lives",
+		endedAt: "2026-09-09T12:00:00.000Z",
+		score: 2,
+		rounds: state.rounds,
+	});
+});
+
+test("buildRun reflects a timeout-ended state and the clock's instant", () => {
+	const state = endedState({
+		category: "protocols",
+		orientation: "inverted",
+		mode: "marathon",
+		ended: "timeout",
+		score: 0,
+		rounds: [],
+	});
+	expect(buildRun({ state, clock })).toEqual({
+		category: "protocols",
+		orientation: "inverted",
+		mode: "marathon",
+		ended: "timeout",
+		endedAt: "2026-09-09T12:00:00.000Z",
+		score: 0,
+		rounds: [],
+	});
+});
+
+function fakeRun(endedAt: string): BlitzRun {
+	return {
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		ended: "timeout",
+		endedAt,
+		score: 0,
+		rounds: [],
+	};
+}
+
+test("prependRun adds a run to the front without dropping any under fifty", () => {
+	const runs = [fakeRun("2026-09-08T12:00:00.000Z")];
+	const next = prependRun(runs, fakeRun("2026-09-09T12:00:00.000Z"));
+	expect(next).toEqual([
+		fakeRun("2026-09-09T12:00:00.000Z"),
+		fakeRun("2026-09-08T12:00:00.000Z"),
+	]);
+});
+
+test("prependRun keeps exactly fifty newest first dropping the oldest", () => {
+	const runs = Array.from({ length: 50 }, (_, index) =>
+		fakeRun(`run-${index}`),
+	);
+	const next = prependRun(runs, fakeRun("newest"));
+	expect(next.length).toBe(50);
+	expect(next[0]).toEqual(fakeRun("newest"));
+	expect(next.at(-1)).toEqual(fakeRun("run-48"));
 });

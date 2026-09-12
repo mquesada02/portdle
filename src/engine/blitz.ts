@@ -5,6 +5,7 @@ import { evaluateInvertedGuess } from "./inverted";
 import type {
 	BlitzEvent,
 	BlitzMode,
+	BlitzRun,
 	BlitzState,
 	CatalogEntry,
 	DailyCategory,
@@ -194,4 +195,29 @@ export function reduceBlitz(input: {
 		state: afterCommitted(state, rng, buildRound(answer, guess.status, wrong)),
 		guess,
 	};
+}
+
+const MAX_BLITZ_RUNS = 50;
+
+export function buildRun(input: {
+	state: BlitzState;
+	clock: () => string;
+}): BlitzRun {
+	const { state, clock } = input;
+	if (state.ended === null) {
+		throw new Error("run not ended");
+	}
+	return {
+		category: state.category,
+		orientation: state.orientation,
+		mode: state.mode,
+		ended: state.ended,
+		endedAt: clock(),
+		score: state.score,
+		rounds: state.rounds,
+	};
+}
+
+export function prependRun(runs: BlitzRun[], run: BlitzRun): BlitzRun[] {
+	return [run, ...runs].slice(0, MAX_BLITZ_RUNS);
 }

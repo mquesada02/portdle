@@ -72,6 +72,16 @@ export type Round = {
 	wrong: WrongAnswer | null;
 };
 
+export type BlitzRun = {
+	category: DailyCategory;
+	orientation: Orientation;
+	mode: BlitzMode;
+	ended: "lives" | "timeout";
+	endedAt: string;
+	score: number;
+	rounds: Round[];
+};
+
 export type BlitzState = {
 	category: DailyCategory;
 	orientation: Orientation;
