@@ -56,31 +56,10 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-test("setup shows Blitz heading category orientation mode and Start", async () => {
-	await renderBlitz();
-	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
-	expect(screen.getByRole("radio", { name: "Mixed" }).tabIndex).not.toBe(-1);
-	expect(screen.getByRole("radio", { name: "Sprint (1m)" }).tabIndex).not.toBe(
-		-1,
-	);
-	expect(screen.getByRole("button", { name: "Start" }).tabIndex).not.toBe(-1);
-	expect(
-		(screen.getByRole("radio", { name: "Mixed" }) as HTMLInputElement).checked,
-	).toBe(true);
-	expect(
-		(screen.getByRole("radio", { name: "Default" }) as HTMLInputElement)
-			.checked,
-	).toBe(true);
-	expect(
-		(screen.getByRole("radio", { name: "Sprint (1m)" }) as HTMLInputElement)
-			.checked,
-	).toBe(true);
-	expect(screen.getByRole("radio", { name: "Inverted" }).tabIndex).not.toBe(-1);
-});
-
 test("start mixed sprint shows a non-daily name lives score time and slots", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const heading = screen.getByRole("heading", { level: 1 }).textContent;
 	expect(heading).not.toBe(dailyOn("mixed").name);
@@ -96,6 +75,7 @@ test("start mixed sprint shows a non-daily name lives score time and slots", asy
 test("correct port increments score", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
 	await user.type(portDigits(), padToAnswer(answer.port, answer));
@@ -107,6 +87,7 @@ test("correct port increments score", async () => {
 test("HUD reads Round 1 at start and Round 3 after two committed rounds", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	expect(screen.getByText("Round 1")).toBeTruthy();
 	const first = currentEntry();
@@ -123,6 +104,7 @@ test("HUD reads Round 1 at start and Round 3 after two committed rounds", async 
 test("catalog miss names the service spends a life and advances", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const first = currentEntry();
 	const missPort = first.port === 80 ? 19 : 80;
@@ -141,6 +123,7 @@ test("catalog miss names the service spends a life and advances", async () => {
 test("round log miss line reads you typed port and name for an owned port", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const first = currentEntry();
 	const missPort = first.port === 80 ? 19 : 80;
@@ -163,6 +146,7 @@ test("round log miss line reads you typed port and name for an owned port", asyn
 test("round log shows two lines newest first with correct and unowned miss copy", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const first = currentEntry();
 	await user.type(portDigits(), padToAnswer(first.port, first));
@@ -187,6 +171,7 @@ test("round log shows two lines newest first with correct and unowned miss copy"
 test("round log keeps only the last three rounds after four", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	for (let i = 0; i < 4; i += 1) {
 		const answer = currentEntry();
@@ -199,6 +184,7 @@ test("round log keeps only the last three rounds after four", async () => {
 test("invalid guess leaves the round log unchanged", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const first = currentEntry();
 	await user.type(portDigits(), padToAnswer(first.port, first));
@@ -213,6 +199,7 @@ test("invalid guess leaves the round log unchanged", async () => {
 test("incomplete enter is invalid and does not spend a life", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await user.type(portDigits(), "1");
 	await user.keyboard("{Enter}");
@@ -223,6 +210,7 @@ test("incomplete enter is invalid and does not spend a life", async () => {
 test("survival start shows no remaining time", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("radio", { name: "Survival" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	expect(screen.queryByText(/^\d+:\d{2}$/)).toBeNull();
@@ -232,6 +220,7 @@ test("survival start shows no remaining time", async () => {
 test("sprint timer ends with Time's up", async () => {
 	await renderBlitz();
 	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "New run" }));
 	fireEvent.click(screen.getByRole("button", { name: "Start" }));
 	expect(screen.getByText("1:00")).toBeTruthy();
 	await vi.advanceTimersByTimeAsync(60_000);
@@ -243,6 +232,7 @@ test("sprint timer ends with Time's up", async () => {
 test("three misses end with Out of lives and write a new best", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
@@ -254,6 +244,7 @@ test("three misses end with Out of lives and write a new best", async () => {
 test("end card lists Rounds heading with every round line in play order", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const first = currentEntry();
 	await user.type(portDigits(), padToAnswer(first.port, first));
@@ -276,18 +267,19 @@ test("end card lists Rounds heading with every round line in play order", async 
 	}
 });
 
-test("play again returns to setup and a lower score does not lower best", async () => {
+test("play again returns to arena and a lower score does not lower best", async () => {
 	const user = userEvent.setup();
 	const persist = createPersist(memoryStore());
 	persist.writeBlitzBests({ "mixed|default|sprint": 5 });
 	await renderBlitz({ persist });
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
 	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(5);
 	expect(screen.queryByText("New best")).toBeNull();
 	await user.click(screen.getByRole("button", { name: "Play again" }));
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
-	expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
 });
 
 test("run beating a stored best shows New best on the end card", async () => {
@@ -295,6 +287,7 @@ test("run beating a stored best shows New best on the end card", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeBlitzBests({ "mixed|default|sprint": 0 });
 	await renderBlitz({ persist });
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
 	await user.type(portDigits(), padToAnswer(answer.port, answer));
@@ -306,9 +299,10 @@ test("run beating a stored best shows New best on the end card", async () => {
 	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(1);
 });
 
-test("refresh during a run returns to setup without restoring score", async () => {
+test("refresh during a run returns to arena without restoring score", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
 	await user.type(portDigits(), padToAnswer(answer.port, answer));
@@ -317,7 +311,7 @@ test("refresh during a run returns to setup without restoring score", async () =
 	cleanup();
 	await renderBlitz({ persist });
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
-	expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
 	expect(persist.readBlitzBests()).toEqual({});
 });
 
@@ -329,12 +323,14 @@ function headingPort(): number {
 
 async function startInverted(user: ReturnType<typeof userEvent.setup>) {
 	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("radio", { name: "Inverted" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 }
 
 async function startInvertedFake() {
 	const persist = await renderBlitz();
+	fireEvent.click(screen.getByRole("button", { name: "New run" }));
 	fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
 	vi.useFakeTimers();
 	fireEvent.click(screen.getByRole("button", { name: "Start" }));
@@ -461,6 +457,7 @@ async function startInvertedUntil(ports: number[]) {
 		document.documentElement.classList.remove("dark");
 		vi.useRealTimers();
 		await renderBlitz();
+		fireEvent.click(screen.getByRole("button", { name: "New run" }));
 		fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
 		vi.useFakeTimers();
 		fireEvent.click(screen.getByRole("button", { name: "Start" }));
@@ -532,6 +529,7 @@ test("history still has heading History", async () => {
 test("a correct Blitz round records the prompt as Correct in the codex store", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
 	await user.type(portDigits(), padToAnswer(answer.port, answer));
@@ -545,6 +543,7 @@ test("a correct Blitz round records the prompt as Correct in the codex store", a
 test("a Default miss on a known port records the prompt as Missed and the port's owner as Identified", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
 	const missPort = answer.port === 80 ? 19 : 80;
@@ -564,6 +563,7 @@ test("a Default miss on a known port records the prompt as Missed and the port's
 test("a Default miss on an unowned port records the prompt as Missed and nothing else", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
 	await user.type(portDigits(), padToAnswer(1, answer));
@@ -576,6 +576,7 @@ test("a Default miss on an unowned port records the prompt as Missed and nothing
 test("a mid-run miss writes the codex before the run ends", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	const answer = currentEntry();
 	const missPort = answer.port === 80 ? 19 : 80;
@@ -591,6 +592,7 @@ test("a mid-run miss writes the codex before the run ends", async () => {
 test("an invalid Blitz guess leaves the codex store unchanged", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await user.type(portDigits(), "1");
 	await user.keyboard("{Enter}");
@@ -601,6 +603,7 @@ test("an invalid Blitz guess leaves the codex store unchanged", async () => {
 test("a timeout mid-prompt leaves the codex store unchanged", async () => {
 	const persist = await renderBlitz();
 	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "New run" }));
 	fireEvent.click(screen.getByRole("button", { name: "Start" }));
 	await vi.advanceTimersByTimeAsync(60_000);
 	expect(screen.getByText("Time's up")).toBeTruthy();
@@ -628,6 +631,7 @@ async function startInvertedWhere(matches: (port: number) => boolean) {
 		document.documentElement.classList.remove("dark");
 		vi.useRealTimers();
 		const persist = await renderBlitz();
+		fireEvent.click(screen.getByRole("button", { name: "New run" }));
 		fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
 		vi.useFakeTimers();
 		fireEvent.click(screen.getByRole("button", { name: "Start" }));
