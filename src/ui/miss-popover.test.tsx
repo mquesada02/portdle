@@ -167,7 +167,7 @@ test("an entry with no sources shows no sources block", () => {
 		description: "A fixture entry with no sources.",
 		answerEligible: false,
 	};
-	render(<MissPopover entry={entryWithNoSources} />);
+	render(<MissPopover entry={entryWithNoSources} placement="inline" />);
 	const trigger = screen.getByRole("button", { name: "Test Fixture" });
 	fireEvent.mouseEnter(trigger);
 	expect(screen.getByText(entryWithNoSources.description)).toBeTruthy();
@@ -177,6 +177,30 @@ test("an entry with no sources shows no sources block", () => {
 	if (panel) {
 		expect(within(panel).queryByRole("link")).toBeNull();
 	}
+});
+
+test("grid placement drops focus-opens; Enter toggles it and Escape closes it", async () => {
+	// No production caller uses placement="grid" yet (a future Codex ticket
+	// will), so this exercises it directly with a fixture entry, per
+	// docs/superpowers/specs/2026-09-12-t74-miss-popover-placement.md.
+	const user = userEvent.setup();
+	const entry: CatalogEntry = {
+		id: "test-fixture-grid",
+		name: "Grid Fixture",
+		port: 2,
+		transport: "tcp",
+		description: "A fixture entry for the grid placement.",
+		answerEligible: false,
+	};
+	render(<MissPopover entry={entry} placement="grid" />);
+	const trigger = screen.getByRole("button", { name: "Grid Fixture" });
+	await user.tab();
+	expect(document.activeElement).toBe(trigger);
+	expect(screen.queryByText(entry.description)).toBeNull();
+	await user.keyboard("{Enter}");
+	expect(screen.getByText(entry.description)).toBeTruthy();
+	await user.keyboard("{Escape}");
+	expect(screen.queryByText(entry.description)).toBeNull();
 });
 
 test("a miss that matches nothing renders plain text with no trigger and no popover", async () => {

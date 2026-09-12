@@ -150,7 +150,7 @@ function RowCaption({
 	if (!entry) {
 		return <>{guess.identified.name}</>;
 	}
-	return <MissPopover entry={entry} />;
+	return <MissPopover entry={entry} placement="inline" />;
 }
 
 // Shared board-row layout: a left spacer column, the tiles or slots, and
