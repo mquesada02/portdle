@@ -179,7 +179,7 @@ test("port sort breaks ties by case-folded name", () => {
 	expect(names).toEqual(["Low", "alpha", "Zeta"]);
 });
 
-test("an unseen entry keeps its original catalog-array index in both the name sort and the port sort", () => {
+test("an unseen entry sorts by its own name and port in both the name sort and the port sort, not by its input-array index", () => {
 	const s1 = entry({ id: "s1", name: "Bravo", port: 100 });
 	const u1 = entry({ id: "u1", name: "Unseen One", port: 999 });
 	const s2 = entry({ id: "s2", name: "Alpha", port: 300 });
@@ -196,10 +196,10 @@ test("an unseen entry keeps its original catalog-array index in both the name so
 	});
 	expect(byName[0]?.cards.map((card) => card.entry.id)).toEqual([
 		"s2",
-		"u1",
 		"s1",
+		"u1",
 	]);
-	expect(byName[0]?.cards[1]).toEqual({ status: "unseen", entry: u1 });
+	expect(byName[0]?.cards[2]).toEqual({ status: "unseen", entry: u1 });
 
 	const byPort = codexGroups({
 		map,
@@ -209,8 +209,81 @@ test("an unseen entry keeps its original catalog-array index in both the name so
 	});
 	expect(byPort[0]?.cards.map((card) => card.entry.id)).toEqual([
 		"s1",
-		"u1",
 		"s2",
+		"u1",
 	]);
-	expect(byPort[0]?.cards[1]).toEqual({ status: "unseen", entry: u1 });
+	expect(byPort[0]?.cards[2]).toEqual({ status: "unseen", entry: u1 });
+});
+
+test("port sort places an unseen entry's ??? card strictly between its neighbors by true port", () => {
+	const low = entry({ id: "low", name: "Low", port: 22 });
+	const gap = entry({ id: "gap", name: "Gap", port: 23 });
+	const high = entry({ id: "high", name: "High", port: 25 });
+	const map: CodexMap = {
+		low: { state: "correct", fresh: false },
+		high: { state: "correct", fresh: false },
+	};
+
+	// Scrambled input order proves the result comes from sorting, not from
+	// the input array's own order.
+	const groups = codexGroups({
+		map,
+		protocols: [high, low, gap],
+		applications: [],
+		sort: "port",
+	});
+	expect(groups[0]?.cards.map((card) => card.entry.id)).toEqual([
+		"low",
+		"gap",
+		"high",
+	]);
+	expect(groups[0]?.cards[1]).toEqual({ status: "unseen", entry: gap });
+});
+
+test("a card becoming seen keeps the position it held while unseen", () => {
+	const mango = entry({ id: "mango", name: "Mango", port: 10 });
+	const apple = entry({ id: "apple", name: "Apple", port: 20 });
+	const banana = entry({ id: "banana", name: "Banana", port: 30 });
+	const protocols = [mango, apple, banana];
+
+	const beforeMap: CodexMap = {
+		mango: { state: "identified", fresh: false },
+		banana: { state: "missed", fresh: false },
+	};
+	const before = codexGroups({
+		map: beforeMap,
+		protocols,
+		applications: [],
+		sort: "name",
+	});
+	expect(before[0]?.cards.map((card) => card.entry.id)).toEqual([
+		"apple",
+		"banana",
+		"mango",
+	]);
+	expect(before[0]?.cards[0]).toEqual({ status: "unseen", entry: apple });
+
+	const afterMap = applyCodexEncounter(beforeMap, {
+		state: "correct",
+		id: "apple",
+	});
+	const after = codexGroups({
+		map: afterMap,
+		protocols,
+		applications: [],
+		sort: "name",
+	});
+	expect(after[0]?.cards.map((card) => card.entry.id)).toEqual([
+		"apple",
+		"banana",
+		"mango",
+	]);
+	expect(after[0]?.cards[0]).toEqual({
+		status: "correct",
+		entry: apple,
+		fresh: true,
+	});
+	// Neither neighbor moves or changes when apple is revealed.
+	expect(after[0]?.cards[1]).toEqual(before[0]?.cards[1]);
+	expect(after[0]?.cards[2]).toEqual(before[0]?.cards[2]);
 });
