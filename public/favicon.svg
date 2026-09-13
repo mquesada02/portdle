@@ -1,0 +1,8 @@
+<!-- The top bar wordmark's mark from the shell: 8px squares, 2px gap, 2px radius; zinc-400 and emerald-500 in light mode. Change both together. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18">
+  <title>Portdle</title>
+  <rect x="0" y="0" width="8" height="8" rx="2" fill="#9f9fa9"/>
+  <rect x="10" y="0" width="8" height="8" rx="2" fill="#00bc7d"/>
+  <rect x="0" y="10" width="8" height="8" rx="2" fill="#00bc7d"/>
+  <rect x="10" y="10" width="8" height="8" rx="2" fill="#9f9fa9"/>
+</svg>
