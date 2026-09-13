@@ -67,29 +67,14 @@ function groupCards(
 	map: CodexMap,
 	sort: "name" | "port",
 ): CodexCard[] {
-	const seenIndices: number[] = [];
-	const seenEntries: CatalogEntry[] = [];
-	entries.forEach((entry, index) => {
-		if (map[entry.id]) {
-			seenIndices.push(index);
-			seenEntries.push(entry);
-		}
-	});
-	const sortedSeen = [...seenEntries].sort((a, b) =>
-		compareEntries(a, b, sort),
-	);
-	const seenCards = new Map<number, CodexCard>();
-	sortedSeen.forEach((entry, position) => {
-		const record = map[entry.id];
-		const index = seenIndices[position];
-		if (index === undefined || !record) {
-			return;
-		}
-		seenCards.set(index, { status: record.state, entry, fresh: record.fresh });
-	});
-	return entries.map(
-		(entry, index) => seenCards.get(index) ?? { status: "unseen", entry },
-	);
+	return [...entries]
+		.sort((a, b) => compareEntries(a, b, sort))
+		.map((entry) => {
+			const record = map[entry.id];
+			return record
+				? { status: record.state, entry, fresh: record.fresh }
+				: { status: "unseen", entry };
+		});
 }
 
 export function codexGroups(input: {
