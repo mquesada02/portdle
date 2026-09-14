@@ -12,7 +12,12 @@ import { applications, protocols } from "../catalogs/production";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
-import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
+import {
+	memoryStore,
+	portDigits,
+	stubMatchMedia,
+	stubViewTransitions,
+} from "../test/helpers";
 import { App } from "./app";
 
 const catalog = [...protocols, ...applications];
@@ -27,9 +32,12 @@ function currentEntry(): CatalogEntry {
 }
 
 async function renderBlitz(
-	options: { persist?: ReturnType<typeof createPersist> } = {},
+	options: {
+		persist?: ReturnType<typeof createPersist>;
+		reducedMotion?: boolean;
+	} = {},
 ) {
-	stubMatchMedia();
+	stubMatchMedia(false, options.reducedMotion ?? false);
 	const persist = options.persist ?? createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({
@@ -229,6 +237,38 @@ test("sprint timer ends with Time's up", async () => {
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
 });
 
+test("letting the clock run out starts one view transition with the phase type", async () => {
+	await renderBlitz();
+	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "New run" }));
+	fireEvent.click(screen.getByRole("button", { name: "Start" }));
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(screen.getByText("Time's up")).toBeTruthy();
+		expect(calls).toEqual([["phase"]]);
+		await vi.advanceTimersByTimeAsync(500);
+		expect(calls).toEqual([["phase"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("with reduced motion stubbed to match, letting the clock run out starts no view transition", async () => {
+	await renderBlitz({ reducedMotion: true });
+	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "New run" }));
+	fireEvent.click(screen.getByRole("button", { name: "Start" }));
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(screen.getByText("Time's up")).toBeTruthy();
+		expect(calls).toEqual([]);
+	} finally {
+		restore();
+	}
+});
+
 test("three misses end with Out of lives and write a new best", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
@@ -239,6 +279,36 @@ test("three misses end with Out of lives and write a new best", async () => {
 	expect(screen.getAllByText(/HTTP|chargen/).length).toBeGreaterThan(0);
 	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(0);
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
+});
+
+test("spending the last life starts one view transition with the phase type; earlier misses that leave lives start none", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await missThree(user);
+		expect(screen.getByText("Out of lives")).toBeTruthy();
+		expect(calls).toEqual([["phase"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("with reduced motion stubbed to match, spending the last life starts no view transition", async () => {
+	const user = userEvent.setup();
+	await renderBlitz({ reducedMotion: true });
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await missThree(user);
+		expect(screen.getByText("Out of lives")).toBeTruthy();
+		expect(calls).toEqual([]);
+	} finally {
+		restore();
+	}
 });
 
 test("end card lists Rounds heading with every round line in play order", async () => {
