@@ -51,7 +51,7 @@ function DailySwitcher({ category }: { category: DailyCategory }) {
 					to={ROUTE_FOR[item]}
 					activeProps={{}}
 					aria-current={item === category ? "page" : undefined}
-					className={`-mb-px flex-1 border-b-2 py-2.5 text-center text-sm font-medium ${
+					className={`-mb-px flex-1 border-b-2 py-2.5 text-center text-sm font-medium transition-colors ${
 						item === category
 							? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
 							: "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"

@@ -85,7 +85,7 @@ function SortOption({
 }) {
 	return (
 		<label
-			className={`-mb-px flex-1 cursor-pointer border-b-2 py-2.5 text-center text-sm font-medium ${
+			className={`-mb-px flex-1 cursor-pointer border-b-2 py-2.5 text-center text-sm font-medium transition-colors ${
 				checked
 					? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
 					: "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
