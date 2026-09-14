@@ -23,6 +23,7 @@ import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
 import { ProgressNotice } from "./notice";
 import { RoundLog } from "./round-log";
 import { Typeahead } from "./typeahead";
+import { runViewTransition } from "./view-transition";
 
 const EMPTY_POOL = "Cannot start Blitz: not enough unused answers today.";
 const CATEGORIES: Array<{ value: DailyCategory; label: string }> = [
@@ -482,18 +483,25 @@ export function BlitzPage() {
 			return;
 		}
 		const endsAt = deadline;
+		let expired = false;
 		function expire() {
-			setRun((current) => {
-				if (!current || current.ended) {
-					return current;
-				}
-				return reduceBlitz({
-					state: current,
-					event: { type: "timeout" },
-					protocols,
-					applications,
-					rng: Math.random,
-				}).state;
+			if (expired) {
+				return;
+			}
+			expired = true;
+			runViewTransition(["phase"], () => {
+				setRun((current) => {
+					if (!current || current.ended) {
+						return current;
+					}
+					return reduceBlitz({
+						state: current,
+						event: { type: "timeout" },
+						protocols,
+						applications,
+						rng: Math.random,
+					}).state;
+				});
 			});
 		}
 		function tick() {
@@ -546,21 +554,23 @@ export function BlitzPage() {
 			setPoolError(EMPTY_POOL);
 			return;
 		}
-		setPoolError("");
-		setMessage("");
-		setDigits("");
-		setShakeKey(0);
-		setNewBest(false);
-		setRun(started);
-		setDialogOpen(false);
-		const ms = durationMs(mode);
-		if (ms === null) {
-			setDeadline(null);
-			setRemaining(null);
-		} else {
-			setDeadline(Date.now() + ms);
-			setRemaining(ms / 1000);
-		}
+		runViewTransition(["phase"], () => {
+			setPoolError("");
+			setMessage("");
+			setDigits("");
+			setShakeKey(0);
+			setNewBest(false);
+			setRun(started);
+			setDialogOpen(false);
+			const ms = durationMs(mode);
+			if (ms === null) {
+				setDeadline(null);
+				setRemaining(null);
+			} else {
+				setDeadline(Date.now() + ms);
+				setRemaining(ms / 1000);
+			}
+		});
 	}
 
 	function closeDialog() {
@@ -629,13 +639,20 @@ export function BlitzPage() {
 		if (encounters.length > 0 && !recordEncounters(encounters).ok) {
 			setSaveWarning(true);
 		}
-		setDigits("");
-		if (result.inverted) {
-			setMessage(invertedGuessMessage(result.inverted));
-		} else {
-			setMessage(result.guess ? defaultGuessMessage(result.guess) : "");
+		function commit() {
+			setDigits("");
+			if (result.inverted) {
+				setMessage(invertedGuessMessage(result.inverted));
+			} else {
+				setMessage(result.guess ? defaultGuessMessage(result.guess) : "");
+			}
+			setRun(result.state);
 		}
-		setRun(result.state);
+		if (result.state.ended !== null) {
+			runViewTransition(["phase"], commit);
+		} else {
+			commit();
+		}
 	}
 
 	function submitGuess() {
@@ -673,13 +690,15 @@ export function BlitzPage() {
 	}
 
 	function playAgain() {
-		setRun(null);
-		setDigits("");
-		setMessage("");
-		setPoolError("");
-		setDeadline(null);
-		setRemaining(null);
-		setNewBest(false);
+		runViewTransition(["phase"], () => {
+			setRun(null);
+			setDigits("");
+			setMessage("");
+			setPoolError("");
+			setDeadline(null);
+			setRemaining(null);
+			setNewBest(false);
+		});
 	}
 
 	if (!run) {
