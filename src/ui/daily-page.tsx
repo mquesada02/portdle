@@ -368,73 +368,75 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 	return (
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
 			<DailySwitcher category={category} />
-			<header className="mt-8 text-center">
-				<p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
-					Which port is
-				</p>
-				<h1 className="mt-1 text-3xl font-bold tracking-tight">
-					{puzzle.name}
-				</h1>
-			</header>
-			<ProgressNotice show={saveWarning} />
-			<div className="mt-6 flex justify-end font-mono text-xs text-zinc-500">
-				{board?.guesses.length ?? 0} / 6
-			</div>
-			<div className="mt-2 space-y-2">
-				{(board?.guesses ?? []).map((guess) => (
-					<Row
-						key={`${guess.port}-${guess.result}`}
-						guess={guess}
+			<div className="[view-transition-name:switcher-content]">
+				<header className="mt-8 text-center">
+					<p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+						Which port is
+					</p>
+					<h1 className="mt-1 text-3xl font-bold tracking-tight">
+						{puzzle.name}
+					</h1>
+				</header>
+				<ProgressNotice show={saveWarning} />
+				<div className="mt-6 flex justify-end font-mono text-xs text-zinc-500">
+					{board?.guesses.length ?? 0} / 6
+				</div>
+				<div className="mt-2 space-y-2">
+					{(board?.guesses ?? []).map((guess) => (
+						<Row
+							key={`${guess.port}-${guess.result}`}
+							guess={guess}
+							length={length}
+							catalog={catalog}
+							answerPort={puzzle.port}
+						/>
+					))}
+					{frozen ? null : (
+						<RowShell>
+							<DigitSlots
+								length={length}
+								value={digits}
+								disabled={false}
+								onChange={setDigits}
+								onSubmit={submitGuess}
+								shakeKey={shakeKey}
+							/>
+						</RowShell>
+					)}
+				</div>
+				{frozen ? null : (
+					<TrackerStrip
+						guesses={board?.guesses ?? []}
 						length={length}
-						catalog={catalog}
 						answerPort={puzzle.port}
 					/>
-				))}
-				{frozen ? null : (
-					<RowShell>
-						<DigitSlots
-							length={length}
-							value={digits}
-							disabled={false}
-							onChange={setDigits}
-							onSubmit={submitGuess}
-							shakeKey={shakeKey}
-						/>
-					</RowShell>
 				)}
-			</div>
-			{frozen ? null : (
-				<TrackerStrip
-					guesses={board?.guesses ?? []}
-					length={length}
-					answerPort={puzzle.port}
-				/>
-			)}
-			<p
-				aria-live="polite"
-				className="mt-3 min-h-5 text-center text-sm text-zinc-600 dark:text-zinc-400"
-			>
-				{message}
-			</p>
-			{frozen ? null : (
-				<button
-					type="button"
-					onClick={submitGuess}
-					className="mt-3 w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+				<p
+					aria-live="polite"
+					className="mt-3 min-h-5 text-center text-sm text-zinc-600 dark:text-zinc-400"
 				>
-					Submit
-				</button>
-			)}
-			{frozen && board ? (
-				<DailyReveal
-					category={category}
-					puzzle={puzzle}
-					board={board}
-					stats={stats}
-					utcToday={utcToday}
-					finishedThisSession={finishedThisSession}
-				/>
-			) : null}
+					{message}
+				</p>
+				{frozen ? null : (
+					<button
+						type="button"
+						onClick={submitGuess}
+						className="mt-3 w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+					>
+						Submit
+					</button>
+				)}
+				{frozen && board ? (
+					<DailyReveal
+						category={category}
+						puzzle={puzzle}
+						board={board}
+						stats={stats}
+						utcToday={utcToday}
+						finishedThisSession={finishedThisSession}
+					/>
+				) : null}
+			</div>
 		</main>
 	);
 }
