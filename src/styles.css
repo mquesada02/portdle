@@ -55,166 +55,169 @@
 	}
 }
 
-.animate-pop {
-	animation: pop 150ms ease-out both;
-}
+@layer components {
+	.animate-pop {
+		animation: pop 150ms ease-out both;
+	}
 
-.animate-shake {
-	animation: shake 300ms ease-in-out;
-}
+	.animate-shake {
+		animation: shake 300ms ease-in-out;
+	}
 
-.animate-draw {
-	transform-origin: center;
-	animation: draw 300ms ease-out both;
-}
+	.animate-draw {
+		transform-origin: center;
+		animation: draw 300ms ease-out both;
+	}
 
-.animate-rise {
-	animation: rise 300ms ease-out 250ms both;
-}
+	.animate-rise {
+		animation: rise 300ms ease-out 250ms both;
+	}
 
-/* View transitions (Spec 3: motion polish, issue #87). Screen changes
-   (issue #89). Keyed on the router's transition types (src/router.tsx),
-   never on route paths. */
-::view-transition-group(root),
-::view-transition-old(root),
-::view-transition-new(root) {
-	animation: none;
-}
-::view-transition-old(root),
-::view-transition-new(root) {
-	mix-blend-mode: normal;
-}
+	/* View transitions (Spec 3: motion polish, issue #87). Screen changes
+	   (issue #89). Keyed on the router's transition types (src/router.tsx),
+	   never on route paths. */
+	::view-transition-group(root),
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation: none;
+	}
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		mix-blend-mode: normal;
+	}
 
-/* Shared with the phase type (issue #93: Blitz state changes) through a type
-   list on this parent rule, per Spec 3's Stylesheet and lint decision. */
-:root:active-view-transition-type(screen, phase) {
+	/* Shared with the phase type (issue #93: Blitz state changes) through a type
+	   list on this parent rule, per Spec 3's Stylesheet and lint decision. */
+	:root:active-view-transition-type(screen, phase) {
+		/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+		&::view-transition-group(screen) {
+			animation: none;
+		}
+		/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+		&::view-transition-old(screen) {
+			animation: fade-out 100ms ease-out both;
+		}
+		/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+		&::view-transition-new(screen) {
+			animation: rise 150ms ease-out both;
+		}
+	}
+
 	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-	&::view-transition-group(screen) {
+	:root:active-view-transition-type(switcher)::view-transition-group(screen) {
 		animation: none;
 	}
 	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-	&::view-transition-old(screen) {
-		animation: fade-out 100ms ease-out both;
+	:root:active-view-transition-type(switcher)::view-transition-old(screen),
+	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+	:root:active-view-transition-type(switcher)::view-transition-new(screen) {
+		animation: none;
+		mix-blend-mode: normal;
+	}
+
+	/* --- #94: reorder region and screen-type Codex cards --- */
+
+	:root:active-view-transition-type(reorder)::view-transition-group(*),
+	:root:active-view-transition-type(reorder)::view-transition-old(*),
+	:root:active-view-transition-type(reorder)::view-transition-new(*) {
+		animation-duration: 200ms;
+	}
+
+	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+	:root:active-view-transition-type(reorder)::view-transition-group(screen) {
+		animation: none;
 	}
 	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-	&::view-transition-new(screen) {
+	:root:active-view-transition-type(reorder)::view-transition-old(screen),
+	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+	:root:active-view-transition-type(reorder)::view-transition-new(screen) {
+		animation: none;
+		mix-blend-mode: normal;
+	}
+
+	:root:active-view-transition-type(screen)::view-transition-group(*) {
+		animation: none;
+	}
+	:root:active-view-transition-type(screen)::view-transition-old(*),
+	:root:active-view-transition-type(screen)::view-transition-new(*) {
+		animation: none;
+		mix-blend-mode: normal;
+	}
+	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+	:root:active-view-transition-type(screen)::view-transition-old(screen),
+	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+	:root:active-view-transition-type(screen)::view-transition-new(screen) {
+		mix-blend-mode: plus-lighter;
+	}
+
+	/* --- #92: switcher-content region --- */
+
+	:root:active-view-transition-type(screen)::view-transition-group(
+		switcher-content
+	) {
+		animation: none;
+	}
+	:root:active-view-transition-type(screen)::view-transition-old(
+		switcher-content
+	),
+	:root:active-view-transition-type(screen)::view-transition-new(
+		switcher-content
+	) {
+		animation: none;
+		mix-blend-mode: normal;
+	}
+
+	:root:active-view-transition-type(switcher)::view-transition-group(
+		switcher-content
+	) {
+		animation: none;
+	}
+	:root:active-view-transition-type(switcher)::view-transition-old(
+		switcher-content
+	) {
+		animation: fade-out 100ms ease-out both;
+	}
+	:root:active-view-transition-type(switcher)::view-transition-new(
+		switcher-content
+	) {
 		animation: rise 150ms ease-out both;
 	}
-}
 
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(switcher)::view-transition-group(screen) {
-	animation: none;
-}
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(switcher)::view-transition-old(screen),
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(switcher)::view-transition-new(screen) {
-	animation: none;
-	mix-blend-mode: normal;
-}
-
-/* --- #94: reorder region and screen-type Codex cards --- */
-
-:root:active-view-transition-type(reorder)::view-transition-group(*),
-:root:active-view-transition-type(reorder)::view-transition-old(*),
-:root:active-view-transition-type(reorder)::view-transition-new(*) {
-	animation-duration: 200ms;
-}
-
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(reorder)::view-transition-group(screen) {
-	animation: none;
-}
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(reorder)::view-transition-old(screen),
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(reorder)::view-transition-new(screen) {
-	animation: none;
-	mix-blend-mode: normal;
-}
-
-:root:active-view-transition-type(screen)::view-transition-group(*) {
-	animation: none;
-}
-:root:active-view-transition-type(screen)::view-transition-old(*),
-:root:active-view-transition-type(screen)::view-transition-new(*) {
-	animation: none;
-	mix-blend-mode: normal;
-}
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(screen)::view-transition-old(screen),
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(screen)::view-transition-new(screen) {
-	mix-blend-mode: plus-lighter;
-}
-
-/* --- #92: switcher-content region --- */
-
-:root:active-view-transition-type(screen)::view-transition-group(
-	switcher-content
-) {
-	animation: none;
-}
-:root:active-view-transition-type(screen)::view-transition-old(
-	switcher-content
-),
-:root:active-view-transition-type(screen)::view-transition-new(
-	switcher-content
-) {
-	animation: none;
-	mix-blend-mode: normal;
-}
-
-:root:active-view-transition-type(switcher)::view-transition-group(
-	switcher-content
-) {
-	animation: none;
-}
-:root:active-view-transition-type(switcher)::view-transition-old(
-	switcher-content
-) {
-	animation: fade-out 100ms ease-out both;
-}
-:root:active-view-transition-type(switcher)::view-transition-new(
-	switcher-content
-) {
-	animation: rise 150ms ease-out both;
-}
-
-/* Miss popover open/close (see docs/superpowers/specs/2026-09-14-t90-popover-motion.md) */
-@keyframes popover-in {
-	from {
-		opacity: 0;
-		scale: 95%;
+	/* Miss popover open/close (see docs/superpowers/specs/2026-09-14-t90-popover-motion.md) */
+	@keyframes popover-in {
+		from {
+			opacity: 0;
+			scale: 95%;
+		}
+		to {
+			opacity: 1;
+			scale: 100%;
+		}
 	}
-	to {
-		opacity: 1;
-		scale: 100%;
-	}
-}
 
-@keyframes popover-out {
-	from {
-		opacity: 1;
+	@keyframes popover-out {
+		from {
+			opacity: 1;
+		}
+		to {
+			opacity: 0;
+		}
 	}
-	to {
-		opacity: 0;
+
+	.animate-popover-in {
+		animation: popover-in 120ms ease-out both;
 	}
-}
 
-.animate-popover-in {
-	animation: popover-in 120ms ease-out both;
-}
-
-.animate-popover-out {
-	animation: popover-out 80ms ease-out both;
+	.animate-popover-out {
+		animation: popover-out 80ms ease-out both;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
-	*::after {
+	*::after,
+	*::backdrop {
 		animation: none;
 		transition: none;
 	}
@@ -230,65 +233,52 @@
 	}
 }
 
-/* --- #91: dialogs and Rounds disclosures --- */
+@layer components {
+	/* --- #91: dialogs and Rounds disclosures --- */
 
-dialog {
-	opacity: 0;
-	scale: 95%;
-	transition:
-		opacity 100ms ease-out,
-		scale 100ms ease-out,
-		display 100ms allow-discrete,
-		overlay 100ms allow-discrete;
-}
-
-dialog[open] {
-	opacity: 1;
-	scale: 100%;
-	transition-duration: 150ms;
-}
-
-@starting-style {
-	dialog[open] {
+	dialog {
 		opacity: 0;
 		scale: 95%;
+		transition:
+			opacity 100ms ease-out,
+			scale 100ms ease-out,
+			display 100ms allow-discrete,
+			overlay 100ms allow-discrete;
 	}
-}
 
-dialog::backdrop {
-	opacity: 0;
-	transition:
-		opacity 100ms ease-out,
-		display 100ms allow-discrete,
-		overlay 100ms allow-discrete;
-}
+	dialog[open] {
+		opacity: 1;
+		scale: 100%;
+		transition-duration: 150ms;
+	}
 
-dialog[open]::backdrop {
-	opacity: 1;
-	transition-duration: 150ms;
-}
+	@starting-style {
+		dialog[open] {
+			opacity: 0;
+			scale: 95%;
+		}
+	}
 
-@starting-style {
-	dialog[open]::backdrop {
+	dialog::backdrop {
 		opacity: 0;
+		transition:
+			opacity 100ms ease-out,
+			display 100ms allow-discrete,
+			overlay 100ms allow-discrete;
 	}
-}
 
-details[open] > ul {
-	animation: rise 150ms ease-out both;
-}
+	dialog[open]::backdrop {
+		opacity: 1;
+		transition-duration: 150ms;
+	}
 
-/* The universal reduced-motion rule above does not reach these rules: its
-   `*, *::before, *::after` selector list is never more specific than the
-   element/attribute selectors above (and for `dialog[open]`/`details[open]`
-   it is strictly lower), and it never matches `::backdrop` at all. This
-   scoped rule, placed after them, wins the cascade for exactly these new
-   selectors without touching the universal rule. */
-@media (prefers-reduced-motion: reduce) {
-	dialog,
-	dialog::backdrop,
+	@starting-style {
+		dialog[open]::backdrop {
+			opacity: 0;
+		}
+	}
+
 	details[open] > ul {
-		animation: none;
-		transition: none;
+		animation: rise 150ms ease-out both;
 	}
 }
