@@ -13,7 +13,11 @@ import protocolsJson from "../catalogs/protocols.json";
 import type { CatalogEntry, CodexMap } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { UTC_TODAY } from "../test/dailies";
-import { memoryStore, stubMatchMedia } from "../test/helpers";
+import {
+	memoryStore,
+	stubMatchMedia,
+	stubViewTransitions,
+} from "../test/helpers";
 import { App } from "./app";
 
 const protocols = protocolsJson as CatalogEntry[];
@@ -27,9 +31,12 @@ if (!ftpSource) {
 }
 
 async function renderCodex(
-	options: { persist?: ReturnType<typeof createPersist> } = {},
+	options: {
+		persist?: ReturnType<typeof createPersist>;
+		reducedMotion?: boolean;
+	} = {},
 ) {
-	stubMatchMedia();
+	stubMatchMedia(false, options.reducedMotion ?? false);
 	const persist = options.persist ?? createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/codex"] });
@@ -168,6 +175,31 @@ test("Sort toggle reorders by port and persists across a remount; Name restores 
 	expect(restored.findIndex((text) => text.startsWith("DNS"))).toBeLessThan(
 		restored.findIndex((text) => text.startsWith("SMTP")),
 	);
+});
+
+test("changing the sort starts a view transition with the reorder type", async () => {
+	const user = userEvent.setup();
+	await renderCodex();
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("radio", { name: "Port" }));
+		expect(calls).toEqual([["reorder"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("with reduced motion stubbed to match, changing the sort starts no view transition", async () => {
+	const user = userEvent.setup();
+	const persist = await renderCodex({ reducedMotion: true });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("radio", { name: "Port" }));
+		expect(persist.readCodexSort()).toBe("port");
+		expect(calls).toEqual([]);
+	} finally {
+		restore();
+	}
 });
 
 test("a fresh card renders on mount and every stored record's fresh reads false once mounted; state is unchanged by the visit", async () => {

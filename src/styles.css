@@ -114,6 +114,41 @@
 	mix-blend-mode: normal;
 }
 
+/* --- #94: reorder region and screen-type Codex cards --- */
+
+:root:active-view-transition-type(reorder)::view-transition-group(*),
+:root:active-view-transition-type(reorder)::view-transition-old(*),
+:root:active-view-transition-type(reorder)::view-transition-new(*) {
+	animation-duration: 200ms;
+}
+
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(reorder)::view-transition-group(screen) {
+	animation: none;
+}
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(reorder)::view-transition-old(screen),
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(reorder)::view-transition-new(screen) {
+	animation: none;
+	mix-blend-mode: normal;
+}
+
+:root:active-view-transition-type(screen)::view-transition-group(*) {
+	animation: none;
+}
+:root:active-view-transition-type(screen)::view-transition-old(*),
+:root:active-view-transition-type(screen)::view-transition-new(*) {
+	animation: none;
+	mix-blend-mode: normal;
+}
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(screen)::view-transition-old(screen),
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(screen)::view-transition-new(screen) {
+	mix-blend-mode: plus-lighter;
+}
+
 /* --- #92: switcher-content region --- */
 
 :root:active-view-transition-type(screen)::view-transition-group(
