@@ -168,7 +168,7 @@ export function Shell() {
 									activeOptions={{ exact: true }}
 									activeProps={{}}
 									aria-current={isActive ? "page" : undefined}
-									className={`flex flex-col items-center gap-0.5 px-3 py-2 text-[11px] font-medium md:flex-row md:rounded-full md:px-3 md:py-1.5 md:text-sm ${
+									className={`flex flex-col items-center gap-0.5 px-3 py-2 text-[11px] font-medium transition-colors md:flex-row md:rounded-full md:px-3 md:py-1.5 md:text-sm ${
 										isActive
 											? "text-zinc-900 dark:text-zinc-100 md:bg-zinc-200 md:dark:bg-zinc-800"
 											: "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
