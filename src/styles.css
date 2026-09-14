@@ -66,6 +66,35 @@
 	animation: rise 300ms ease-out 250ms both;
 }
 
+/* Miss popover open/close (see docs/superpowers/specs/2026-09-14-t90-popover-motion.md) */
+@keyframes popover-in {
+	from {
+		opacity: 0;
+		scale: 95%;
+	}
+	to {
+		opacity: 1;
+		scale: 100%;
+	}
+}
+
+@keyframes popover-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+.animate-popover-in {
+	animation: popover-in 120ms ease-out both;
+}
+
+.animate-popover-out {
+	animation: popover-out 80ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

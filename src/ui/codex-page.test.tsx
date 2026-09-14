@@ -4,6 +4,7 @@ import {
 	fireEvent,
 	render,
 	screen,
+	waitForElementToBeRemoved,
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -94,7 +95,7 @@ test("clicking a seen card opens a note with its description and sources; Enter 
 	const source = within(panel).getByRole("link", { name: ftpSource.label });
 	expect(source.getAttribute("href")).toBe(ftpSource.url);
 	fireEvent.click(card);
-	expect(screen.queryByRole("note")).toBeNull();
+	await waitForElementToBeRemoved(() => screen.queryByRole("note"));
 
 	card.focus();
 	expect(document.activeElement).toBe(card);
@@ -102,7 +103,7 @@ test("clicking a seen card opens a note with its description and sources; Enter 
 	await user.keyboard("{Enter}");
 	expect(screen.getByRole("note")).toBeTruthy();
 	await user.keyboard("{Escape}");
-	expect(screen.queryByRole("note")).toBeNull();
+	await waitForElementToBeRemoved(() => screen.queryByRole("note"));
 });
 
 test("Sort toggle reorders by port and persists across a remount; Name restores the default order; an unseen card keeps its position", async () => {

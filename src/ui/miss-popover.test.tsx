@@ -5,6 +5,7 @@ import {
 	fireEvent,
 	render,
 	screen,
+	waitForElementToBeRemoved,
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -102,6 +103,9 @@ test("moving off and letting the grace timer elapse closes the popover", async (
 	await act(async () => {
 		await vi.advanceTimersByTimeAsync(150);
 	});
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(80);
+	});
 	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
 
@@ -119,6 +123,9 @@ test("clicking the trigger toggles a pinned-open state that persists independent
 	});
 	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.click(trigger);
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(80);
+	});
 	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
 
@@ -130,7 +137,7 @@ test("focusing the trigger with the keyboard opens the popover and blur closes i
 	fireEvent.focus(trigger);
 	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.blur(trigger);
-	expect(screen.queryByText(ftpDescription)).toBeNull();
+	await waitForElementToBeRemoved(() => screen.queryByText(ftpDescription));
 });
 
 test("Escape closes an open popover", async () => {
@@ -141,7 +148,7 @@ test("Escape closes an open popover", async () => {
 	fireEvent.click(trigger);
 	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.keyDown(window, { key: "Escape" });
-	expect(screen.queryByText(ftpDescription)).toBeNull();
+	await waitForElementToBeRemoved(() => screen.queryByText(ftpDescription));
 });
 
 test("a pointer-down outside the trigger and panel closes it", async () => {
@@ -152,7 +159,7 @@ test("a pointer-down outside the trigger and panel closes it", async () => {
 	fireEvent.click(trigger);
 	expect(screen.getByText(ftpDescription)).toBeTruthy();
 	fireEvent.pointerDown(document.body);
-	expect(screen.queryByText(ftpDescription)).toBeNull();
+	await waitForElementToBeRemoved(() => screen.queryByText(ftpDescription));
 });
 
 test("an entry with no sources shows no sources block", () => {
@@ -204,6 +211,7 @@ test("grid placement with a custom trigger drops focus-opens; Enter toggles it a
 			)}
 		/>,
 	);
+	stubMatchMedia();
 	const trigger = screen.getByRole("button", { name: "Custom Trigger Button" });
 	await user.tab();
 	expect(document.activeElement).toBe(trigger);
@@ -211,7 +219,7 @@ test("grid placement with a custom trigger drops focus-opens; Enter toggles it a
 	await user.keyboard("{Enter}");
 	expect(screen.getByText(entry.description)).toBeTruthy();
 	await user.keyboard("{Escape}");
-	expect(screen.queryByText(entry.description)).toBeNull();
+	await waitForElementToBeRemoved(() => screen.queryByText(entry.description));
 });
 
 test("a miss that matches nothing renders plain text with no trigger and no popover", async () => {
@@ -222,4 +230,28 @@ test("a miss that matches nothing renders plain text with no trigger and no popo
 	expect(
 		screen.queryByRole("button", { name: "Not in this catalog." }),
 	).toBeNull();
+});
+
+test("reopening the popover while it's closing cancels the exit and keeps it shown", async () => {
+	const user = userEvent.setup();
+	await renderDaily();
+	await missOn(user, 21);
+	const trigger = screen.getByRole("button", { name: "FTP" });
+	fireEvent.mouseEnter(trigger);
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
+	fireEvent.keyDown(window, { key: "Escape" });
+	fireEvent.mouseEnter(trigger);
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
+});
+
+test("under reduced motion, Escape removes the popover at once", async () => {
+	const user = userEvent.setup();
+	await renderDaily();
+	await missOn(user, 21);
+	const trigger = screen.getByRole("button", { name: "FTP" });
+	fireEvent.click(trigger);
+	expect(screen.getByText(ftpDescription)).toBeTruthy();
+	stubMatchMedia(false, true);
+	fireEvent.keyDown(window, { key: "Escape" });
+	expect(screen.queryByText(ftpDescription)).toBeNull();
 });
