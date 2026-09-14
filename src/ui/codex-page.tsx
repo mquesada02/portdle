@@ -11,6 +11,7 @@ import type { CatalogKind, CodexSort, CodexState } from "../engine/types";
 import { transportLabel } from "./daily-reveal";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
+import { runViewTransition } from "./view-transition";
 
 const KIND_LABEL: Record<CatalogKind, string> = {
 	protocol: "Protocols",
@@ -201,11 +202,13 @@ export function CodexPage() {
 	}, []);
 
 	function handleSortChange(next: CodexSort) {
-		setSort(next);
 		const result = persist.writeCodexSort(next);
 		if (!result.ok) {
 			setSaveWarning(true);
 		}
+		runViewTransition(["reorder"], () => {
+			setSort(next);
+		});
 	}
 
 	const groups = codexGroups({ map, protocols, applications, sort });
@@ -241,7 +244,11 @@ export function CodexPage() {
 								className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4"
 							>
 								{group.cards.map((card, index) => (
-									<li key={card.entry.id} className="grid">
+									<li
+										key={card.entry.id}
+										className="grid"
+										style={{ viewTransitionName: `codex-${card.entry.id}` }}
+									>
 										{card.status === "unseen" ? (
 											<UnseenCard />
 										) : (
