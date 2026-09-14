@@ -85,17 +85,21 @@
 	mix-blend-mode: normal;
 }
 
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(screen)::view-transition-group(screen) {
-	animation: none;
-}
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(screen)::view-transition-old(screen) {
-	animation: fade-out 100ms ease-out both;
-}
-/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-:root:active-view-transition-type(screen)::view-transition-new(screen) {
-	animation: rise 150ms ease-out both;
+/* Shared with the phase type (issue #93: Blitz state changes) through a type
+   list on this parent rule, per Spec 3's Stylesheet and lint decision. */
+:root:active-view-transition-type(screen, phase) {
+	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+	&::view-transition-group(screen) {
+		animation: none;
+	}
+	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+	&::view-transition-old(screen) {
+		animation: fade-out 100ms ease-out both;
+	}
+	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+	&::view-transition-new(screen) {
+		animation: rise 150ms ease-out both;
+	}
 }
 
 /* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */

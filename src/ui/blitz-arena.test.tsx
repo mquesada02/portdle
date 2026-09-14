@@ -6,7 +6,12 @@ import { applications, protocols } from "../catalogs/production";
 import type { BlitzRun, CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { padToAnswer, UTC_TODAY } from "../test/dailies";
-import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
+import {
+	memoryStore,
+	portDigits,
+	stubMatchMedia,
+	stubViewTransitions,
+} from "../test/helpers";
 import { App } from "./app";
 
 const catalog = [...protocols, ...applications];
@@ -21,9 +26,12 @@ function currentEntry(): CatalogEntry {
 }
 
 async function renderBlitz(
-	options: { persist?: ReturnType<typeof createPersist> } = {},
+	options: {
+		persist?: ReturnType<typeof createPersist>;
+		reducedMotion?: boolean;
+	} = {},
 ) {
-	stubMatchMedia();
+	stubMatchMedia(false, options.reducedMotion ?? false);
 	const persist = options.persist ?? createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({
@@ -285,4 +293,85 @@ test("Play again lands on the arena whose Last run shows the just-finished score
 		throw new Error("missing Last run section");
 	}
 	expect(within(lastRunSection).getByText("Score 1")).toBeTruthy();
+});
+
+test("starting a run from the arena starts a view transition with the phase type", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("button", { name: "New run" }));
+		await user.click(screen.getByRole("button", { name: "Start" }));
+		expect(calls).toEqual([["phase"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("opening and closing the setup dialog starts no view transition", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("button", { name: "New run" }));
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		expect(calls).toEqual([]);
+	} finally {
+		restore();
+	}
+});
+
+test("Play again starts a view transition with the phase type", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const first = currentEntry();
+	await user.type(portDigits(), padToAnswer(first.port, first));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("button", { name: "Play again" }));
+		expect(calls).toEqual([["phase"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("with reduced motion stubbed to match, starting a run from the arena starts no view transition", async () => {
+	const user = userEvent.setup();
+	await renderBlitz({ reducedMotion: true });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("button", { name: "New run" }));
+		await user.click(screen.getByRole("button", { name: "Start" }));
+		expect(screen.getByText("Round 1")).toBeTruthy();
+		expect(calls).toEqual([]);
+	} finally {
+		restore();
+	}
+});
+
+test("with reduced motion stubbed to match, Play again starts no view transition", async () => {
+	const user = userEvent.setup();
+	await renderBlitz({ reducedMotion: true });
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const first = currentEntry();
+	await user.type(portDigits(), padToAnswer(first.port, first));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("button", { name: "Play again" }));
+		expect(
+			screen.getByRole("heading", { level: 1, name: "Blitz" }),
+		).toBeTruthy();
+		expect(calls).toEqual([]);
+	} finally {
+		restore();
+	}
 });
