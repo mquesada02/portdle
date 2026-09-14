@@ -246,7 +246,7 @@ export function CodexPage() {
 								{group.cards.map((card, index) => (
 									<li
 										key={card.entry.id}
-										className="grid"
+										className="grid has-[[role=note]]:z-10"
 										style={{ viewTransitionName: `codex-${card.entry.id}` }}
 									>
 										{card.status === "unseen" ? (
