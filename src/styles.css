@@ -49,12 +49,6 @@
 	}
 }
 
-@keyframes fade-out {
-	to {
-		opacity: 0;
-	}
-}
-
 @layer components {
 	.animate-pop {
 		animation: pop 150ms ease-out both;
@@ -95,7 +89,8 @@
 		}
 		/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
 		&::view-transition-old(screen) {
-			animation: fade-out 100ms ease-out both;
+			animation: none;
+			opacity: 0;
 		}
 		/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
 		&::view-transition-new(screen) {
@@ -175,7 +170,8 @@
 	:root:active-view-transition-type(switcher)::view-transition-old(
 		switcher-content
 	) {
-		animation: fade-out 100ms ease-out both;
+		animation: none;
+		opacity: 0;
 	}
 	:root:active-view-transition-type(switcher)::view-transition-new(
 		switcher-content
