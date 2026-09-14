@@ -44,3 +44,40 @@ export function stubMatchMedia(
 		dispatchEvent: () => false,
 	});
 }
+
+// Installs a fake View Transitions API the way src/router.tsx's
+// defaultViewTransition (and src/ui/view-transition.ts's runViewTransition)
+// expect it: document.startViewTransition present, and window.CSS.supports
+// reporting support for the selector the router and the helper both check
+// before passing types through. Records each call's resolved types.
+export function stubViewTransitions() {
+	const calls: string[][] = [];
+	const originalStart = document.startViewTransition;
+	const originalSupports = window.CSS.supports;
+	document.startViewTransition = ((
+		options: ViewTransitionUpdateCallback | StartViewTransitionOptions,
+	) => {
+		if (typeof options === "function") {
+			calls.push([]);
+			options();
+		} else {
+			calls.push(options.types ?? []);
+			options.update?.();
+		}
+		return {
+			ready: Promise.resolve(),
+			updateCallbackDone: Promise.resolve(),
+			finished: Promise.resolve(),
+			skipTransition: () => {},
+			types: new Set<string>(),
+		} as ViewTransition;
+	}) as Document["startViewTransition"];
+	window.CSS.supports = (() => true) as typeof window.CSS.supports;
+	return {
+		calls,
+		restore() {
+			document.startViewTransition = originalStart;
+			window.CSS.supports = originalSupports;
+		},
+	};
+}
