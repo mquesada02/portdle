@@ -110,6 +110,39 @@
 	mix-blend-mode: normal;
 }
 
+/* --- #92: switcher-content region --- */
+
+:root:active-view-transition-type(screen)::view-transition-group(
+	switcher-content
+) {
+	animation: none;
+}
+:root:active-view-transition-type(screen)::view-transition-old(
+	switcher-content
+),
+:root:active-view-transition-type(screen)::view-transition-new(
+	switcher-content
+) {
+	animation: none;
+	mix-blend-mode: normal;
+}
+
+:root:active-view-transition-type(switcher)::view-transition-group(
+	switcher-content
+) {
+	animation: none;
+}
+:root:active-view-transition-type(switcher)::view-transition-old(
+	switcher-content
+) {
+	animation: fade-out 100ms ease-out both;
+}
+:root:active-view-transition-type(switcher)::view-transition-new(
+	switcher-content
+) {
+	animation: rise 150ms ease-out both;
+}
+
 /* Miss popover open/close (see docs/superpowers/specs/2026-09-14-t90-popover-motion.md) */
 @keyframes popover-in {
 	from {

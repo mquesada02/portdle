@@ -56,7 +56,10 @@ function DailySegmentList({
 	});
 	const groups = groupByDate(rows);
 	return (
-		<ul className="mt-4 space-y-6" aria-labelledby={HEADING_ID}>
+		<ul
+			className="mt-4 space-y-6 [view-transition-name:switcher-content]"
+			aria-labelledby={HEADING_ID}
+		>
 			{groups.map((group) => {
 				const dateHeadingId = `history-date-${group.date}`;
 				return (
@@ -105,7 +108,10 @@ function BlitzRunRow({ run }: { run: BlitzRun }) {
 function BlitzSegmentList({ runs }: { runs: BlitzRun[] }) {
 	const groups = groupBlitzRunsByDate(runs, localDate);
 	return (
-		<ul className="mt-4 space-y-6" aria-labelledby={HEADING_ID}>
+		<ul
+			className="mt-4 space-y-6 [view-transition-name:switcher-content]"
+			aria-labelledby={HEADING_ID}
+		>
 			{groups.length === 0 ? (
 				<li>No runs yet.</li>
 			) : (
