@@ -74,3 +74,66 @@
 		transition: none;
 	}
 }
+
+/* --- #91: dialogs and Rounds disclosures --- */
+
+dialog {
+	opacity: 0;
+	scale: 95%;
+	transition:
+		opacity 100ms ease-out,
+		scale 100ms ease-out,
+		display 100ms allow-discrete,
+		overlay 100ms allow-discrete;
+}
+
+dialog[open] {
+	opacity: 1;
+	scale: 100%;
+	transition-duration: 150ms;
+}
+
+@starting-style {
+	dialog[open] {
+		opacity: 0;
+		scale: 95%;
+	}
+}
+
+dialog::backdrop {
+	opacity: 0;
+	transition:
+		opacity 100ms ease-out,
+		display 100ms allow-discrete,
+		overlay 100ms allow-discrete;
+}
+
+dialog[open]::backdrop {
+	opacity: 1;
+	transition-duration: 150ms;
+}
+
+@starting-style {
+	dialog[open]::backdrop {
+		opacity: 0;
+	}
+}
+
+details[open] > ul {
+	animation: rise 150ms ease-out both;
+}
+
+/* The universal reduced-motion rule above does not reach these rules: its
+   `*, *::before, *::after` selector list is never more specific than the
+   element/attribute selectors above (and for `dialog[open]`/`details[open]`
+   it is strictly lower), and it never matches `::backdrop` at all. This
+   scoped rule, placed after them, wins the cascade for exactly these new
+   selectors without touching the universal rule. */
+@media (prefers-reduced-motion: reduce) {
+	dialog,
+	dialog::backdrop,
+	details[open] > ul {
+		animation: none;
+		transition: none;
+	}
+}
