@@ -26,11 +26,15 @@ export function portDigits(): HTMLElement {
 	return first;
 }
 
-export function stubMatchMedia(prefersDark = false, reducedMotion = false) {
+export function stubMatchMedia(
+	prefersDark = false,
+	prefersReducedMotion = false,
+) {
 	window.matchMedia = (query: string) => ({
 		matches:
 			(prefersDark && query.includes("prefers-color-scheme: dark")) ||
-			(reducedMotion && query.includes("prefers-reduced-motion: reduce")),
+			(prefersReducedMotion &&
+				query.includes("prefers-reduced-motion: reduce")),
 		media: query,
 		onchange: null,
 		addListener: () => {},

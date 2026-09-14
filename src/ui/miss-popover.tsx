@@ -15,7 +15,21 @@ import type { CatalogEntry } from "../engine/types";
 // `trigger` render prop, which receives the interaction wiring
 // (`triggerProps`) to spread onto it; MissPopover still owns all the state
 // above. Left unset, `trigger` defaults to today's Daily text-link button.
+//
+// Open/close motion (see docs/superpowers/specs/2026-09-14-t90-popover-motion.md):
+// a `phase` state layered on top of `open` keeps the
+// panel mounted through its exit. `open` becoming true sets phase to
+// "entering" (fresh open, plays the enter keyframe) or, if a reopen lands
+// during an exit, back to "open" (cancels the exit at once, no replay).
+// `open` becoming false sets phase to "exiting" (plays the exit keyframe,
+// listening for its animation-end event or an 80ms fallback, whichever comes
+// first) unless reduced motion is on, in which case it unmounts immediately,
+// exactly as before. A further close while already exiting, or while phase is
+// null, is a no-op. This stays in MissPopover rather than a separate hook:
+// the phase state only ever has this one caller, and it reads `open` and
+// drives the same panel the pin/hover/focus state already renders.
 type MissPopoverPlacement = "inline" | "grid";
+type MissPopoverPhase = "entering" | "open" | "exiting";
 
 export type MissPopoverTriggerProps = {
 	"aria-expanded": boolean;
@@ -51,6 +65,8 @@ export function MissPopover({
 	const [hovered, setHovered] = useState(false);
 	const [focused, setFocused] = useState(false);
 	const leaveTimer = useRef<number | null>(null);
+	const panelRef = useRef<HTMLSpanElement | null>(null);
+	const [phase, setPhase] = useState<MissPopoverPhase | null>(null);
 	const focusOpens = placement === "inline";
 	const open = pinned || hovered || (focusOpens && focused);
 
@@ -100,10 +116,57 @@ export function MissPopover({
 		};
 	}, [open, id]);
 
+	useEffect(() => {
+		if (open) {
+			setPhase((current) => (current === null ? "entering" : "open"));
+			return;
+		}
+		setPhase((current) => {
+			if (current === null || current === "exiting") {
+				return current;
+			}
+			const reduced = window.matchMedia(
+				"(prefers-reduced-motion: reduce)",
+			).matches;
+			return reduced ? null : "exiting";
+		});
+	}, [open]);
+
+	useEffect(() => {
+		if (phase !== "exiting") {
+			return;
+		}
+		const panel = panelRef.current;
+		const fallback = window.setTimeout(() => setPhase(null), 80);
+		function onAnimationEnd() {
+			window.clearTimeout(fallback);
+			setPhase(null);
+		}
+		panel?.addEventListener("animationend", onAnimationEnd);
+		return () => {
+			window.clearTimeout(fallback);
+			panel?.removeEventListener("animationend", onAnimationEnd);
+		};
+	}, [phase]);
+
 	const positionClasses =
 		placement === "grid"
 			? `top-full mt-1 ${lastColumn ? "right-0" : "left-0"}`
 			: "top-full left-1/2 mt-1 -translate-x-1/2 sm:right-0 sm:left-auto sm:translate-x-0";
+
+	const originClasses =
+		placement === "grid"
+			? lastColumn
+				? "origin-top-right"
+				: "origin-top-left"
+			: "origin-top sm:origin-top-right";
+
+	const motionClasses =
+		phase === "entering"
+			? "animate-popover-in"
+			: phase === "exiting"
+				? "animate-popover-out pointer-events-none"
+				: "";
 
 	const triggerProps: MissPopoverTriggerProps = {
 		"aria-expanded": open,
@@ -118,13 +181,15 @@ export function MissPopover({
 	return (
 		<span className="relative inline-block" data-popover={id}>
 			{trigger(triggerProps)}
-			{open ? (
+			{phase !== null ? (
 				<span
+					ref={panelRef}
 					id={`${id}-panel`}
 					role="note"
+					inert={phase === "exiting"}
 					onMouseEnter={enter}
 					onMouseLeave={leave}
-					className={`absolute z-30 block w-64 rounded-lg border border-zinc-200 bg-white p-3 text-left text-xs shadow-lg dark:border-zinc-800 dark:bg-zinc-900 ${positionClasses}`}
+					className={`absolute z-30 block w-64 rounded-lg border border-zinc-200 bg-white p-3 text-left text-xs shadow-lg dark:border-zinc-800 dark:bg-zinc-900 ${positionClasses} ${originClasses} ${motionClasses}`}
 				>
 					<span className="flex items-baseline justify-between gap-2">
 						<span className="font-semibold text-zinc-900 dark:text-zinc-100">
