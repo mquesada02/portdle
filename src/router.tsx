@@ -10,6 +10,7 @@ import { BlitzPage } from "./ui/blitz-page";
 import { CodexPage } from "./ui/codex-page";
 import { DailyPage } from "./ui/daily-page";
 import { HistoryPage } from "./ui/history-page";
+import { screenFor } from "./ui/nav";
 import { Shell } from "./ui/shell";
 
 export type RouterContext = {
@@ -105,5 +106,21 @@ export function createAppRouter(options: {
 		basepath: "/portdle",
 		history: options.history,
 		defaultPendingMinMs: 0,
+		defaultViewTransition: {
+			types: ({ fromLocation, toLocation }) => {
+				// No prior location means the initial page load, not a nav or
+				// wordmark tap; play no transition rather than animate a fresh
+				// page's first paint.
+				if (!fromLocation) {
+					return false;
+				}
+				if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+					return false;
+				}
+				const fromScreen = screenFor(fromLocation.pathname);
+				const toScreen = screenFor(toLocation.pathname);
+				return fromScreen === toScreen ? ["switcher"] : ["screen"];
+			},
+		},
 	});
 }

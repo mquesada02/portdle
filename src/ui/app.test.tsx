@@ -11,9 +11,10 @@ async function renderApp(options: {
 	persist?: ReturnType<typeof createPersist>;
 	path?: string;
 	prefersDark?: boolean;
+	reducedMotion?: boolean;
 	utcToday?: string;
 }) {
-	stubMatchMedia(options.prefersDark ?? false);
+	stubMatchMedia(options.prefersDark ?? false, options.reducedMotion ?? false);
 	const persist = options.persist ?? createPersist(memoryStore());
 	const path = options.path ?? "/portdle/";
 	const history = createMemoryHistory({ initialEntries: [path] });
@@ -26,6 +27,42 @@ async function renderApp(options: {
 	);
 	await screen.findByRole("navigation", { name: "Main" });
 	return persist;
+}
+
+// Installs a fake View Transitions API the way src/router.tsx's
+// defaultViewTransition expects it: document.startViewTransition present,
+// and window.CSS.supports reporting support for the selector the router
+// checks before passing types through. Records each call's resolved types.
+function stubViewTransitions() {
+	const calls: string[][] = [];
+	const originalStart = document.startViewTransition;
+	const originalSupports = window.CSS.supports;
+	document.startViewTransition = ((
+		options: ViewTransitionUpdateCallback | StartViewTransitionOptions,
+	) => {
+		if (typeof options === "function") {
+			calls.push([]);
+			options();
+		} else {
+			calls.push(options.types ?? []);
+			options.update?.();
+		}
+		return {
+			ready: Promise.resolve(),
+			updateCallbackDone: Promise.resolve(),
+			finished: Promise.resolve(),
+			skipTransition: () => {},
+			types: new Set<string>(),
+		} as ViewTransition;
+	}) as Document["startViewTransition"];
+	window.CSS.supports = (() => true) as typeof window.CSS.supports;
+	return {
+		calls,
+		restore() {
+			document.startViewTransition = originalStart;
+			window.CSS.supports = originalSupports;
+		},
+	};
 }
 
 afterEach(() => {
@@ -215,4 +252,151 @@ test("How-to lists seven rules, the last naming the Codex", async () => {
 	expect(rules.at(-1)?.textContent).toBe(
 		"The Codex collects every service you meet.",
 	);
+});
+
+test("navigating by nav link and by switcher lands on the right screen with no API present", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist });
+	const mainNav = screen.getByRole("navigation", { name: "Main" });
+
+	await user.click(within(mainNav).getByRole("link", { name: "Blitz" }));
+	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
+
+	await user.click(within(mainNav).getByRole("link", { name: "Daily" }));
+	const dailySwitcher = screen.getByRole("navigation", {
+		name: "Daily switcher",
+	});
+	await user.click(
+		within(dailySwitcher).getByRole("link", { name: "Protocols" }),
+	);
+	expect(
+		screen.getByRole("heading", { level: 1, name: dailyOn("protocols").name }),
+	).toBeTruthy();
+
+	await user.click(within(mainNav).getByRole("link", { name: "History" }));
+	const historySwitcher = screen.getByRole("navigation", {
+		name: "History switcher",
+	});
+	await user.click(
+		within(historySwitcher).getByRole("link", { name: "Blitz" }),
+	);
+	expect(
+		within(historySwitcher).getByRole("link", {
+			name: "Blitz",
+			current: "page",
+		}),
+	).toBeTruthy();
+});
+
+test("the router starts no view transition on the initial render, even with the API available", async () => {
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await renderApp({});
+		expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
+		expect(calls).toEqual([]);
+	} finally {
+		restore();
+	}
+});
+
+test("a nav tap from Daily to Blitz starts a view transition with the screen type", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		const mainNav = screen.getByRole("navigation", { name: "Main" });
+		await user.click(within(mainNav).getByRole("link", { name: "Blitz" }));
+		expect(calls).toEqual([["screen"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("a wordmark tap from Blitz starts a view transition with the screen type", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist, path: "/portdle/blitz" });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("link", { name: "Portdle" }));
+		expect(calls).toEqual([["screen"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("a nav tap to Daily from Protocols starts a view transition with the switcher type", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist, path: "/portdle/protocols" });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		const mainNav = screen.getByRole("navigation", { name: "Main" });
+		await user.click(within(mainNav).getByRole("link", { name: "Daily" }));
+		expect(calls).toEqual([["switcher"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("a Daily switcher tap starts a view transition with the switcher type", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		const dailySwitcher = screen.getByRole("navigation", {
+			name: "Daily switcher",
+		});
+		await user.click(
+			within(dailySwitcher).getByRole("link", { name: "Protocols" }),
+		);
+		expect(calls).toEqual([["switcher"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("a History switcher tap starts a view transition with the switcher type", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist, path: "/portdle/history" });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		const historySwitcher = screen.getByRole("navigation", {
+			name: "History switcher",
+		});
+		await user.click(
+			within(historySwitcher).getByRole("link", { name: "Blitz" }),
+		);
+		expect(calls).toEqual([["switcher"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("with reduced motion stubbed to match, a nav tap starts no view transition", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist, reducedMotion: true });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		const mainNav = screen.getByRole("navigation", { name: "Main" });
+		await user.click(within(mainNav).getByRole("link", { name: "Blitz" }));
+		expect(
+			screen.getByRole("heading", { level: 1, name: "Blitz" }),
+		).toBeTruthy();
+		expect(calls).toEqual([]);
+	} finally {
+		restore();
+	}
 });

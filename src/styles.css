@@ -49,6 +49,12 @@
 	}
 }
 
+@keyframes fade-out {
+	to {
+		opacity: 0;
+	}
+}
+
 .animate-pop {
 	animation: pop 150ms ease-out both;
 }
@@ -64,6 +70,44 @@
 
 .animate-rise {
 	animation: rise 300ms ease-out 250ms both;
+}
+
+/* View transitions (Spec 3: motion polish, issue #87). Screen changes
+   (issue #89). Keyed on the router's transition types (src/router.tsx),
+   never on route paths. */
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+	mix-blend-mode: normal;
+}
+
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(screen)::view-transition-group(screen) {
+	animation: none;
+}
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(screen)::view-transition-old(screen) {
+	animation: fade-out 100ms ease-out both;
+}
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(screen)::view-transition-new(screen) {
+	animation: rise 150ms ease-out both;
+}
+
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(switcher)::view-transition-group(screen) {
+	animation: none;
+}
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(switcher)::view-transition-old(screen),
+/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
+:root:active-view-transition-type(switcher)::view-transition-new(screen) {
+	animation: none;
+	mix-blend-mode: normal;
 }
 
 /* Miss popover open/close (see docs/superpowers/specs/2026-09-14-t90-popover-motion.md) */
@@ -101,6 +145,16 @@
 	*::after {
 		animation: none;
 		transition: none;
+	}
+
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none;
+	}
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		mix-blend-mode: normal;
 	}
 }
 
