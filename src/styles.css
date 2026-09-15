@@ -130,37 +130,32 @@
 		mix-blend-mode: normal;
 	}
 
-	:root:active-view-transition-type(screen)::view-transition-group(*) {
-		animation: none;
-	}
-	:root:active-view-transition-type(screen)::view-transition-old(*),
-	:root:active-view-transition-type(screen)::view-transition-new(*) {
-		animation: none;
-		mix-blend-mode: normal;
-	}
-	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-	:root:active-view-transition-type(screen)::view-transition-old(screen),
-	/* biome-ignore lint/correctness/noUnknownTypeSelector: "screen" names a view-transition region, not an element type */
-	:root:active-view-transition-type(screen)::view-transition-new(screen) {
-		mix-blend-mode: plus-lighter;
+	/* Every other named region present on a screen or phase change (the
+	   switcher-content region, the Codex cards) follows the screen: its old
+	   snapshot is hidden at once and its new snapshot rises with the same
+	   keyframe, so a region that exists only on the old screen does not
+	   linger and one that exists only on the new screen arrives with it. The
+	   root's own rules below keep the shell still. */
+	:root:active-view-transition-type(screen, phase) {
+		&::view-transition-group(*) {
+			animation: none;
+		}
+		&::view-transition-old(*) {
+			animation: none;
+			opacity: 0;
+		}
+		&::view-transition-new(*) {
+			animation: rise 150ms ease-out both;
+		}
+		&::view-transition-old(root) {
+			opacity: 1;
+		}
+		&::view-transition-new(root) {
+			animation: none;
+		}
 	}
 
 	/* --- #92: switcher-content region --- */
-
-	:root:active-view-transition-type(screen)::view-transition-group(
-		switcher-content
-	) {
-		animation: none;
-	}
-	:root:active-view-transition-type(screen)::view-transition-old(
-		switcher-content
-	),
-	:root:active-view-transition-type(screen)::view-transition-new(
-		switcher-content
-	) {
-		animation: none;
-		mix-blend-mode: normal;
-	}
 
 	:root:active-view-transition-type(switcher)::view-transition-group(
 		switcher-content
