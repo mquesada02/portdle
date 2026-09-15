@@ -168,33 +168,35 @@ function OrientationCard({
 	caption: string;
 	onChange: () => void;
 }) {
+	const titleId = `${name}-${title.toLowerCase()}-title`;
 	const captionId = `${name}-${title.toLowerCase()}-caption`;
 	return (
-		<div
-			className={`rounded-lg border px-3 py-2 transition-colors ${
+		<label
+			className={`block cursor-pointer rounded-lg border px-3 py-2 transition-colors ${
 				checked
 					? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-800"
 					: "border-zinc-300 dark:border-zinc-700"
 			}`}
 		>
-			<label className="flex cursor-pointer items-center gap-2">
-				<input
-					type="radio"
-					name={name}
-					checked={checked}
-					onChange={onChange}
-					aria-describedby={captionId}
-					className="sr-only"
-				/>
-				<span className="text-sm font-semibold">{title}</span>
-			</label>
+			<input
+				type="radio"
+				name={name}
+				checked={checked}
+				onChange={onChange}
+				aria-labelledby={titleId}
+				aria-describedby={captionId}
+				className="sr-only"
+			/>
+			<span id={titleId} className="block text-sm font-semibold">
+				{title}
+			</span>
 			<span
 				id={captionId}
 				className="mt-0.5 block text-xs text-zinc-600 dark:text-zinc-400"
 			>
 				{caption}
 			</span>
-		</div>
+		</label>
 	);
 }
 
