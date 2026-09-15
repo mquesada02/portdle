@@ -149,6 +149,7 @@ function SeenCard({
 				<button
 					type="button"
 					{...triggerProps}
+					style={{ viewTransitionName: `codex-${entry.id}` }}
 					className={`block w-full rounded-lg border border-l-4 border-zinc-200 bg-white p-3 text-left shadow-sm dark:border-zinc-800 dark:bg-zinc-900 ${STATE_ACCENT[status]} ${fresh ? "animate-pop" : ""}`}
 				>
 					<span className="block truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
@@ -169,11 +170,12 @@ function SeenCard({
 	);
 }
 
-function UnseenCard() {
+function UnseenCard({ id }: { id: string }) {
 	return (
 		<div
 			role="img"
 			aria-label="Unseen"
+			style={{ viewTransitionName: `codex-${id}` }}
 			className="flex h-full min-h-[5.5rem] items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40"
 		>
 			<span className="font-mono text-2xl font-bold text-zinc-300 dark:text-zinc-700">
@@ -244,13 +246,9 @@ export function CodexPage() {
 								className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4"
 							>
 								{group.cards.map((card, index) => (
-									<li
-										key={card.entry.id}
-										className="grid has-[[role=note]]:z-10"
-										style={{ viewTransitionName: `codex-${card.entry.id}` }}
-									>
+									<li key={card.entry.id} className="grid">
 										{card.status === "unseen" ? (
-											<UnseenCard />
+											<UnseenCard id={card.entry.id} />
 										) : (
 											<SeenCard
 												card={card}
