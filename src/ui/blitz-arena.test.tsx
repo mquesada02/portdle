@@ -194,6 +194,17 @@ test("New run opens a dialog named New run preselecting the seeded run's setup",
 	).toBe(true);
 });
 
+test("clicking an orientation card's caption selects that orientation", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByText("See a port, pick the service."));
+	expect(
+		(screen.getByRole("radio", { name: "Inverted" }) as HTMLInputElement)
+			.checked,
+	).toBe(true);
+});
+
 test("New run preselects Mixed Default Sprint when there is no run", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
