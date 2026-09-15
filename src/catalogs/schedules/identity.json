@@ -66,5 +66,13 @@
 	"cra": {
 		"name": "Create React App",
 		"port": 3000
+	},
+	"radius": {
+		"name": "RADIUS",
+		"port": 1812
+	},
+	"kubernetes": {
+		"name": "Kubernetes API",
+		"port": 6443
 	}
 }
