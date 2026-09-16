@@ -74,5 +74,13 @@
 	"kubernetes": {
 		"name": "Kubernetes API",
 		"port": 6443
+	},
+	"elasticsearch": {
+		"name": "Elasticsearch",
+		"port": 9200
+	},
+	"minio": {
+		"name": "MinIO",
+		"port": 9000
 	}
 }
