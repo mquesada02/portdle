@@ -82,5 +82,13 @@
 	"minio": {
 		"name": "MinIO",
 		"port": 9000
+	},
+	"submission": {
+		"name": "Submission",
+		"port": 587
+	},
+	"consul": {
+		"name": "Consul",
+		"port": 8500
 	}
 }
