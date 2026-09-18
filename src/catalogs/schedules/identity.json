@@ -90,5 +90,13 @@
 	"consul": {
 		"name": "Consul",
 		"port": 8500
+	},
+	"ntp": {
+		"name": "NTP",
+		"port": 123
+	},
+	"kibana": {
+		"name": "Kibana",
+		"port": 5601
 	}
 }
