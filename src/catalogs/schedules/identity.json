@@ -98,5 +98,17 @@
 	"kibana": {
 		"name": "Kibana",
 		"port": 5601
+	},
+	"grafana": {
+		"name": "Grafana",
+		"port": 3000
+	},
+	"https": {
+		"name": "HTTPS",
+		"port": 443
+	},
+	"jenkins": {
+		"name": "Jenkins",
+		"port": 8080
 	}
 }
