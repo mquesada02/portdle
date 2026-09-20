@@ -110,5 +110,17 @@
 	"jenkins": {
 		"name": "Jenkins",
 		"port": 8080
+	},
+	"rsync": {
+		"name": "Rsync",
+		"port": 873
+	},
+	"snmp": {
+		"name": "SNMP",
+		"port": 161
+	},
+	"vite": {
+		"name": "Vite",
+		"port": 5173
 	}
 }
