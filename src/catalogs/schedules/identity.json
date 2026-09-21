@@ -122,5 +122,9 @@
 	"vite": {
 		"name": "Vite",
 		"port": 5173
+	},
+	"openvpn": {
+		"name": "OpenVPN",
+		"port": 1194
 	}
 }
