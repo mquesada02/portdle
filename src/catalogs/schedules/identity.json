@@ -126,5 +126,9 @@
 	"openvpn": {
 		"name": "OpenVPN",
 		"port": 1194
+	},
+	"wireguard": {
+		"name": "WireGuard",
+		"port": 51820
 	}
 }
