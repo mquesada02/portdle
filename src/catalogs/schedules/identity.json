@@ -130,5 +130,9 @@
 	"wireguard": {
 		"name": "WireGuard",
 		"port": 51820
+	},
+	"irc": {
+		"name": "IRC",
+		"port": 6667
 	}
 }
