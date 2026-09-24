@@ -134,5 +134,13 @@
 	"irc": {
 		"name": "IRC",
 		"port": 6667
+	},
+	"postgresql": {
+		"name": "PostgreSQL",
+		"port": 5432
+	},
+	"rabbitmq-ui": {
+		"name": "RabbitMQ UI",
+		"port": 15672
 	}
 }
