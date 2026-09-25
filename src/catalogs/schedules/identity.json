@@ -142,5 +142,13 @@
 	"rabbitmq-ui": {
 		"name": "RabbitMQ UI",
 		"port": 15672
+	},
+	"tftp": {
+		"name": "TFTP",
+		"port": 69
+	},
+	"flask": {
+		"name": "Flask",
+		"port": 5000
 	}
 }
