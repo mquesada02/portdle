@@ -150,5 +150,13 @@
 	"flask": {
 		"name": "Flask",
 		"port": 5000
+	},
+	"pop3": {
+		"name": "POP3",
+		"port": 110
+	},
+	"iscsi": {
+		"name": "iSCSI",
+		"port": 3260
 	}
 }
