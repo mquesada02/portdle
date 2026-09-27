@@ -158,5 +158,17 @@
 	"iscsi": {
 		"name": "iSCSI",
 		"port": 3260
+	},
+	"dns": {
+		"name": "DNS",
+		"port": 53
+	},
+	"ldaps": {
+		"name": "LDAPS",
+		"port": 636
+	},
+	"django": {
+		"name": "Django",
+		"port": 8000
 	}
 }

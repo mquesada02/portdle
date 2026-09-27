@@ -30,6 +30,36 @@
 				"tomcat",
 				"vault"
 			]
+		},
+		{
+			"startDay": 25,
+			"order": [
+				"kubernetes",
+				"grafana",
+				"rails",
+				"docker",
+				"nuxt",
+				"elasticsearch",
+				"angular",
+				"tomcat",
+				"minio",
+				"pgadmin",
+				"vite",
+				"astro",
+				"storybook",
+				"django",
+				"rabbitmq-ui",
+				"prometheus",
+				"webpack",
+				"kibana",
+				"svelte",
+				"next",
+				"flask",
+				"jenkins",
+				"cra",
+				"consul",
+				"vault"
+			]
 		}
 	]
 }
