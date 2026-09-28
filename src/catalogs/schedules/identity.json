@@ -170,5 +170,17 @@
 	"django": {
 		"name": "Django",
 		"port": 8000
+	},
+	"smtps": {
+		"name": "SMTPS",
+		"port": 465
+	},
+	"sip": {
+		"name": "SIP",
+		"port": 5060
+	},
+	"next": {
+		"name": "Next.js",
+		"port": 3000
 	}
 }
