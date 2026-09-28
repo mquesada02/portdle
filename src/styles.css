@@ -69,14 +69,28 @@
 
 	/* View transitions (Spec 3: motion polish, issue #87). Screen changes
 	   (issue #89). Keyed on the router's transition types (src/router.tsx),
-	   never on route paths. */
-	::view-transition-group(root),
-	::view-transition-old(root),
-	::view-transition-new(root) {
+	   never on route paths. The root and the two shell regions, the top bar
+	   (shell-top) and the nav (shell-nav), hold still under every type. Naming
+	   the shell gives it groups of its own, lifted above every content group
+	   with a z-index: the pseudo-tree appends regions that exist only in the
+	   new state after the ones present in both, so without the lift the
+	   arriving Codex cards would sit above the shell and draw over the tab bar
+	   (issue #112). */
+	::view-transition-group(root) {
 		animation: none;
 	}
+	::view-transition-group(shell-top),
+	::view-transition-group(shell-nav) {
+		animation: none;
+		z-index: 1;
+	}
 	::view-transition-old(root),
-	::view-transition-new(root) {
+	::view-transition-new(root),
+	::view-transition-old(shell-top),
+	::view-transition-new(shell-top),
+	::view-transition-old(shell-nav),
+	::view-transition-new(shell-nav) {
+		animation: none;
 		mix-blend-mode: normal;
 	}
 
@@ -135,7 +149,7 @@
 	   snapshot is hidden at once and its new snapshot rises with the same
 	   keyframe, so a region that exists only on the old screen does not
 	   linger and one that exists only on the new screen arrives with it. The
-	   root's own rules below keep the shell still. */
+	   rules for the root and the shell regions below keep the shell still. */
 	:root:active-view-transition-type(screen, phase) {
 		&::view-transition-group(*) {
 			animation: none;
@@ -147,10 +161,14 @@
 		&::view-transition-new(*) {
 			animation: rise 150ms ease-out both;
 		}
-		&::view-transition-old(root) {
+		&::view-transition-old(root),
+		&::view-transition-old(shell-top),
+		&::view-transition-old(shell-nav) {
 			opacity: 1;
 		}
-		&::view-transition-new(root) {
+		&::view-transition-new(root),
+		&::view-transition-new(shell-top),
+		&::view-transition-new(shell-nav) {
 			animation: none;
 		}
 	}

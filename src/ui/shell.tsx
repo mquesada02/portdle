@@ -118,7 +118,7 @@ export function Shell() {
 
 	return (
 		<div className="min-h-dvh bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-			<header className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+			<header className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 [view-transition-name:shell-top] dark:border-zinc-800 dark:bg-zinc-950">
 				<div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 px-4">
 					<a
 						{...wordmarkLinkProps}
@@ -134,7 +134,7 @@ export function Shell() {
 					</a>
 					<nav
 						aria-label="Main"
-						className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] md:static md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
+						className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] [view-transition-name:shell-nav] md:static md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
 					>
 						{NAV.map((item) => {
 							const isActive = (item.matchPaths as readonly string[]).includes(
