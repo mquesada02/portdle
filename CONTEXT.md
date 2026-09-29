@@ -141,13 +141,13 @@ _Avoid_: Save, backup
 The theme, the How-to seen flag, and the Codex sort, each synced on its own.
 
 **Display name**:
-The name other players see on Leaderboards. 1 to 30 characters with at least one non-whitespace character; letters in any script, digits, spaces, apostrophes, hyphens, and periods.
+The name other players see on Leaderboards. 1 to 30 characters with at least one letter or digit; letters in any script, digits, spaces, apostrophes, hyphens, and periods.
 
 **Seeded display name**:
 The Display name an Account starts with, taken from the provider (the GitHub username or the Google account name) and normalized.
 
 **Normalized display name**:
-A provider name with disallowed characters stripped and cut to 30 characters, or "Player" if nothing is left.
+A provider name with disallowed characters stripped and cut to 30 characters, or "Player" if no letter or digit is left.
 _Avoid_: Sanitized, validated (reserved for the player-typed reject path)
 
 **Name confirm**:
