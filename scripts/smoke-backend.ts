@@ -7,6 +7,8 @@
 // deployed site (key `sb-<project>-auth-token`, field `access_token`). It
 // expires in about an hour, so copy it fresh.
 
+import { validateDisplayName } from "../src/engine/display-name.ts";
+
 const url = process.env.SUPABASE_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY;
 const token = process.env.SUPABASE_ACCESS_TOKEN;
@@ -72,8 +74,6 @@ function refusedByCheck(r: Reply): boolean {
 	return r.status === 400 && r.code === "23514";
 }
 
-// Approximates the database rule (`[[:alnum:]]`); they differ for combining marks.
-const NAME_RULE = /^[\p{L}\p{N} '.-]{1,30}$/u;
 const randomId = crypto.randomUUID();
 
 const anon = await rest("GET", "accounts?select=id");
@@ -111,7 +111,8 @@ console.log(
 );
 report(
 	"display name follows the rule and the confirmed flag is a boolean",
-	NAME_RULE.test(original) && typeof row.name_confirmed === "boolean",
+	validateDisplayName(original) === null &&
+		typeof row.name_confirmed === "boolean",
 	row,
 );
 
