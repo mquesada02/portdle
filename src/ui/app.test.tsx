@@ -94,6 +94,19 @@ test("How to play button reopens How-to after it is dismissed", async () => {
 	expect(screen.getByRole("dialog", { name: "How-to" })).toBeTruthy();
 });
 
+test("How-to links to the privacy page in a new tab and keeps Got it first", async () => {
+	await renderApp({});
+	const dialog = screen.getByRole("dialog", { name: "How-to" });
+	const link = within(dialog).getByRole("link", { name: "Privacy" });
+	expect(link.getAttribute("href")).toBe(
+		`${import.meta.env.BASE_URL}privacy.html`,
+	);
+	expect(link.getAttribute("target")).toBe("_blank");
+	expect(link.getAttribute("rel")).toContain("noopener");
+	const first = dialog.querySelector("button, a[href]");
+	expect(first?.textContent).toBe("Got it");
+});
+
 test("theme control toggles opposite of effective theme onto html.dark", async () => {
 	const user = userEvent.setup();
 	const persist = await renderApp({ prefersDark: false });

@@ -54,7 +54,8 @@ export function HowTo({
 				<div className="mt-4 text-zinc-700 dark:text-zinc-300">
 					<HowToRulesList />
 				</div>
-				<div className="mt-5 flex justify-end">
+				{/* Got it comes first in the DOM so it keeps the initial focus. */}
+				<div className="mt-5 flex flex-row-reverse items-center justify-between">
 					<button
 						type="button"
 						onClick={onDismiss}
@@ -62,6 +63,14 @@ export function HowTo({
 					>
 						Got it
 					</button>
+					<a
+						href={`${import.meta.env.BASE_URL}privacy.html`}
+						target="_blank"
+						rel="noopener"
+						className="text-sm text-zinc-500 underline dark:text-zinc-400"
+					>
+						Privacy
+					</a>
 				</div>
 			</div>
 		</dialog>
