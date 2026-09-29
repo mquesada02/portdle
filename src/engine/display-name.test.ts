@@ -1,5 +1,20 @@
 import { expect, test } from "vitest";
 import { validateDisplayName } from "./display-name";
+import { DISPLAY_NAME_CASES } from "./display-name-cases";
+
+test.each(DISPLAY_NAME_CASES.filter((c) => c.valid))(
+	"accepts the shared case: $label",
+	({ name }) => {
+		expect(validateDisplayName(name)).toBeNull();
+	},
+);
+
+test.each(DISPLAY_NAME_CASES.filter((c) => !c.valid))(
+	"rejects the shared case: $label",
+	({ name }) => {
+		expect(validateDisplayName(name)).toEqual(expect.any(String));
+	},
+);
 
 test.each([
 	"Ada",
@@ -22,7 +37,6 @@ test.each([
 	["a tab", "Ada\tL"],
 	["a newline", "Ada\nL"],
 	["U+0000", "Ada\u0000"],
-	["a superscript digit", "Ada²"],
 ])("rejects %s with a message", (_label, name) => {
 	expect(validateDisplayName(name)).toEqual(expect.any(String));
 });
