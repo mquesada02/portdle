@@ -287,3 +287,88 @@ test("preload starts loading the library and swallows a failure", async () => {
 	expect(() => failing.remote.preload()).not.toThrow();
 	await Promise.resolve();
 });
+
+type UpdateCall = {
+	table: string;
+	fields: unknown;
+	column: string;
+	id: unknown;
+};
+
+function updatingClient(
+	result: { data: unknown; error: Error | null },
+	calls: UpdateCall[],
+	getSession?: FakeClient["auth"]["getSession"],
+): FakeClient {
+	const client = fakeClient(getSession ? { getSession } : {});
+	client.from = (table: string) => ({
+		update: (fields: unknown) => ({
+			eq: (column: string, id: unknown) => ({
+				select: async () => {
+					calls.push({ table, fields, column, id });
+					return result;
+				},
+			}),
+		}),
+	});
+	return client;
+}
+
+test("confirmDisplayName sets the name and the confirmed flag on the own row", async () => {
+	const calls: UpdateCall[] = [];
+	const { remote } = makeRemote({
+		client: updatingClient({ data: [{ id: "u1" }], error: null }, calls),
+	});
+	await remote.confirmDisplayName("Ada");
+	expect(calls).toEqual([
+		{
+			table: "accounts",
+			fields: { display_name: "Ada", name_confirmed: true },
+			column: "id",
+			id: "u1",
+		},
+	]);
+});
+
+test("changeDisplayName sets only the name", async () => {
+	const calls: UpdateCall[] = [];
+	const { remote } = makeRemote({
+		client: updatingClient({ data: [{ id: "u1" }], error: null }, calls),
+	});
+	await remote.changeDisplayName("Grace");
+	expect(calls).toEqual([
+		{
+			table: "accounts",
+			fields: { display_name: "Grace" },
+			column: "id",
+			id: "u1",
+		},
+	]);
+});
+
+test("a name update throws on a library error, an empty result, or no session", async () => {
+	const failing = makeRemote({
+		client: updatingClient(
+			{ data: null, error: new Error("check failed") },
+			[],
+		),
+	});
+	await expect(failing.remote.changeDisplayName("Ada")).rejects.toThrow(
+		"check failed",
+	);
+	const empty = makeRemote({
+		client: updatingClient({ data: [], error: null }, []),
+	});
+	await expect(empty.remote.confirmDisplayName("Ada")).rejects.toThrow();
+	const signedOut = makeRemote({
+		client: updatingClient(
+			{ data: [{ id: "u1" }], error: null },
+			[],
+			async () => ({
+				data: { session: null },
+				error: null,
+			}),
+		),
+	});
+	await expect(signedOut.remote.changeDisplayName("Ada")).rejects.toThrow();
+});

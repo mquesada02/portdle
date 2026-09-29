@@ -113,6 +113,29 @@ export function createSupabaseRemote(
 		return client;
 	}
 
+	async function updateOwnAccount(fields: {
+		display_name: string;
+		name_confirmed?: true;
+	}): Promise<void> {
+		const supabase = await loadClient();
+		const { data, error } = await supabase.auth.getSession();
+		if (error || !data.session) {
+			throw error ?? new Error("Not signed in");
+		}
+		const { data: rows, error: updateError } = await supabase
+			.from("accounts")
+			.update(fields)
+			.eq("id", data.session.user.id)
+			.select("id");
+		if (updateError) {
+			throw updateError;
+		}
+		// A policy that filters the row updates nothing without an error.
+		if (!rows || rows.length === 0) {
+			throw new Error("Account row not updated");
+		}
+	}
+
 	return {
 		async getAccount(): Promise<AccountState> {
 			if (!redirect.hasResult && !hasStoredSignIn(url, storage)) {
@@ -163,6 +186,9 @@ export function createSupabaseRemote(
 				throw error;
 			}
 		},
+		confirmDisplayName: (name) =>
+			updateOwnAccount({ display_name: name, name_confirmed: true }),
+		changeDisplayName: (name) => updateOwnAccount({ display_name: name }),
 		redirectError: () => pendingError,
 		clearRedirectError() {
 			pendingError = null;
