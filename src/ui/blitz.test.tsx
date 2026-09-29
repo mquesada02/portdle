@@ -277,7 +277,7 @@ test("three misses end with Out of lives and write a new best", async () => {
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
 	expect(screen.getAllByText(/HTTP|chargen/).length).toBeGreaterThan(0);
-	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(0);
+	expect(persist.readBlitzBests()["mixed|default|sprint"]?.score).toBe(0);
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
 });
 
@@ -345,7 +345,7 @@ test("play again returns to arena and a lower score does not lower best", async 
 	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	await missThree(user);
-	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(5);
+	expect(persist.readBlitzBests()["mixed|default|sprint"]?.score).toBe(5);
 	expect(screen.queryByText("New best")).toBeNull();
 	await user.click(screen.getByRole("button", { name: "Play again" }));
 	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
@@ -366,7 +366,7 @@ test("run beating a stored best shows New best on the end card", async () => {
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
 	expect(screen.getByText("New best")).toBeTruthy();
-	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBe(1);
+	expect(persist.readBlitzBests()["mixed|default|sprint"]?.score).toBe(1);
 });
 
 test("refresh during a run returns to arena without restoring score", async () => {
@@ -580,7 +580,7 @@ test("inverted finish writes inverted best not default or daily", async () => {
 		await pickListed(pick.name);
 	}
 	expect(screen.getByText("Out of lives")).toBeTruthy();
-	expect(persist.readBlitzBests()["mixed|inverted|sprint"]).toBe(0);
+	expect(persist.readBlitzBests()["mixed|inverted|sprint"]?.score).toBe(0);
 	expect(persist.readBlitzBests()["mixed|default|sprint"]).toBeUndefined();
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
 });

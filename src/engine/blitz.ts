@@ -3,6 +3,7 @@ import { getDaily } from "./daily";
 import { evaluateDefaultGuess } from "./guess";
 import { evaluateInvertedGuess } from "./inverted";
 import type {
+	BlitzBest,
 	BlitzEvent,
 	BlitzMode,
 	BlitzRun,
@@ -51,6 +52,7 @@ export function startBlitz(input: {
 	applications: CatalogEntry[];
 	schedules: Record<DailyCategory, ScheduleFile>;
 	rng: () => number;
+	now: () => number;
 }): BlitzState | { error: "empty-pool" } {
 	const catalog = catalogFor(
 		input.category,
@@ -87,6 +89,8 @@ export function startBlitz(input: {
 		startPool,
 		ended: null,
 		rounds: [],
+		startedAtMs: input.now(),
+		timeToScoreMs: 0,
 		...dealt,
 	};
 }
@@ -116,11 +120,20 @@ function buildRound(
 function afterCommitted(
 	state: BlitzState,
 	rng: () => number,
+	now: () => number,
 	round: Round,
 ): BlitzState {
 	const rounds = [...state.rounds, round];
 	if (round.outcome === "correct") {
-		return advance({ ...state, score: state.score + 1, rounds }, rng);
+		return advance(
+			{
+				...state,
+				score: state.score + 1,
+				rounds,
+				timeToScoreMs: now() - state.startedAtMs,
+			},
+			rng,
+		);
 	}
 	const lives = state.lives - 1;
 	if (lives === 0) {
@@ -135,12 +148,13 @@ export function reduceBlitz(input: {
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
 	rng: () => number;
+	now: () => number;
 }): {
 	state: BlitzState;
 	guess?: GuessResult;
 	inverted?: InvertedGuessResult;
 } {
-	const { state, event, protocols, applications, rng } = input;
+	const { state, event, protocols, applications, rng, now } = input;
 	if (state.ended !== null) {
 		return { state };
 	}
@@ -173,6 +187,7 @@ export function reduceBlitz(input: {
 			state: afterCommitted(
 				state,
 				rng,
+				now,
 				buildRound(answer, inverted.status, wrong),
 			),
 			inverted,
@@ -192,7 +207,12 @@ export function reduceBlitz(input: {
 			? { kind: "typed", port: guess.port, owner: guess.identified }
 			: null;
 	return {
-		state: afterCommitted(state, rng, buildRound(answer, guess.status, wrong)),
+		state: afterCommitted(
+			state,
+			rng,
+			now,
+			buildRound(answer, guess.status, wrong),
+		),
 		guess,
 	};
 }
@@ -214,8 +234,24 @@ export function buildRun(input: {
 		ended: state.ended,
 		endedAt: clock(),
 		score: state.score,
+		timeToScoreMs: state.timeToScoreMs,
 		rounds: state.rounds,
 	};
+}
+
+export function replacesBest(input: {
+	best: BlitzBest | undefined;
+	score: number;
+	timeToScoreMs: number;
+}): boolean {
+	const { best, score, timeToScoreMs } = input;
+	if (best === undefined || score > best.score) {
+		return true;
+	}
+	if (score < best.score) {
+		return false;
+	}
+	return best.timeToScoreMs === undefined || timeToScoreMs < best.timeToScoreMs;
 }
 
 export function prependRun(runs: BlitzRun[], run: BlitzRun): BlitzRun[] {

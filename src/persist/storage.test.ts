@@ -167,7 +167,9 @@ test("blitzBests missing is empty object and round-trips", () => {
 	expect(persist.writeBlitzBests({ "mixed|default|sprint": 4 })).toEqual({
 		ok: true,
 	});
-	expect(persist.readBlitzBests()).toEqual({ "mixed|default|sprint": 4 });
+	expect(persist.readBlitzBests()).toEqual({
+		"mixed|default|sprint": { score: 4 },
+	});
 	expect(store.data.has("portdle:v1:blitzBests")).toBe(true);
 });
 
@@ -180,9 +182,45 @@ test("inverted blitzBests round-trip without dropping default", () => {
 		}),
 	).toEqual({ ok: true });
 	expect(persist.readBlitzBests()).toEqual({
-		"mixed|default|sprint": 4,
-		"mixed|inverted|sprint": 4,
+		"mixed|default|sprint": { score: 4 },
+		"mixed|inverted|sprint": { score: 4 },
 	});
+});
+
+test("blitzBests round-trip a Best with a time and read a bare score as untimed", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	persist.writeBlitzBests({
+		"mixed|default|sprint": { score: 4, timeToScoreMs: 20000 },
+		"mixed|default|marathon": 7,
+	});
+	expect(persist.readBlitzBests()).toEqual({
+		"mixed|default|sprint": { score: 4, timeToScoreMs: 20000 },
+		"mixed|default|marathon": { score: 7 },
+	});
+	expect(store.data.get("portdle:v1:blitzBests")).toBe(
+		JSON.stringify({
+			"mixed|default|sprint": { score: 4, timeToScoreMs: 20000 },
+			"mixed|default|marathon": 7,
+		}),
+	);
+});
+
+test("a Best with a non-number time or a missing score makes blitzBests read empty", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	store.data.set(
+		"portdle:v1:blitzBests",
+		JSON.stringify({
+			"mixed|default|sprint": { score: 4, timeToScoreMs: "9" },
+		}),
+	);
+	expect(persist.readBlitzBests()).toEqual({});
+	store.data.set(
+		"portdle:v1:blitzBests",
+		JSON.stringify({ "mixed|default|sprint": { timeToScoreMs: 9 } }),
+	);
+	expect(persist.readBlitzBests()).toEqual({});
 });
 
 test("corrupt blitzBests is empty without dropping theme", () => {
@@ -248,6 +286,19 @@ test("blitzRuns missing is empty array and round-trips", () => {
 	expect(persist.writeBlitzRuns([run])).toEqual({ ok: true });
 	expect(persist.readBlitzRuns()).toEqual([run]);
 	expect(store.data.has("portdle:v1:blitzRuns")).toBe(true);
+});
+
+test("blitzRuns load with or without a time to score and reject a non-number time", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	const timed = { ...fakeRun(), timeToScoreMs: 1200 };
+	persist.writeBlitzRuns([timed, fakeRun()]);
+	expect(persist.readBlitzRuns()).toEqual([timed, fakeRun()]);
+	store.data.set(
+		"portdle:v1:blitzRuns",
+		JSON.stringify([{ ...fakeRun(), timeToScoreMs: "1200" }]),
+	);
+	expect(persist.readBlitzRuns()).toEqual([]);
 });
 
 test("corrupt JSON blitzRuns reads as no runs without dropping theme", () => {

@@ -1,5 +1,11 @@
-import { expect, test } from "vitest";
-import { buildRun, prependRun, reduceBlitz, startBlitz } from "./blitz";
+import { beforeEach, expect, test } from "vitest";
+import {
+	buildRun,
+	prependRun,
+	reduceBlitz,
+	replacesBest,
+	startBlitz,
+} from "./blitz";
 import { digitLength } from "./guess";
 import { chargen, http, telnet, vite } from "./test-fixtures";
 import type { BlitzRun, BlitzState, CatalogEntry, ScheduleFile } from "./types";
@@ -35,6 +41,12 @@ const schedules: Record<"mixed" | "protocols" | "applications", ScheduleFile> =
 	};
 
 const rng = () => 0;
+let nowMs = 0;
+const now = () => nowMs;
+
+beforeEach(() => {
+	nowMs = 0;
+});
 
 function startMixed() {
 	return startBlitz({
@@ -46,6 +58,7 @@ function startMixed() {
 		applications: entries,
 		schedules,
 		rng,
+		now,
 	});
 }
 
@@ -82,6 +95,7 @@ test("empty filtered pool returns empty-pool", () => {
 			applications: entries,
 			schedules,
 			rng,
+			now,
 		}),
 	).toEqual({ error: "empty-pool" });
 });
@@ -120,6 +134,7 @@ function reduceDefault(
 		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
+		now,
 	});
 }
 
@@ -197,6 +212,7 @@ test("timeout sets ended timeout and leaves score", () => {
 		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
+		now,
 	});
 	expect(timed.state.ended).toBe("timeout");
 	expect(timed.state.score).toBe(1);
@@ -240,6 +256,7 @@ test("reducing an already-ended state is a no-op", () => {
 		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
+		now,
 	});
 	const again = reduceDefault(ended.state, 80);
 	expect(again.state).toEqual(ended.state);
@@ -256,6 +273,7 @@ test("applications miss of a protocols-only port is unidentified", () => {
 		applications: entries,
 		schedules,
 		rng,
+		now,
 	});
 	if ("error" in started) {
 		throw new Error("empty");
@@ -266,6 +284,7 @@ test("applications miss of a protocols-only port is unidentified", () => {
 		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
+		now,
 	});
 	expect(next.guess).toEqual({ status: "miss", port: 80, identified: null });
 });
@@ -280,6 +299,7 @@ test("protocols miss of an applications-only port is unidentified", () => {
 		applications: [...entries, vite],
 		schedules,
 		rng,
+		now,
 	});
 	if ("error" in started) {
 		throw new Error("empty");
@@ -291,6 +311,7 @@ test("protocols miss of an applications-only port is unidentified", () => {
 		protocols: [http, chargen, telnet, ssh],
 		applications: [...entries, vite],
 		rng,
+		now,
 	});
 	expect(next.guess).toEqual({
 		status: "miss",
@@ -309,6 +330,7 @@ function startMixedInverted() {
 		applications: entries,
 		schedules,
 		rng,
+		now,
 	});
 }
 
@@ -325,6 +347,7 @@ function reduceInverted(
 		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
+		now,
 	});
 }
 
@@ -501,6 +524,7 @@ test("same-port inverted pick still appends a picked round", () => {
 		applications: [portA, portB],
 		schedules,
 		rng,
+		now,
 	});
 	if ("error" in started) {
 		throw new Error("empty");
@@ -516,6 +540,7 @@ test("same-port inverted pick still appends a picked round", () => {
 		protocols: [],
 		applications: [portA, portB],
 		rng,
+		now,
 	});
 	expect(next.state.rounds).toEqual([
 		{
@@ -551,6 +576,7 @@ test("timeout appends nothing to rounds", () => {
 		protocols: [http, chargen, telnet],
 		applications: entries,
 		rng,
+		now,
 	});
 	expect(timed.state.rounds).toEqual([]);
 });
@@ -591,6 +617,8 @@ function endedState(overrides: Partial<BlitzState>): BlitzState {
 		rounds: [
 			{ id: "a", name: "A", port: 4000, outcome: "correct", wrong: null },
 		],
+		startedAtMs: 0,
+		timeToScoreMs: 1500,
 		...overrides,
 	};
 }
@@ -604,6 +632,7 @@ test("buildRun snapshots the setup end reason score and rounds from a lives-ende
 		ended: "lives",
 		endedAt: "2026-09-09T12:00:00.000Z",
 		score: 2,
+		timeToScoreMs: 1500,
 		rounds: state.rounds,
 	});
 });
@@ -615,6 +644,7 @@ test("buildRun reflects a timeout-ended state and the clock's instant", () => {
 		mode: "marathon",
 		ended: "timeout",
 		score: 0,
+		timeToScoreMs: 0,
 		rounds: [],
 	});
 	expect(buildRun({ state, clock })).toEqual({
@@ -624,6 +654,7 @@ test("buildRun reflects a timeout-ended state and the clock's instant", () => {
 		ended: "timeout",
 		endedAt: "2026-09-09T12:00:00.000Z",
 		score: 0,
+		timeToScoreMs: 0,
 		rounds: [],
 	});
 });
@@ -657,4 +688,152 @@ test("prependRun keeps exactly fifty newest first dropping the oldest", () => {
 	expect(next.length).toBe(50);
 	expect(next[0]).toEqual(fakeRun("newest"));
 	expect(next.at(-1)).toEqual(fakeRun("run-48"));
+});
+
+function startTimed(
+	orientation: "default" | "inverted",
+	mode: "sprint" | "survival",
+) {
+	nowMs = 1000;
+	const started = startBlitz({
+		category: "mixed",
+		orientation,
+		mode,
+		utcToday: "2026-09-09",
+		protocols: [http, chargen, telnet],
+		applications: entries,
+		schedules,
+		rng,
+		now,
+	});
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	return started;
+}
+
+function answerPort(state: BlitzState): number {
+	const answer = [...entries, http].find(
+		(entry) => entry.id === state.currentId,
+	);
+	if (!answer) {
+		throw new Error("missing");
+	}
+	return answer.port;
+}
+
+test("a new run has time to score zero", () => {
+	const started = startTimed("default", "sprint");
+	expect(started.startedAtMs).toBe(1000);
+	expect(started.timeToScoreMs).toBe(0);
+});
+
+test("a correct default round sets time to score to the elapsed time", () => {
+	const started = startTimed("default", "sprint");
+	nowMs = 3500;
+	const next = reduceDefault(started, answerPort(started));
+	expect(next.state.timeToScoreMs).toBe(2500);
+	nowMs = 9000;
+	const second = reduceDefault(next.state, answerPort(next.state));
+	expect(second.state.timeToScoreMs).toBe(8000);
+});
+
+test("a correct inverted round in Survival sets time to score to the elapsed time", () => {
+	const started = startTimed("inverted", "survival");
+	nowMs = 1750;
+	const next = reduceInverted(started, started.currentId);
+	expect(next.state.score).toBe(1);
+	expect(next.state.timeToScoreMs).toBe(750);
+});
+
+test("a miss, an invalid guess, a duplicate guess, and a timeout keep time to score", () => {
+	const started = startTimed("default", "sprint");
+	nowMs = 2000;
+	const scored = reduceDefault(started, answerPort(started)).state;
+	nowMs = 5000;
+	const wrongPort = answerPort(scored) === 9999 ? 9998 : 9999;
+	const missed = reduceDefault(scored, wrongPort).state;
+	expect(missed.timeToScoreMs).toBe(1000);
+	const invalid = reduceDefault(missed, "1").state;
+	expect(invalid.timeToScoreMs).toBe(1000);
+	nowMs = 7000;
+	const timedOut = reduceBlitz({
+		state: missed,
+		event: { type: "timeout" },
+		protocols: [http, chargen, telnet],
+		applications: entries,
+		rng,
+		now,
+	}).state;
+	expect(timedOut.timeToScoreMs).toBe(1000);
+	expect(buildRun({ state: timedOut, clock }).timeToScoreMs).toBe(1000);
+});
+
+test("a run with no correct answer builds a stored run with time zero", () => {
+	const started = startTimed("default", "sprint");
+	nowMs = 4000;
+	const timedOut = reduceBlitz({
+		state: started,
+		event: { type: "timeout" },
+		protocols: [http, chargen, telnet],
+		applications: entries,
+		rng,
+		now,
+	}).state;
+	expect(buildRun({ state: timedOut, clock }).timeToScoreMs).toBe(0);
+});
+
+test("replacesBest follows the Best replacement rule", () => {
+	const timed = { score: 5, timeToScoreMs: 30000 };
+	const cases: Array<[string, Parameters<typeof replacesBest>[0], boolean]> = [
+		["no Best", { best: undefined, score: 1, timeToScoreMs: 5 }, true],
+		[
+			"no Best and zero score",
+			{ best: undefined, score: 0, timeToScoreMs: 0 },
+			true,
+		],
+		[
+			"higher score, slower time",
+			{ best: timed, score: 6, timeToScoreMs: 59000 },
+			true,
+		],
+		[
+			"lower score, faster time",
+			{ best: timed, score: 4, timeToScoreMs: 1 },
+			false,
+		],
+		[
+			"equal score, faster time",
+			{ best: timed, score: 5, timeToScoreMs: 29999 },
+			true,
+		],
+		[
+			"equal score, equal time",
+			{ best: timed, score: 5, timeToScoreMs: 30000 },
+			false,
+		],
+		[
+			"equal score, slower time",
+			{ best: timed, score: 5, timeToScoreMs: 30001 },
+			false,
+		],
+		[
+			"equal score against an untimed Best",
+			{ best: { score: 5 }, score: 5, timeToScoreMs: 59000 },
+			true,
+		],
+		[
+			"zero score against an untimed zero Best",
+			{ best: { score: 0 }, score: 0, timeToScoreMs: 0 },
+			true,
+		],
+		[
+			"lower score against an untimed Best",
+			{ best: { score: 5 }, score: 4, timeToScoreMs: 1 },
+			false,
+		],
+	];
+	for (const [name, input, expected] of cases) {
+		expect(replacesBest(input), name).toBe(expected);
+	}
 });

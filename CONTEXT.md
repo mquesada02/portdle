@@ -60,7 +60,7 @@ Committed JSON saying which entry is the Daily on which UTC day.
 Consecutive UTC days with a won Daily in one category.
 
 **Best**:
-The highest Blitz score stored for one category, orientation, and Blitz mode.
+The highest Blitz score stored for one category, orientation, and Blitz mode, with its optional time to score. At an equal score, the faster time to score replaces the Best.
 _Avoid_: High score, record
 
 **Source**:
@@ -84,7 +84,7 @@ The time span a Leaderboard is viewed in: All-time, Weekly (since Monday 00:00 U
 _Avoid_: Daily (reserved for the puzzle)
 
 **Time to score**:
-The milliseconds from a run's start to the commit of the last correct answer that produced its final score. Breaks ties between equal scores.
+The milliseconds from a run's start to the commit of the last correct answer that produced its final score; a run that scores zero records zero. Runs and Bests from before this change have none. Breaks ties between equal scores.
 
 **Round**:
 One prompt inside a run and the committed answer to it. An invalid guess does not make a round.

@@ -1,4 +1,5 @@
 import type {
+	BlitzBest,
 	BlitzBests,
 	BlitzMode,
 	BlitzRun,
@@ -10,6 +11,7 @@ import type {
 	Identified,
 	Orientation,
 	Round,
+	StoredBlitzBests,
 	WrongAnswer,
 } from "../engine/types";
 
@@ -156,7 +158,19 @@ function isDailyPersist(value: unknown): value is DailyPersist {
 	});
 }
 
-function isBlitzBests(value: unknown): value is BlitzBests {
+function isBlitzBest(value: unknown): value is BlitzBest {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		return false;
+	}
+	const record = value as Record<string, unknown>;
+	return (
+		typeof record.score === "number" &&
+		(record.timeToScoreMs === undefined ||
+			typeof record.timeToScoreMs === "number")
+	);
+}
+
+function isStoredBlitzBests(value: unknown): value is StoredBlitzBests {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) {
 		return false;
 	}
@@ -171,9 +185,19 @@ function isBlitzBests(value: unknown): value is BlitzBests {
 			(parts[2] === "sprint" ||
 				parts[2] === "marathon" ||
 				parts[2] === "survival") &&
-			typeof score === "number"
+			(typeof score === "number" || isBlitzBest(score))
 		);
 	});
+}
+
+function normalizeBests(stored: StoredBlitzBests): BlitzBests {
+	const bests: BlitzBests = {};
+	for (const [key, best] of Object.entries(stored) as Array<
+		[keyof BlitzBests, number | BlitzBest]
+	>) {
+		bests[key] = typeof best === "number" ? { score: best } : best;
+	}
+	return bests;
 }
 
 function isDailyCategory(value: unknown): value is DailyCategory {
@@ -231,6 +255,8 @@ function isBlitzRun(value: unknown): value is BlitzRun {
 		(record.ended === "lives" || record.ended === "timeout") &&
 		typeof record.endedAt === "string" &&
 		typeof record.score === "number" &&
+		(record.timeToScoreMs === undefined ||
+			typeof record.timeToScoreMs === "number") &&
 		Array.isArray(record.rounds) &&
 		record.rounds.every(isRound)
 	);
@@ -308,7 +334,7 @@ export type Persist = {
 	readLastSeenUtc(): string | null;
 	writeLastSeenUtc(date: string): { ok: true } | { ok: false };
 	readBlitzBests(): BlitzBests;
-	writeBlitzBests(value: BlitzBests): { ok: true } | { ok: false };
+	writeBlitzBests(value: StoredBlitzBests): { ok: true } | { ok: false };
 	readBlitzRuns(): BlitzRun[];
 	writeBlitzRuns(value: BlitzRun[]): { ok: true } | { ok: false };
 	readCodex(): CodexMap;
@@ -401,7 +427,7 @@ export function createPersist(store: KeyValueStore): Persist {
 		},
 		readBlitzBests() {
 			const value = readJson(store, BLITZ_BESTS_KEY);
-			return isBlitzBests(value) ? value : {};
+			return isStoredBlitzBests(value) ? normalizeBests(value) : {};
 		},
 		writeBlitzBests(value) {
 			return write(BLITZ_BESTS_KEY, value, {

@@ -1,12 +1,19 @@
 import { useRouteContext } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { applications, protocols, schedules } from "../catalogs/production";
-import { buildRun, prependRun, reduceBlitz, startBlitz } from "../engine/blitz";
+import {
+	buildRun,
+	prependRun,
+	reduceBlitz,
+	replacesBest,
+	startBlitz,
+} from "../engine/blitz";
 import { catalogFor, invertedBlurb } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
 import { digitLength } from "../engine/guess";
 import type {
 	BlitzBests,
+	BlitzBestsKey,
 	BlitzMode,
 	BlitzRun,
 	BlitzState,
@@ -58,9 +65,9 @@ function formatTime(seconds: number): string {
 	return `${minutes}:${secs}`;
 }
 
-function bestsKey(
-	state: BlitzState,
-): `${DailyCategory}|${Orientation}|${BlitzMode}` {
+const monotonicNow = () => performance.now();
+
+function bestsKey(state: BlitzState): BlitzBestsKey {
 	return `${state.category}|${state.orientation}|${state.mode}`;
 }
 
@@ -71,10 +78,17 @@ function recordBest(
 	const key = bestsKey(state);
 	const bests = persist.readBlitzBests();
 	const best = bests[key];
-	const beatsStored = best === undefined || state.score > best;
-	const newBest = beatsStored && state.score > 0;
-	if (beatsStored) {
-		const result = persist.writeBlitzBests({ ...bests, [key]: state.score });
+	const replaces = replacesBest({
+		best,
+		score: state.score,
+		timeToScoreMs: state.timeToScoreMs,
+	});
+	const newBest = replaces && state.score > 0;
+	if (replaces) {
+		const result = persist.writeBlitzBests({
+			...bests,
+			[key]: { score: state.score, timeToScoreMs: state.timeToScoreMs },
+		});
 		return { ok: result.ok, newBest };
 	}
 	return { ok: true, newBest };
@@ -96,13 +110,13 @@ function sortedBests(bests: BlitzBests): Array<{
 	score: number;
 }> {
 	return Object.entries(bests)
-		.map(([key, score]) => {
+		.map(([key, best]) => {
 			const [category, orientation, mode] = key.split("|") as [
 				DailyCategory,
 				Orientation,
 				BlitzMode,
 			];
-			return { category, orientation, mode, score };
+			return { category, orientation, mode, score: best.score };
 		})
 		.sort((a, b) => {
 			const byCategory =
@@ -502,6 +516,7 @@ export function BlitzPage() {
 						protocols,
 						applications,
 						rng: Math.random,
+						now: monotonicNow,
 					}).state;
 				});
 			});
@@ -551,6 +566,7 @@ export function BlitzPage() {
 			applications,
 			schedules,
 			rng: Math.random,
+			now: monotonicNow,
 		});
 		if ("error" in started) {
 			setPoolError(EMPTY_POOL);
@@ -669,6 +685,7 @@ export function BlitzPage() {
 				protocols,
 				applications,
 				rng: Math.random,
+				now: monotonicNow,
 			}),
 			promptId,
 		);
@@ -686,6 +703,7 @@ export function BlitzPage() {
 				protocols,
 				applications,
 				rng: Math.random,
+				now: monotonicNow,
 			}),
 			promptId,
 		);
@@ -744,7 +762,7 @@ export function BlitzPage() {
 		const key = bestsKey(run);
 		const best = persist.readBlitzBests()[key];
 		const displayBest =
-			best === undefined ? run.score : Math.max(best, run.score);
+			best === undefined ? run.score : Math.max(best.score, run.score);
 		return (
 			<main className="mx-auto w-full max-w-md px-4 pb-6 text-center sm:max-w-lg">
 				<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
