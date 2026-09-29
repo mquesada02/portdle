@@ -6,9 +6,16 @@ export function memoryStore(
 ): KeyValueStore & { data: Map<string, string> } {
 	return {
 		data,
+		get length() {
+			return data.size;
+		},
+		key: (index) => [...data.keys()][index] ?? null,
 		getItem: (key) => data.get(key) ?? null,
 		setItem: (key, value) => {
 			data.set(key, value);
+		},
+		removeItem: (key) => {
+			data.delete(key);
 		},
 	};
 }

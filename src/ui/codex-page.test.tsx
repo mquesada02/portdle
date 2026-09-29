@@ -216,3 +216,29 @@ test("a fresh card renders on mount and every stored record's fresh reads false 
 	expect(stored.http).toEqual({ state: "correct", fresh: false });
 	expect(stored.ftp).toEqual({ state: "missed", fresh: false });
 });
+
+test("the fresh-flag clear writes the Codex stored at that moment, not the mount-time copy", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeCodex({ http: { state: "correct", fresh: true } });
+	const merged = {
+		http: { state: "correct" as const, fresh: false },
+		ftp: { state: "missed" as const, fresh: true },
+	};
+	let reads = 0;
+	const wrapped = {
+		...persist,
+		readCodex() {
+			const value = persist.readCodex();
+			reads += 1;
+			if (reads === 1) {
+				persist.writeCodex(merged);
+			}
+			return value;
+		},
+	};
+	await renderCodex({ persist: wrapped });
+	expect(persist.readCodex()).toEqual({
+		http: { state: "correct", fresh: false },
+		ftp: { state: "missed", fresh: false },
+	});
+});

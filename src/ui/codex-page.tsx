@@ -193,11 +193,12 @@ export function CodexPage() {
 	const columnCount = useColumnCount();
 
 	// Mount only: the visit is rendered from the map read above, with its
-	// fresh flags intact, then written back with every flag cleared so the
-	// next visit finds none. `map` and `persist` are stable for this mount.
+	// fresh flags intact. The stored Codex is read again at write time, so
+	// entries merged in since the mount read are kept, and written back with
+	// every flag cleared so the next visit finds none.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount, per the Codex visit rule.
 	useEffect(() => {
-		const result = persist.writeCodex(clearCodexFresh(map));
+		const result = persist.writeCodex(clearCodexFresh(persist.readCodex()));
 		if (!result.ok) {
 			setSaveWarning(true);
 		}
