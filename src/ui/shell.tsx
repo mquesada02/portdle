@@ -6,6 +6,7 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useState } from "react";
+import { AccountMenu } from "./account-menu";
 import { HowTo } from "./how-to";
 import { NAV } from "./nav";
 import { ProgressNotice } from "./notice";
@@ -16,6 +17,8 @@ import {
 	oppositeTheme,
 	prefersDarkScheme,
 } from "./theme";
+
+const PERSON = "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0";
 
 const HELP =
 	"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01";
@@ -77,7 +80,7 @@ const ICON_BUTTON =
 	"rounded-full p-2 text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800";
 
 export function Shell() {
-	const { persist, utcToday } = useRouteContext({ from: "__root__" });
+	const { persist, utcToday, remote } = useRouteContext({ from: "__root__" });
 	const [storedTheme, setStoredTheme] = useState(() => persist.readTheme());
 	const [howToOpen, setHowToOpen] = useState(() => !persist.readHowToSeen());
 	const [saveWarning, setSaveWarning] = useState(false);
@@ -185,6 +188,13 @@ export function Shell() {
 						>
 							{effective === "dark" ? <MoonIcon /> : <SunIcon />}
 						</button>
+						{remote && (
+							<AccountMenu
+								remote={remote}
+								buttonClassName={ICON_BUTTON}
+								icon={<NavIcon d={PERSON} />}
+							/>
+						)}
 					</div>
 				</div>
 			</header>
