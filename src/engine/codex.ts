@@ -6,7 +6,7 @@ import type {
 	CodexState,
 } from "./types";
 
-const RANK: Record<CodexState, number> = {
+export const RANK: Record<CodexState, number> = {
 	identified: 1,
 	missed: 2,
 	correct: 3,
