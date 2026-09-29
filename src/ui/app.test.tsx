@@ -181,7 +181,7 @@ test("Blitz, History, and Codex nav links are active only on their own route", a
 test("failed write shows the shared Progress notice", async () => {
 	const user = userEvent.setup();
 	const failingPersist = createPersist({
-		getItem: () => null,
+		...memoryStore(),
 		setItem: () => {
 			throw new Error("quota");
 		},

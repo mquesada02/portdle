@@ -18,9 +18,34 @@ import type {
 export type Theme = "system" | "light" | "dark";
 
 export type KeyValueStore = {
+	readonly length: number;
+	key(index: number): string | null;
 	getItem(key: string): string | null;
 	setItem(key: string, value: string): void;
+	removeItem(key: string): void;
 };
+
+export type SyncChanges = {
+	codex: string[];
+	bests: string[];
+	runs: string[];
+	dailies: string[];
+	preferences: string[];
+};
+
+export type PersistChange =
+	| {
+			kind:
+				| "theme"
+				| "howToSeen"
+				| "codexSort"
+				| "codex"
+				| "blitzBests"
+				| "blitzRuns"
+				| "lastSeenUtc";
+	  }
+	| { kind: "daily"; category: DailyCategory; date: string }
+	| { kind: "stats" | "lastPlayed"; category: DailyCategory };
 
 const THEME_KEY = "portdle:v1:theme";
 const HOW_TO_SEEN_KEY = "portdle:v1:howToSeen";
@@ -29,9 +54,16 @@ const BLITZ_BESTS_KEY = "portdle:v1:blitzBests";
 const BLITZ_RUNS_KEY = "portdle:v1:blitzRuns";
 const CODEX_KEY = "portdle:v1:codex";
 const CODEX_SORT_KEY = "portdle:v1:codexSort";
+const SYNC_CHANGES_KEY = "portdle:v1:syncChanges";
+const SYNC_ACCOUNT_KEY = "portdle:v1:syncAccount";
+const KEY_PREFIX = "portdle:";
+
+function dailyKeyPrefix(category: DailyCategory): string {
+	return `portdle:v1:daily:${category}:`;
+}
 
 function dailyKey(category: DailyCategory, date: string): string {
-	return `portdle:v1:daily:${category}:${date}`;
+	return `${dailyKeyPrefix(category)}${date}`;
 }
 
 function statsKey(category: DailyCategory): string {
@@ -65,6 +97,17 @@ function writeJson(
 	} catch {
 		return { ok: false };
 	}
+}
+
+function storeKeys(store: KeyValueStore): string[] {
+	const keys: string[] = [];
+	for (let index = 0; index < store.length; index += 1) {
+		const key = store.key(index);
+		if (key !== null) {
+			keys.push(key);
+		}
+	}
+	return keys;
 }
 
 function isTheme(value: unknown): value is Theme {
@@ -261,6 +304,12 @@ function isCategoryStats(value: unknown): value is CategoryStats {
 	);
 }
 
+function stringList(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === "string")
+		: [];
+}
+
 export type Persist = {
 	readTheme(): Theme;
 	writeTheme(value: Theme): { ok: true } | { ok: false };
@@ -292,78 +341,180 @@ export type Persist = {
 	writeCodex(value: CodexMap): { ok: true } | { ok: false };
 	readCodexSort(): CodexSort;
 	writeCodexSort(value: CodexSort): { ok: true } | { ok: false };
+	listDailyDates(category: DailyCategory): string[];
+	readSyncChanges(): SyncChanges;
+	writeSyncChanges(value: SyncChanges): { ok: true } | { ok: false };
+	readSyncAccount(): string | null;
+	writeSyncAccount(id: string): { ok: true } | { ok: false };
+	clearAll(): void;
+	onWrite(listener: (change: PersistChange) => void): () => void;
 };
 
 export function createPersist(store: KeyValueStore): Persist {
+	let listener: ((change: PersistChange) => void) | null = null;
+
+	function write(
+		key: string,
+		value: unknown,
+		change: PersistChange,
+	): { ok: true } | { ok: false } {
+		const result = writeJson(store, key, value);
+		if (result.ok) {
+			try {
+				listener?.(change);
+			} catch {
+				// A listener failure never fails the write that already succeeded.
+			}
+		}
+		return result;
+	}
+
 	return {
 		readTheme(): Theme {
 			const value = readJson(store, THEME_KEY);
 			return isTheme(value) ? value : "system";
 		},
 		writeTheme(value: Theme) {
-			return writeJson(store, THEME_KEY, value);
+			return write(THEME_KEY, value, { kind: "theme" });
 		},
 		readHowToSeen(): boolean {
 			return readJson(store, HOW_TO_SEEN_KEY) === true;
 		},
 		writeHowToSeen() {
-			return writeJson(store, HOW_TO_SEEN_KEY, true);
+			return write(HOW_TO_SEEN_KEY, true, {
+				kind: "howToSeen",
+			});
 		},
 		readDaily(category, date) {
 			const value = readJson(store, dailyKey(category, date));
 			return isDailyPersist(value) ? value : null;
 		},
 		writeDaily(category, date, value) {
-			return writeJson(store, dailyKey(category, date), value);
+			return write(dailyKey(category, date), value, {
+				kind: "daily",
+				category,
+				date,
+			});
 		},
 		readStats(category) {
 			const value = readJson(store, statsKey(category));
 			return isCategoryStats(value) ? value : null;
 		},
 		writeStats(category, value) {
-			return writeJson(store, statsKey(category), value);
+			return write(statsKey(category), value, {
+				kind: "stats",
+				category,
+			});
 		},
 		readLastPlayed(category) {
 			const value = readJson(store, lastPlayedKey(category));
 			return isUtcDate(value) ? value : null;
 		},
 		writeLastPlayed(category, date) {
-			return writeJson(store, lastPlayedKey(category), date);
+			return write(lastPlayedKey(category), date, {
+				kind: "lastPlayed",
+				category,
+			});
 		},
 		readLastSeenUtc() {
 			const value = readJson(store, LAST_SEEN_UTC_KEY);
 			return isUtcDate(value) ? value : null;
 		},
 		writeLastSeenUtc(date) {
-			return writeJson(store, LAST_SEEN_UTC_KEY, date);
+			return write(LAST_SEEN_UTC_KEY, date, {
+				kind: "lastSeenUtc",
+			});
 		},
 		readBlitzBests() {
 			const value = readJson(store, BLITZ_BESTS_KEY);
 			return isStoredBlitzBests(value) ? normalizeBests(value) : {};
 		},
 		writeBlitzBests(value) {
-			return writeJson(store, BLITZ_BESTS_KEY, value);
+			return write(BLITZ_BESTS_KEY, value, {
+				kind: "blitzBests",
+			});
 		},
 		readBlitzRuns() {
 			const value = readJson(store, BLITZ_RUNS_KEY);
 			return isBlitzRuns(value) ? value : [];
 		},
 		writeBlitzRuns(value) {
-			return writeJson(store, BLITZ_RUNS_KEY, value);
+			return write(BLITZ_RUNS_KEY, value, {
+				kind: "blitzRuns",
+			});
 		},
 		readCodex() {
 			const value = readJson(store, CODEX_KEY);
 			return isCodexMap(value) ? value : {};
 		},
 		writeCodex(value) {
-			return writeJson(store, CODEX_KEY, value);
+			return write(CODEX_KEY, value, { kind: "codex" });
 		},
 		readCodexSort(): CodexSort {
 			const value = readJson(store, CODEX_SORT_KEY);
 			return isCodexSort(value) ? value : "name";
 		},
 		writeCodexSort(value) {
-			return writeJson(store, CODEX_SORT_KEY, value);
+			return write(CODEX_SORT_KEY, value, {
+				kind: "codexSort",
+			});
+		},
+		listDailyDates(category) {
+			const prefix = dailyKeyPrefix(category);
+			const dates: string[] = [];
+			for (const key of storeKeys(store)) {
+				if (!key.startsWith(prefix)) {
+					continue;
+				}
+				const date = key.slice(prefix.length);
+				if (isUtcDate(date)) {
+					dates.push(date);
+				}
+			}
+			return dates.sort();
+		},
+		readSyncChanges() {
+			const value = readJson(store, SYNC_CHANGES_KEY);
+			const record =
+				value !== null && typeof value === "object"
+					? (value as Record<string, unknown>)
+					: {};
+			return {
+				codex: stringList(record.codex),
+				bests: stringList(record.bests),
+				runs: stringList(record.runs),
+				dailies: stringList(record.dailies),
+				preferences: stringList(record.preferences),
+			};
+		},
+		writeSyncChanges(value) {
+			return writeJson(store, SYNC_CHANGES_KEY, value);
+		},
+		readSyncAccount() {
+			const value = readJson(store, SYNC_ACCOUNT_KEY);
+			return typeof value === "string" && value !== "" ? value : null;
+		},
+		writeSyncAccount(id) {
+			return writeJson(store, SYNC_ACCOUNT_KEY, id);
+		},
+		clearAll() {
+			for (const key of storeKeys(store)) {
+				if (key.startsWith(KEY_PREFIX)) {
+					try {
+						store.removeItem(key);
+					} catch {
+						// Keep clearing: one stuck key must not leave the rest behind.
+					}
+				}
+			}
+		},
+		onWrite(next) {
+			listener = next;
+			return () => {
+				if (listener === next) {
+					listener = null;
+				}
+			};
 		},
 	};
 }

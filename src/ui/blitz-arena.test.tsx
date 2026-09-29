@@ -150,7 +150,7 @@ test("finishing a run with a failing store and clicking Play again shows Progres
 	const data = new Map<string, string>();
 	data.set("portdle:v1:howToSeen", JSON.stringify(true));
 	const persist = createPersist({
-		getItem: (key: string) => data.get(key) ?? null,
+		...memoryStore(data),
 		setItem: () => {
 			throw new Error("quota");
 		},
