@@ -38,7 +38,7 @@ test("corrupt JSON for one key is ignored without affecting the other", () => {
 
 test("setItem throw returns ok false", () => {
 	const persist = createPersist({
-		getItem: () => null,
+		...memoryStore(),
 		setItem: () => {
 			throw new Error("quota");
 		},
@@ -206,7 +206,7 @@ test("writing blitzBests does not write daily or stats keys", () => {
 
 test("writeBlitzBests setItem throw returns ok false", () => {
 	const persist = createPersist({
-		getItem: () => null,
+		...memoryStore(),
 		setItem: () => {
 			throw new Error("quota");
 		},
@@ -284,7 +284,7 @@ test("writing blitzRuns does not write daily or stats keys", () => {
 
 test("writeBlitzRuns setItem throw returns ok false", () => {
 	const persist = createPersist({
-		getItem: () => null,
+		...memoryStore(),
 		setItem: () => {
 			throw new Error("quota");
 		},
@@ -337,7 +337,7 @@ test("writing codex does not write daily, stats, or blitzBests keys", () => {
 
 test("writeCodex setItem throw returns ok false", () => {
 	const persist = createPersist({
-		getItem: () => null,
+		...memoryStore(),
 		setItem: () => {
 			throw new Error("quota");
 		},
@@ -384,10 +384,234 @@ test("writing codexSort does not touch daily, stats, blitzBests, or codex keys",
 
 test("writeCodexSort setItem throw returns ok false", () => {
 	const persist = createPersist({
-		getItem: () => null,
+		...memoryStore(),
 		setItem: () => {
 			throw new Error("quota");
 		},
 	});
 	expect(persist.writeCodexSort("port")).toEqual({ ok: false });
+});
+
+test("memoryStore removes keys and lists them through length and key", () => {
+	const store = memoryStore();
+	store.setItem("a", "1");
+	store.setItem("b", "2");
+	expect(store.length).toBe(2);
+	expect([store.key(0), store.key(1)].sort()).toEqual(["a", "b"]);
+	expect(store.key(2)).toBeNull();
+	store.removeItem("a");
+	expect(store.length).toBe(1);
+	expect(store.getItem("a")).toBeNull();
+});
+
+test("listDailyDates lists one category's stored dates ascending", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	const board = { status: "playing" as const, guesses: [] };
+	persist.writeDaily("mixed", "2026-09-10", board);
+	persist.writeDaily("mixed", "2026-09-08", board);
+	persist.writeDaily("protocols", "2026-09-09", board);
+	persist.writeTheme("dark");
+	store.setItem("portdle:v1:daily:mixed:junk", "{}");
+	expect(persist.listDailyDates("mixed")).toEqual(["2026-09-08", "2026-09-10"]);
+	expect(persist.listDailyDates("applications")).toEqual([]);
+});
+
+test("listDailyDates lists a date whose stored value is corrupt", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	store.setItem("portdle:v1:daily:mixed:2026-09-09", "{not json");
+	expect(persist.listDailyDates("mixed")).toEqual(["2026-09-09"]);
+	expect(persist.readDaily("mixed", "2026-09-09")).toBeNull();
+});
+
+test("sync changes default to empty lists and round-trip", () => {
+	const persist = createPersist(memoryStore());
+	const empty = {
+		codex: [],
+		bests: [],
+		runs: [],
+		dailies: [],
+		preferences: [],
+	};
+	expect(persist.readSyncChanges()).toEqual(empty);
+	const changes = {
+		codex: ["http"],
+		bests: ["mixed|default|sprint"],
+		runs: ["2026-09-09T10:00:00.000Z"],
+		dailies: ["mixed|2026-09-09"],
+		preferences: ["theme"],
+	};
+	expect(persist.writeSyncChanges(changes)).toEqual({ ok: true });
+	expect(persist.readSyncChanges()).toEqual(changes);
+});
+
+test("a corrupt sync changes value reads as empty; one bad list empties only itself", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	store.setItem("portdle:v1:syncChanges", "{not json");
+	expect(persist.readSyncChanges().codex).toEqual([]);
+	store.setItem(
+		"portdle:v1:syncChanges",
+		JSON.stringify({ codex: "http", bests: ["a", 1, "b"], runs: ["r"] }),
+	);
+	expect(persist.readSyncChanges()).toEqual({
+		codex: [],
+		bests: ["a", "b"],
+		runs: ["r"],
+		dailies: [],
+		preferences: [],
+	});
+});
+
+test("sync account defaults to null, round-trips, and reads a bad value as null", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.readSyncAccount()).toBeNull();
+	expect(persist.writeSyncAccount("acct-1")).toEqual({ ok: true });
+	expect(persist.readSyncAccount()).toBe("acct-1");
+	store.setItem("portdle:v1:syncAccount", JSON.stringify(5));
+	expect(persist.readSyncAccount()).toBeNull();
+	store.setItem("portdle:v1:syncAccount", JSON.stringify(""));
+	expect(persist.readSyncAccount()).toBeNull();
+});
+
+test("sync bookkeeping writes return ok false when the store throws", () => {
+	const persist = createPersist({
+		...memoryStore(),
+		setItem: () => {
+			throw new Error("quota");
+		},
+	});
+	expect(
+		persist.writeSyncChanges({
+			codex: [],
+			bests: [],
+			runs: [],
+			dailies: [],
+			preferences: [],
+		}),
+	).toEqual({ ok: false });
+	expect(persist.writeSyncAccount("a")).toEqual({ ok: false });
+});
+
+test("clearAll removes every portdle key, bookkeeping included, and keeps foreign keys", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	persist.writeTheme("dark");
+	persist.writeDaily("mixed", "2026-09-09", { status: "playing", guesses: [] });
+	persist.writeSyncAccount("acct-1");
+	store.setItem("other:key", "keep");
+	persist.clearAll();
+	expect([...store.data.keys()]).toEqual(["other:key"]);
+	expect(persist.readTheme()).toBe("system");
+});
+
+test("clearAll removes the remaining keys when one removal throws", () => {
+	const store = memoryStore();
+	const persist = createPersist({
+		get length() {
+			return store.length;
+		},
+		key: (index) => store.key(index),
+		getItem: (key) => store.getItem(key),
+		setItem: (key, value) => store.setItem(key, value),
+		removeItem: (key) => {
+			if (key === "portdle:v1:theme") {
+				throw new Error("blocked");
+			}
+			store.removeItem(key);
+		},
+	});
+	persist.writeTheme("dark");
+	persist.writeHowToSeen();
+	expect(() => persist.clearAll()).not.toThrow();
+	expect(store.data.has("portdle:v1:howToSeen")).toBe(false);
+});
+
+test("onWrite reports each successful player-data write", () => {
+	const persist = createPersist(memoryStore());
+	const seen: unknown[] = [];
+	persist.onWrite((change) => seen.push(change));
+	persist.writeTheme("dark");
+	persist.writeHowToSeen();
+	persist.writeCodexSort("port");
+	persist.writeCodex({});
+	persist.writeBlitzBests({});
+	persist.writeBlitzRuns([]);
+	persist.writeLastSeenUtc("2026-09-09");
+	persist.writeDaily("mixed", "2026-09-09", { status: "playing", guesses: [] });
+	persist.writeStats("protocols", {
+		played: 0,
+		wins: 0,
+		currentStreak: 0,
+		bestStreak: 0,
+		histogram: [0, 0, 0, 0, 0, 0],
+	});
+	persist.writeLastPlayed("applications", "2026-09-09");
+	expect(seen).toEqual([
+		{ kind: "theme" },
+		{ kind: "howToSeen" },
+		{ kind: "codexSort" },
+		{ kind: "codex" },
+		{ kind: "blitzBests" },
+		{ kind: "blitzRuns" },
+		{ kind: "lastSeenUtc" },
+		{ kind: "daily", category: "mixed", date: "2026-09-09" },
+		{ kind: "stats", category: "protocols" },
+		{ kind: "lastPlayed", category: "applications" },
+	]);
+});
+
+test("onWrite hears nothing from failed writes, bookkeeping writes, or clearAll", () => {
+	const failing = createPersist({
+		...memoryStore(),
+		setItem: () => {
+			throw new Error("quota");
+		},
+	});
+	const failedSeen: unknown[] = [];
+	failing.onWrite((change) => failedSeen.push(change));
+	failing.writeTheme("dark");
+	expect(failedSeen).toEqual([]);
+
+	const persist = createPersist(memoryStore());
+	const seen: unknown[] = [];
+	persist.onWrite((change) => seen.push(change));
+	persist.writeSyncAccount("a");
+	persist.writeSyncChanges({
+		codex: [],
+		bests: [],
+		runs: [],
+		dailies: [],
+		preferences: [],
+	});
+	persist.clearAll();
+	expect(seen).toEqual([]);
+});
+
+test("onWrite keeps one listener: a second registration replaces the first, and unregistering stops it", () => {
+	const persist = createPersist(memoryStore());
+	const first: unknown[] = [];
+	const second: unknown[] = [];
+	const unregisterFirst = persist.onWrite((change) => first.push(change));
+	const unregisterSecond = persist.onWrite((change) => second.push(change));
+	persist.writeTheme("dark");
+	expect(first).toEqual([]);
+	expect(second).toEqual([{ kind: "theme" }]);
+	unregisterFirst();
+	persist.writeTheme("light");
+	expect(second).toHaveLength(2);
+	unregisterSecond();
+	persist.writeTheme("dark");
+	expect(second).toHaveLength(2);
+});
+
+test("a throwing listener does not fail the write", () => {
+	const persist = createPersist(memoryStore());
+	persist.onWrite(() => {
+		throw new Error("listener");
+	});
+	expect(persist.writeTheme("dark")).toEqual({ ok: true });
+	expect(persist.readTheme()).toBe("dark");
 });
