@@ -56,8 +56,13 @@ export type DailyPersist = {
 	}>;
 };
 
-export type BlitzBests = Partial<
-	Record<`${DailyCategory}|${Orientation}|${BlitzMode}`, number>
+export type BlitzBestsKey = `${DailyCategory}|${Orientation}|${BlitzMode}`;
+
+export type BlitzBest = { score: number; timeToScoreMs?: number };
+export type BlitzBests = Partial<Record<BlitzBestsKey, BlitzBest>>;
+// A Best stored before time to score is a bare score.
+export type StoredBlitzBests = Partial<
+	Record<BlitzBestsKey, number | BlitzBest>
 >;
 
 export type RoundOutcome = "correct" | "miss";
@@ -79,6 +84,7 @@ export type BlitzRun = {
 	ended: "lives" | "timeout";
 	endedAt: string;
 	score: number;
+	timeToScoreMs?: number;
 	rounds: Round[];
 };
 
@@ -93,6 +99,8 @@ export type BlitzState = {
 	startPool: string[];
 	ended: null | "lives" | "timeout";
 	rounds: Round[];
+	startedAtMs: number;
+	timeToScoreMs: number;
 };
 
 export type BlitzEvent =

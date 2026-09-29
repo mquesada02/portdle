@@ -1,7 +1,7 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { applications, protocols } from "../catalogs/production";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
@@ -45,6 +45,7 @@ async function missThree(user: ReturnType<typeof userEvent.setup>) {
 }
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	cleanup();
 	document.documentElement.classList.remove("dark");
 });
@@ -88,4 +89,82 @@ test("a lower second run keeps the higher stored best and shows no badge", async
 	expect(screen.getByText("Score 0")).toBeTruthy();
 	expect(screen.getByText("Best 5")).toBeTruthy();
 	expect(screen.queryByText("New best")).toBeNull();
+});
+
+// Plays one run that scores 1 exactly `elapsedMs` after Start, then loses.
+async function playOneCorrectRun(
+	user: ReturnType<typeof userEvent.setup>,
+	elapsedMs: number,
+) {
+	const clock = vi.spyOn(performance, "now").mockReturnValue(1000);
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const answer = currentEntry();
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
+	clock.mockReturnValue(1000 + elapsedMs);
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Score 1")).toBeTruthy();
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+}
+
+test("a faster tie replaces the Best and shows New best", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeBlitzBests({
+		"mixed|default|sprint": { score: 1, timeToScoreMs: 30000 },
+	});
+	await renderBlitz({ persist });
+	await playOneCorrectRun(user, 12000);
+	expect(screen.getByText("Best 1")).toBeTruthy();
+	expect(screen.getByText("New best")).toBeTruthy();
+	expect(persist.readBlitzBests()["mixed|default|sprint"]).toEqual({
+		score: 1,
+		timeToScoreMs: 12000,
+	});
+});
+
+test("a slower tie keeps the Best and shows no badge", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeBlitzBests({
+		"mixed|default|sprint": { score: 1, timeToScoreMs: 5000 },
+	});
+	await renderBlitz({ persist });
+	await playOneCorrectRun(user, 12000);
+	expect(screen.queryByText("New best")).toBeNull();
+	expect(persist.readBlitzBests()["mixed|default|sprint"]).toEqual({
+		score: 1,
+		timeToScoreMs: 5000,
+	});
+});
+
+test("a tie with a bare-score Best replaces it with a timed Best and shows New best", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeBlitzBests({ "mixed|default|sprint": 1 });
+	await renderBlitz({ persist });
+	await playOneCorrectRun(user, 40000);
+	expect(screen.getByText("New best")).toBeTruthy();
+	expect(persist.readBlitzBests()["mixed|default|sprint"]).toEqual({
+		score: 1,
+		timeToScoreMs: 40000,
+	});
+});
+
+test("a run stores its time to score", async () => {
+	const user = userEvent.setup();
+	const persist = await renderBlitz();
+	await playOneCorrectRun(user, 7000);
+	expect(persist.readBlitzRuns()[0]?.timeToScoreMs).toBe(7000);
+});
+
+test("a zero-score run stores time zero and shows no badge", async () => {
+	const user = userEvent.setup();
+	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	await missThree(user);
+	expect(screen.queryByText("New best")).toBeNull();
+	expect(persist.readBlitzRuns()[0]?.timeToScoreMs).toBe(0);
 });
