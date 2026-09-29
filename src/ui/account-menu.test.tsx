@@ -1,5 +1,12 @@
 import { createMemoryHistory } from "@tanstack/react-router";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, expect, test } from "vitest";
@@ -245,4 +252,139 @@ test("the theme toggle still works beside the Account button", async () => {
 	const { persist } = await renderApp({ remote: createFakeRemote() });
 	await user.click(screen.getByRole("button", { name: "Toggle color theme" }));
 	expect(persist.readTheme()).toBe("dark");
+});
+
+async function openRename(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(accountButton());
+	await user.click(
+		await screen.findByRole("button", { name: "Edit display name" }),
+	);
+	return screen.getByRole("textbox", { name: "Display name" });
+}
+
+test("the pencil turns the name into a field; Cancel restores the name and drops the text", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	const input = await openRename(user);
+	expect((input as HTMLInputElement).value).toBe("Ada L.");
+	await user.clear(input);
+	await user.type(input, "Grace");
+	await user.click(screen.getByRole("button", { name: "Cancel" }));
+	expect(screen.getByText("Ada L.")).toBeTruthy();
+	expect(remote.changeCalls).toEqual([]);
+	await user.click(screen.getByRole("button", { name: "Edit display name" }));
+	expect(
+		(screen.getByRole("textbox", { name: "Display name" }) as HTMLInputElement)
+			.value,
+	).toBe("Ada L.");
+});
+
+test("an invalid typed name shows an inline error and cannot be saved", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	const input = await openRename(user);
+	await user.clear(input);
+	await user.type(input, "Ada 😀");
+	expect(screen.getByRole("alert").textContent).not.toBe("");
+	expect(
+		(screen.getByRole("button", { name: "Save" }) as HTMLButtonElement)
+			.disabled,
+	).toBe(true);
+	await user.type(input, "{Enter}");
+	fireEvent.submit(input);
+	expect(remote.changeCalls).toEqual([]);
+});
+
+test("Save and Enter rename the account and show the new name", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	let input = await openRename(user);
+	await user.clear(input);
+	await user.type(input, "Grace H.");
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	expect(await screen.findByText("Grace H.")).toBeTruthy();
+	expect(remote.changeCalls).toEqual(["Grace H."]);
+	expect(remote.state).toMatchObject({
+		displayName: "Grace H.",
+		nameConfirmed: true,
+	});
+	await user.click(screen.getByRole("button", { name: "Edit display name" }));
+	input = screen.getByRole("textbox", { name: "Display name" });
+	await user.clear(input);
+	await user.type(input, "Grace{Enter}");
+	expect(await screen.findByText("Grace")).toBeTruthy();
+	expect(remote.changeCalls).toEqual(["Grace H.", "Grace"]);
+});
+
+test("saving an unchanged name calls the account once", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	await openRename(user);
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	await screen.findByRole("button", { name: "Edit display name" });
+	expect(remote.changeCalls).toEqual(["Ada L."]);
+});
+
+test("a failed rename shows one line, changes nothing, keeps editing, and a retry succeeds", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	remote.failChangeDisplayName = true;
+	await renderApp({ remote });
+	const input = await openRename(user);
+	await user.clear(input);
+	await user.type(input, "Grace");
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	expect((await screen.findByRole("alert")).textContent).toBe(
+		"Could not save your name. Try again.",
+	);
+	expect(remote.state).toEqual(SIGNED_IN);
+	expect(screen.getByRole("textbox", { name: "Display name" })).toBeTruthy();
+	await user.type(input, "s");
+	expect(screen.queryByRole("alert")).toBeNull();
+	remote.failChangeDisplayName = false;
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	expect(await screen.findByText("Graces")).toBeTruthy();
+	expect(remote.state).toMatchObject({ displayName: "Graces" });
+});
+
+test("closing the menu mid-edit cancels the edit", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	const input = await openRename(user);
+	await user.type(input, "xyz");
+	await user.keyboard("{Escape}");
+	expect(screen.queryByRole("textbox", { name: "Display name" })).toBeNull();
+	await user.click(accountButton());
+	expect(await screen.findByText("Ada L.")).toBeTruthy();
+});
+
+test("a pending save disables the buttons and keeps the menu open", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	const release = remote.holdChangeDisplayName();
+	await renderApp({ remote });
+	const input = await openRename(user);
+	await user.type(input, "z");
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	await waitFor(() =>
+		expect(
+			(screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement)
+				.disabled,
+		).toBe(true),
+	);
+	for (const name of ["Save", "Sign out"]) {
+		expect(
+			(screen.getByRole("button", { name }) as HTMLButtonElement).disabled,
+		).toBe(true);
+	}
+	await user.keyboard("{Escape}");
+	await user.click(document.body);
+	expect(screen.getByRole("textbox", { name: "Display name" })).toBeTruthy();
+	await act(async () => release());
+	expect(await screen.findByText("Ada L.z")).toBeTruthy();
 });
