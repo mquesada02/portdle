@@ -60,8 +60,11 @@ Committed JSON saying which entry is the Daily on which UTC day.
 Consecutive UTC days with a won Daily in one category.
 
 **Best**:
-The highest Blitz score stored for one category, orientation, and Blitz mode.
+The highest Blitz score stored for one category, orientation, and Blitz mode, with its optional time to score. At an equal score, the faster time to score replaces the Best.
 _Avoid_: High score, record
+
+**Time to score**:
+The milliseconds from a run's start to the commit of its last correct answer, or zero for a run with no correct answer. Older runs and Bests have none.
 
 **Source**:
 A curated reference link for an entry, such as an RFC, the IANA registry, or vendor docs.
