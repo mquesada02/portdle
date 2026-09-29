@@ -182,5 +182,17 @@
 	"next": {
 		"name": "Next.js",
 		"port": 3000
+	},
+	"smb": {
+		"name": "SMB",
+		"port": 445
+	},
+	"smtp": {
+		"name": "SMTP",
+		"port": 25
+	},
+	"storybook": {
+		"name": "Storybook",
+		"port": 6006
 	}
 }
