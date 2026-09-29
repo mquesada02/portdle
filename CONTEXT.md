@@ -77,7 +77,7 @@ _Avoid_: Question, target (reserve for the Daily), item
 
 **Leaderboard**:
 One Daily category, Orientation, and Blitz mode ranked across players. Never shortened to "board", which stays the Daily's stack of rows.
-_Avoid_: Board
+_Avoid_: Board, scoreboard, ranking
 
 **Leaderboard window**:
 The time span a Leaderboard is viewed in: All-time, Weekly (since Monday 00:00 UTC), or Today (since 00:00 UTC today). A Leaderboard is viewed in one window, so there are 18 Leaderboards in each window.
@@ -126,40 +126,40 @@ _Avoid_: Solved, caught, won
 
 **Account**:
 A player's optional sign-in identity on the backend, holding synced progress and one Display name.
-_Avoid_: User
 
 **Sign-in**:
 Entering an Account with Google or GitHub.
-_Avoid_: Login, registration
 
 **Linked identity**:
-One provider login of an Account. The same verified email under Google and GitHub gives two Linked identities of one Account; different emails give two Accounts.
+One provider's sign-in attached to an Account. The same verified email under Google and GitHub gives two Linked identities of one Account; different emails give two Accounts.
 
 **Sync**:
 The quiet exchange of changes between a device's local copy and its Account. It never disturbs the screen.
-_Avoid_: Backup, upload
+_Avoid_: Save, backup
 
 **Preferences**:
 The theme, the How-to seen flag, and the Codex sort, each synced on its own.
 
 **Display name**:
 The name other players see on Leaderboards. 1 to 30 characters with at least one non-whitespace character; letters in any script, digits, spaces, apostrophes, hyphens, and periods.
-_Avoid_: Username, nickname
 
 **Seeded display name**:
 The Display name an Account starts with, taken from the provider (the GitHub username or the Google account name) and normalized.
 
 **Normalized display name**:
 A provider name with disallowed characters stripped and cut to 30 characters, or "Player" if nothing is left.
+_Avoid_: Sanitized, validated (reserved for the player-typed reject path)
 
 **Name confirm**:
 The full-page step after a first Sign-in where the player confirms the Display name before it is public.
+_Avoid_: Onboarding, welcome screen
 
 **Account menu**:
 The menu the person icon opens: the two Sign-in choices when signed out; name edit, Sign out, and Delete account when signed in.
 
 **Account deletion**:
 Removes the Account and everything of it on the backend, Leaderboard rows included, and clears the device the player deleted from.
+_Avoid_: Sign out, log out, delete data
 
 ### Screen
 

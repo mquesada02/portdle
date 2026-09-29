@@ -39,23 +39,23 @@ Two doc changes, both taken from Spec 4 with no new decisions:
   - There is no second migration.
   - The one-time import stands as the first sign-in import.
 - The ADR states which ADR 0001 sentences it supersedes ("a later backend brings its own client cache" and "makes the seam async") and which stands ("imports localStorage once"). ADR 0001 itself is not edited: an ADR is a record, and the new ADR carries the amendment.
-- **Glossary terms.** `CONTEXT.md` keeps its format: bold term, one-line definition, italic `_Avoid_` line where Spec 4 or the vocabulary gives a clear synonym to avoid. Placement:
+- **Glossary terms.** `CONTEXT.md` keeps its format: bold term, one-line definition, italic `_Avoid_` line where a map ticket proposed one. Placement:
   - A new `### Account` group before `### Screen` holds Account, Sign-in, Linked identity, Sync, Preferences, Display name, Seeded display name, Normalized display name, Name confirm, Account menu, and Account deletion.
   - Leaderboard, Leaderboard window, and Time to score go in `### Game`, beside Best and Run.
   - Leaderboards tab goes in `### Screen`, beside Segment, with the note that it is not a Segment.
-- **Definitions come from Spec 4** (the `_Avoid_` lines are the author's call). One line each, in Spec 4's words:
+- **Definitions come from Spec 4** (the `_Avoid_` lines come from the map tickets). One line each, in Spec 4's words:
   - Account: a player's optional sign-in identity on the backend, holding synced progress and one Display name.
   - Sign-in: entering an Account with Google or GitHub.
-  - Linked identity: one provider login of an Account. The same verified email under Google and GitHub gives two linked identities of one Account; different emails give two Accounts.
-  - Sync: the quiet exchange of changes between a device's local copy and its Account. It never disturbs the screen.
+  - Linked identity: one provider's sign-in attached to an Account. The same verified email under Google and GitHub gives two linked identities of one Account; different emails give two Accounts.
+  - Sync: the quiet exchange of changes between a device's local copy and its Account. It never disturbs the screen. Avoid: Save, backup.
   - Preferences: the theme, the How-to seen flag, and the Codex sort, each synced on its own.
   - Display name: the name other players see on leaderboards. 1 to 30 characters with at least one non-whitespace character; letters in any script, digits, spaces, apostrophes, hyphens, and periods.
   - Seeded display name: the Display name an Account starts with, taken from the provider (GitHub username or Google account name) and normalized.
-  - Normalized display name: a provider name with disallowed characters stripped and cut to 30 characters, or "Player" if nothing is left.
-  - Name confirm: the full-page step after a first sign-in where the player confirms the Display name before it is public.
+  - Normalized display name: a provider name with disallowed characters stripped and cut to 30 characters, or "Player" if nothing is left. Avoid: Sanitized, validated (reserved for the player-typed reject path).
+  - Name confirm: the full-page step after a first sign-in where the player confirms the Display name before it is public. Avoid: Onboarding, welcome screen.
   - Account menu: the menu the person icon opens: sign-in choices when signed out; name edit, Sign out, and Delete account when signed in.
-  - Account deletion: removes the Account and everything of it on the backend, leaderboard rows included, and clears the device the player deleted from.
-  - Leaderboard: one Daily category, Orientation, and Blitz mode ranked across players. Never shortened to "board". Avoid: Board.
+  - Account deletion: removes the Account and everything of it on the backend, leaderboard rows included, and clears the device the player deleted from. Avoid: Sign out, log out, delete data.
+  - Leaderboard: one Daily category, Orientation, and Blitz mode ranked across players. Never shortened to "board". Avoid: Board, scoreboard, ranking.
   - Leaderboard window: the time span a Leaderboard is viewed in: All-time, Weekly (since Monday 00:00 UTC), or Today (since 00:00 UTC today). Avoid: Daily (reserved for the puzzle).
   - Leaderboards tab: the tab beside Play on the Blitz screen that shows Leaderboards. Its own term, not a Segment.
   - Time to score: the milliseconds from a run's start to the commit of the last correct answer that produced its final score. Breaks ties between equal scores.
@@ -91,5 +91,5 @@ Docs only, so no Vitest tests. The check is reading the diff against Spec 4:
   - The file name `0002-localstorage-stays-local-store.md`.
   - The account terms sit in a new `### Account` group rather than in `### Screen` or `### Game`.
   - The Top bar entry names the How-to button as well as the person icon, because the current entry already omits it.
-  - Wording of the `_Avoid_` lines for the new terms.
+  - The `_Avoid_` lines come from the map tickets (#116, #123, #124, #125). Account, Sign-in, and Display name have none, because no ticket proposed one. Leaderboard window keeps "Daily (reserved for the puzzle)", which follows the owner's Today decision in Spec 4.
 - Sources: Spec 4 (Architecture, Further Notes) and the ticket's acceptance criteria.
