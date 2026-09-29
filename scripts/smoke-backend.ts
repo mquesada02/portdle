@@ -152,6 +152,34 @@ try {
 	}
 }
 
+const originalConfirmed = row.name_confirmed === true;
+try {
+	const confirmed = await rest("PATCH", `accounts?id=eq.${id}`, {
+		token,
+		body: { name_confirmed: !originalConfirmed },
+		prefer: "return=representation",
+	});
+	const confirmedRows = Array.isArray(confirmed.body) ? confirmed.body : [];
+	report(
+		"update of the confirmed flag succeeds and reads back",
+		confirmed.status === 200 &&
+			(confirmedRows[0] as { name_confirmed?: boolean } | undefined)
+				?.name_confirmed === !originalConfirmed,
+		confirmed,
+	);
+} finally {
+	const restored = await rest("PATCH", `accounts?id=eq.${id}`, {
+		token,
+		body: { name_confirmed: originalConfirmed },
+	});
+	if (restored.status >= 300) {
+		console.warn(
+			`WARNING: could not restore the confirmed flag to ${originalConfirmed}.`,
+			restored,
+		);
+	}
+}
+
 const insert = await rest("POST", "accounts", {
 	token,
 	body: { id: randomId, display_name: "Intruder" },
