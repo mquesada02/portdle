@@ -1,6 +1,7 @@
 // Regenerates src/engine/display-name-ranges.ts and prints the matching
-// PostgreSQL bracket-expression body. Run it only when the Unicode version
-// changes; a new migration must then carry the printed body (see
+// PostgreSQL bracket-expression bodies (allowed set, then letter-or-digit set).
+// Run it only when the Unicode version changes; a new migration must then carry
+// the printed bodies (see
 // supabase/migrations/20260929000002_display_name_rule.sql).
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -8,24 +9,37 @@ import { fileURLToPath } from "node:url";
 import { rangesToPgClass } from "./display-name-pg-class.ts";
 
 const LETTER_MARK_DIGIT = /^[\p{L}\p{Mn}\p{Mc}\p{Nd}]$/u;
+const LETTER_DIGIT = /^[\p{L}\p{Nd}]$/u;
 const isVariationSelector = (c: number) => c >= 0xfe00 && c <= 0xfe0f;
 
-const ranges: [number, number][] = [];
-let start = -1;
-for (let c = 0; c <= 0x10ffff + 1; c++) {
-	const allowed =
-		c <= 0x10ffff &&
-		!(c >= 0xd800 && c <= 0xdfff) &&
-		LETTER_MARK_DIGIT.test(String.fromCodePoint(c)) &&
-		!isVariationSelector(c);
-	if (allowed && start < 0) start = c;
-	if (!allowed && start >= 0) {
-		ranges.push([start, c - 1]);
-		start = -1;
+function collectRanges(allowed: (c: number) => boolean): [number, number][] {
+	const ranges: [number, number][] = [];
+	let start = -1;
+	for (let c = 0; c <= 0x10ffff + 1; c++) {
+		const ok = c <= 0x10ffff && allowed(c);
+		if (ok && start < 0) start = c;
+		if (!ok && start >= 0) {
+			ranges.push([start, c - 1]);
+			start = -1;
+		}
 	}
+	return ranges;
 }
 
+const isScalar = (c: number) => !(c >= 0xd800 && c <= 0xdfff);
+const ranges = collectRanges(
+	(c) =>
+		isScalar(c) &&
+		LETTER_MARK_DIGIT.test(String.fromCodePoint(c)) &&
+		!isVariationSelector(c),
+);
+const anchorRanges = collectRanges(
+	(c) => isScalar(c) && LETTER_DIGIT.test(String.fromCodePoint(c)),
+);
+
 const hex = (n: number) => `0x${n.toString(16)}`;
+const literal = (rs: [number, number][]) =>
+	rs.map(([lo, hi]) => `\t[${hex(lo)}, ${hex(hi)}],`).join("\n");
 const file = join(
 	dirname(fileURLToPath(import.meta.url)),
 	"../src/engine/display-name-ranges.ts",
@@ -36,8 +50,18 @@ writeFileSync(
 // Code point ranges (inclusive) of letters (L), non-spacing and spacing marks
 // (Mn, Mc), and decimal digits (Nd), minus the variation selectors U+FE00-FE0F.
 export const DISPLAY_NAME_RANGES: readonly (readonly [number, number])[] = [
-${ranges.map(([lo, hi]) => `\t[${hex(lo)}, ${hex(hi)}],`).join("\n")}
+${literal(ranges)}
+];
+
+// Code point ranges (inclusive) of letters (L) and decimal digits (Nd). A
+// display name needs at least one of these.
+export const DISPLAY_NAME_ANCHOR_RANGES: readonly (readonly [
+	number,
+	number,
+])[] = [
+${literal(anchorRanges)}
 ];
 `,
 );
 console.log(rangesToPgClass(ranges));
+console.log(rangesToPgClass(anchorRanges));
