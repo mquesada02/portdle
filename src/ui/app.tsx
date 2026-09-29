@@ -3,14 +3,17 @@ import { RouterProvider } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { utcDateString } from "../engine/utc";
 import type { Persist } from "../persist/storage";
+import type { Remote } from "../remote/remote";
 import { createAppRouter } from "../router";
 
 export function App({
 	persist,
+	remote,
 	history,
 	utcToday,
 }: {
 	persist: Persist;
+	remote?: Remote;
 	history?: RouterHistory;
 	utcToday?: string;
 }) {
@@ -33,8 +36,8 @@ export function App({
 		};
 	}, [utcToday]);
 	const router = useMemo(
-		() => createAppRouter({ persist, history, utcToday: clockToday }),
-		[persist, history, clockToday],
+		() => createAppRouter({ persist, remote, history, utcToday: clockToday }),
+		[persist, remote, history, clockToday],
 	);
 	return <RouterProvider router={router} />;
 }
