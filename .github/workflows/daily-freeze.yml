@@ -39,3 +39,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run ci.yml --ref master
+  keep-alive:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          set -e
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::notice::SUPABASE_URL or SUPABASE_ANON_KEY is empty; skipping the ping"
+            exit 0
+          fi
+          status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "apikey: $SUPABASE_ANON_KEY" "${SUPABASE_URL%/}/rest/v1/?limit=1")
+          echo "Supabase REST API answered with HTTP $status"
+          case "$status" in
+            [1-4][0-9][0-9]) ;;
+            *) exit 1 ;;
+          esac
