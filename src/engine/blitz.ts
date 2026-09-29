@@ -217,7 +217,7 @@ export function reduceBlitz(input: {
 	};
 }
 
-const MAX_BLITZ_RUNS = 50;
+export const MAX_BLITZ_RUNS = 50;
 
 export function buildRun(input: {
 	state: BlitzState;
