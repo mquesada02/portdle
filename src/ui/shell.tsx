@@ -80,7 +80,9 @@ const ICON_BUTTON =
 	"rounded-full p-2 text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800";
 
 export function Shell() {
-	const { persist, utcToday, remote } = useRouteContext({ from: "__root__" });
+	const { persist, utcToday, remote, sync } = useRouteContext({
+		from: "__root__",
+	});
 	const [storedTheme, setStoredTheme] = useState(() => persist.readTheme());
 	const [howToOpen, setHowToOpen] = useState(() => !persist.readHowToSeen());
 	const [saveWarning, setSaveWarning] = useState(false);
@@ -191,6 +193,7 @@ export function Shell() {
 						{remote && (
 							<AccountMenu
 								remote={remote}
+								sync={sync}
 								buttonClassName={ICON_BUTTON}
 								icon={<NavIcon d={PERSON} />}
 							/>

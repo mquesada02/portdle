@@ -1,5 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AccountState, Provider, Remote } from "./remote";
+import {
+	AccountGoneError,
+	type AccountState,
+	NEWEST_RUNS,
+	type Provider,
+	type Remote,
+	type SyncedRows,
+} from "./remote";
+import {
+	type BestRow,
+	type CodexRow,
+	type DailyRow,
+	fromRows,
+	type RunRow,
+	toRows,
+} from "./rows";
 
 const ERROR_KEYS = ["error", "error_code", "error_description"];
 const DEFAULT_ERROR = "Sign-in did not complete.";
@@ -56,6 +71,55 @@ export function stripAuthError(
 		return text === "" ? "" : `${prefix}${text}`;
 	}
 	return { search: strip(search, "?"), hash: strip(hash, "#") };
+}
+
+const PAGE_SIZE = 1000;
+const PUSH_CHUNK = 500;
+
+function errorCode(error: unknown): string | undefined {
+	return (error as { code?: string } | null)?.code;
+}
+
+// A network failure or a server error: the sign-in may still be good.
+function isRetryableAuthError(error: unknown): boolean {
+	const { name, status } = error as { name?: string; status?: number };
+	return (
+		name === "AuthRetryableFetchError" ||
+		status === 0 ||
+		(typeof status === "number" && status >= 500)
+	);
+}
+
+const CONFLICT_COLUMNS = {
+	codex_entries: "account_id,entry_id",
+	blitz_bests: "account_id,category,orientation,mode",
+	blitz_runs: "account_id,ended_at",
+	dailies: "account_id,category,day",
+} as const;
+
+// Reads a whole table in pages, ordered by primary key so no page skips or
+// repeats a row.
+async function readAll<T>(
+	supabase: SupabaseClient,
+	table: string,
+	order: string[],
+): Promise<T[]> {
+	const all: T[] = [];
+	for (let from = 0; ; from += PAGE_SIZE) {
+		let query = supabase.from(table).select("*");
+		for (const column of order) {
+			query = query.order(column);
+		}
+		const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+		if (error) {
+			throw error;
+		}
+		const page = (data ?? []) as T[];
+		all.push(...page);
+		if (page.length < PAGE_SIZE) {
+			return all;
+		}
+	}
 }
 
 type Library = typeof import("@supabase/supabase-js");
@@ -143,7 +207,16 @@ export function createSupabaseRemote(
 			}
 			const supabase = await loadClient();
 			const { data, error } = await supabase.auth.getSession();
-			if (error || !data.session) {
+			if (error) {
+				if (errorCode(error) === "user_not_found") {
+					throw new AccountGoneError();
+				}
+				if (isRetryableAuthError(error)) {
+					throw error;
+				}
+				return { status: "signedOut" };
+			}
+			if (!data.session) {
 				return { status: "signedOut" };
 			}
 			const accountId = data.session.user.id;
@@ -152,6 +225,11 @@ export function createSupabaseRemote(
 				.select("display_name, name_confirmed")
 				.eq("id", accountId)
 				.single();
+			// Deleting an account cascades its row away; `.single()` then finds
+			// no row.
+			if (errorCode(rowError) === "PGRST116") {
+				throw new AccountGoneError();
+			}
 			if (rowError || !row) {
 				throw rowError ?? new Error("Account row missing");
 			}
@@ -189,6 +267,55 @@ export function createSupabaseRemote(
 		confirmDisplayName: (name) =>
 			updateOwnAccount({ display_name: name, name_confirmed: true }),
 		changeDisplayName: (name) => updateOwnAccount({ display_name: name }),
+		async pull(): Promise<SyncedRows> {
+			const supabase = await loadClient();
+			const [codex, bests, dailies, runsResult] = await Promise.all([
+				readAll<CodexRow>(supabase, "codex_entries", ["entry_id"]),
+				readAll<BestRow>(supabase, "blitz_bests", [
+					"category",
+					"orientation",
+					"mode",
+				]),
+				readAll<DailyRow>(supabase, "dailies", ["category", "day"]),
+				supabase
+					.from("blitz_runs")
+					.select("*")
+					.order("ended_at", { ascending: false })
+					.limit(NEWEST_RUNS),
+			]);
+			if (runsResult.error) {
+				throw runsResult.error;
+			}
+			return fromRows({
+				codex,
+				bests,
+				dailies,
+				runs: (runsResult.data ?? []) as RunRow[],
+			});
+		},
+		async push(accountId: string, rows: SyncedRows): Promise<void> {
+			const supabase = await loadClient();
+			// Row-level security refuses rows when the stored sign-in belongs to
+			// another account.
+			const tables = toRows(accountId, rows);
+			for (const [table, onConflict] of Object.entries(CONFLICT_COLUMNS)) {
+				const records: unknown[] = tables[table as keyof typeof tables];
+				for (let start = 0; start < records.length; start += PUSH_CHUNK) {
+					const { error: upsertError } = await supabase
+						.from(table)
+						.upsert(records.slice(start, start + PUSH_CHUNK), {
+							onConflict,
+						});
+					if (upsertError) {
+						// A foreign-key violation means the account row is gone.
+						if (errorCode(upsertError) === "23503") {
+							throw new AccountGoneError();
+						}
+						throw upsertError;
+					}
+				}
+			}
+		},
 		redirectError: () => pendingError,
 		clearRedirectError() {
 			pendingError = null;

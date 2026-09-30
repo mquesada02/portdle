@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import type { Persist } from "./persist/storage";
 import type { Remote } from "./remote/remote";
+import type { Sync } from "./sync/sync";
 import { BlitzPage } from "./ui/blitz-page";
 import { CodexPage } from "./ui/codex-page";
 import { DailyPage } from "./ui/daily-page";
@@ -17,6 +18,7 @@ import { Shell } from "./ui/shell";
 export type RouterContext = {
 	persist: Persist;
 	remote?: Remote;
+	sync?: Sync;
 	utcToday: string;
 };
 
@@ -100,6 +102,7 @@ const routeTree = rootRoute.addChildren([
 export function createAppRouter(options: {
 	persist: Persist;
 	remote?: Remote;
+	sync?: Sync;
 	history?: RouterHistory;
 	utcToday: string;
 }) {
@@ -108,6 +111,7 @@ export function createAppRouter(options: {
 		context: {
 			persist: options.persist,
 			remote: options.remote,
+			sync: options.sync,
 			utcToday: options.utcToday,
 		},
 		basepath: "/portdle",
