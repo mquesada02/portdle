@@ -19,6 +19,7 @@ export type RouterContext = {
 	persist: Persist;
 	remote?: Remote;
 	sync?: Sync;
+	remount: () => void;
 	utcToday: string;
 };
 
@@ -103,6 +104,7 @@ export function createAppRouter(options: {
 	persist: Persist;
 	remote?: Remote;
 	sync?: Sync;
+	remount: () => void;
 	history?: RouterHistory;
 	utcToday: string;
 }) {
@@ -112,6 +114,7 @@ export function createAppRouter(options: {
 			persist: options.persist,
 			remote: options.remote,
 			sync: options.sync,
+			remount: options.remount,
 			utcToday: options.utcToday,
 		},
 		basepath: "/portdle",

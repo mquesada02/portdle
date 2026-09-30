@@ -7,18 +7,16 @@ import type { Remote } from "../remote/remote";
 import { createAppRouter } from "../router";
 import { createSync } from "../sync/sync";
 
-function AppSession({
+export function App({
 	persist,
 	remote,
 	history,
 	utcToday,
-	onAccountDeleted,
 }: {
 	persist: Persist;
 	remote?: Remote;
 	history?: RouterHistory;
 	utcToday?: string;
-	onAccountDeleted: () => void;
 }) {
 	const [clockToday, setClockToday] = useState(
 		() => utcToday ?? utcDateString(new Date()),
@@ -59,33 +57,33 @@ function AppSession({
 		void sync.refresh();
 		return detach;
 	}, [sync]);
+	// A remount rebuilds every screen, so nothing typed before a device clear
+	// can write cleared data back.
+	const [generation, setGeneration] = useState(0);
+	const remount = useCallback(() => setGeneration((count) => count + 1), []);
 	const router = useMemo(
 		() =>
-			createAppRouter({ persist, remote, sync, history, utcToday: clockToday }),
-		[persist, remote, sync, history, clockToday],
+			createAppRouter({
+				persist,
+				remote,
+				sync,
+				remount,
+				history,
+				utcToday: clockToday,
+			}),
+		[persist, remote, sync, remount, history, clockToday],
 	);
-	// Runs inside the deletion, before the remount: the new session's router
-	// reads this address, so it opens the Daily, not the deleted-from screen.
+	// The router moves to the Daily before the remount, so the remount opens
+	// the Daily, not the screen the player deleted from, and no screen mounts
+	// on the cleared store as the old location.
 	useEffect(
 		() =>
 			sync?.onAccountDeleted(() => {
-				router.history.replace(`${router.basepath}/`);
-				onAccountDeleted();
+				void router
+					.navigate({ to: "/", replace: true, viewTransition: false })
+					.finally(remount);
 			}),
-		[sync, router, onAccountDeleted],
+		[sync, router, remount],
 	);
-	return <RouterProvider router={router} />;
-}
-
-// Deleting the account remounts the whole session, so the screen, the theme,
-// the How-to, and the sync module start from the cleared store.
-export function App(props: {
-	persist: Persist;
-	remote?: Remote;
-	history?: RouterHistory;
-	utcToday?: string;
-}) {
-	const [generation, setGeneration] = useState(0);
-	const remount = useCallback(() => setGeneration((g) => g + 1), []);
-	return <AppSession key={generation} {...props} onAccountDeleted={remount} />;
+	return <RouterProvider key={generation} router={router} />;
 }

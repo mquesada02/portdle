@@ -19,6 +19,7 @@ import {
 	type Remote,
 	type SyncedRows,
 } from "../remote/remote";
+import { deviceChoicePending } from "./device-progress";
 
 export const PUSH_DELAY_MS = 1500;
 
@@ -86,8 +87,7 @@ export function createSync(options: {
 	let timer: unknown = null;
 	let running: Promise<void> | null = null;
 	let rerun = false;
-	// Set while an account deletion runs; on success it stays set for the life
-	// of this sync, which the remount discards.
+	// Set while an account deletion runs.
 	let deleting = false;
 	let queue: Promise<unknown> = Promise.resolve();
 	let snapshot = emptySnapshot();
@@ -393,6 +393,13 @@ export function createSync(options: {
 			}
 			return;
 		}
+		if (deviceChoicePending(persist, account.accountId)) {
+			// The player has not chosen what happens to this device's progress.
+			if (activeAccount !== null) {
+				reset();
+			}
+			return;
+		}
 		if (!account.nameConfirmed) {
 			// Another tab may have signed in as someone whose name is unconfirmed.
 			if (activeAccount !== null) {
@@ -484,6 +491,8 @@ export function createSync(options: {
 				// The sign-in stays stored; the next open reads it again.
 			}
 		}
+		// The remount keeps this sync, so it must work for the next sign-in.
+		deleting = false;
 		persist.clearAll();
 		for (const listener of deletedListeners) {
 			listener();
