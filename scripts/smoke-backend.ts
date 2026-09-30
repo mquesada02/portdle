@@ -78,6 +78,30 @@ function refusedByGrant(r: Reply): boolean {
 function refusedByCheck(r: Reply): boolean {
 	return r.status === 400 && r.code === "23514";
 }
+// A write to a view is refused when it is not a 2xx and the body names a
+// permission error or the "not automatically updatable" error (55000, which
+// PostgREST returns as a 500 for a view with window functions). Any other 5xx
+// is a failure of the check itself.
+function refusedByView(r: Reply): boolean {
+	return (
+		refusedByGrant(r) ||
+		(r.status === 500 &&
+			r.code === "55000" &&
+			typeof r.body === "object" &&
+			JSON.stringify(r.body).includes("not automatically updatable"))
+	);
+}
+
+// The reminder prints on every exit, failed checks and thrown errors included,
+// once a check has written tagged rows.
+let wroteTaggedRows = false;
+process.on("exit", () => {
+	if (wroteTaggedRows) {
+		console.log(
+			"Now close every Portdle tab signed in as you, then run supabase/tests/row-sync-cleanup.sql in the SQL editor to remove the tagged rows. (An open tab pulls them and can push them back.)",
+		);
+	}
+});
 
 const randomId = crypto.randomUUID();
 
@@ -233,6 +257,7 @@ async function checkSyncTable(options: {
 				anonRead.body.length === 0),
 		anonRead,
 	);
+	wroteTaggedRows = true;
 	const upsert = await rest("POST", `${table}`, {
 		token,
 		body: { ...own, ...valid },
@@ -401,7 +426,7 @@ for (const view of [
 		token,
 		body: { account_id: id, score: 1 },
 	});
-	report(`write to ${view} is refused`, refusedByGrant(write), write);
+	report(`write to ${view} is refused`, refusedByView(write), write);
 }
 for (const table of ["blitz_runs", "blitz_bests"]) {
 	const anonTable = await rest("GET", `${table}?select=score&limit=1`);
@@ -416,7 +441,4 @@ for (const table of ["blitz_runs", "blitz_bests"]) {
 }
 
 console.log(failed === 0 ? "All checks passed." : `${failed} check(s) failed.`);
-console.log(
-	"Now close every Portdle tab signed in as you, then run supabase/tests/row-sync-cleanup.sql in the SQL editor to remove the tagged rows. (An open tab pulls them and can push them back.)",
-);
 process.exit(failed === 0 ? 0 : 1);
