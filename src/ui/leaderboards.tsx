@@ -123,17 +123,25 @@ function RankedList({ page }: { page: LeaderboardPage }) {
 	);
 }
 
+export type LeaderboardPicker = {
+	window: LeaderboardWindow;
+	category: DailyCategory;
+	orientation: Orientation;
+	mode: BlitzMode;
+};
+
 export function Leaderboards({
 	remote,
 	sync,
+	picker,
+	onPickerChange,
 }: {
 	remote: Remote;
 	sync?: Sync;
+	picker: LeaderboardPicker;
+	onPickerChange: (picker: LeaderboardPicker) => void;
 }) {
-	const [windowKey, setWindowKey] = useState<LeaderboardWindow>("allTime");
-	const [category, setCategory] = useState<DailyCategory>("mixed");
-	const [orientation, setOrientation] = useState<Orientation>("default");
-	const [mode, setMode] = useState<BlitzMode>("sprint");
+	const { window: windowKey, category, orientation, mode } = picker;
 	const [result, setResult] = useState<Result>({ status: "loading" });
 	// Opening the panel pushes pending changes once; every read waits for it.
 	const synced = useRef<Promise<void> | null>(null);
@@ -176,14 +184,14 @@ export function Leaderboards({
 					name="leaderboard-window"
 					items={WINDOWS}
 					value={windowKey}
-					onChange={setWindowKey}
+					onChange={(value) => onPickerChange({ ...picker, window: value })}
 				/>
 				<Choice
 					legend="Daily category"
 					name="leaderboard-category"
 					items={CATEGORIES}
 					value={category}
-					onChange={setCategory}
+					onChange={(value) => onPickerChange({ ...picker, category: value })}
 				/>
 				<div className="flex flex-wrap gap-x-2 gap-y-2">
 					<Choice
@@ -191,14 +199,16 @@ export function Leaderboards({
 						name="leaderboard-orientation"
 						items={ORIENTATIONS}
 						value={orientation}
-						onChange={setOrientation}
+						onChange={(value) =>
+							onPickerChange({ ...picker, orientation: value })
+						}
 					/>
 					<Choice
 						legend="Blitz mode"
 						name="leaderboard-mode"
 						items={MODES}
 						value={mode}
-						onChange={setMode}
+						onChange={(value) => onPickerChange({ ...picker, mode: value })}
 					/>
 				</div>
 			</div>
