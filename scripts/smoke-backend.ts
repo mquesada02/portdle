@@ -1,6 +1,9 @@
 // Hand-run check of the real Supabase project (Spec 4). It cannot run an OAuth
 // sign-in, so it takes a signed-in browser's access token.
 //
+// The row sync checks write and remove clearly fake rows in the signed-in
+// account (the Best row is saved and restored).
+//
 //   SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_ACCESS_TOKEN=... pnpm smoke:backend
 //
 // Copy the token from the browser's localStorage after signing in on the
@@ -203,6 +206,150 @@ const changeId = await rest("PATCH", `accounts?id=eq.${id}`, {
 	body: { id: randomId },
 });
 report("update of id is refused", refusedByGrant(changeId), changeId);
+
+// Row sync tables (ticket #136). Each check writes one clearly fake row
+// (Codex entry "smoke-test", a run and a Daily dated 2000-01-01) and deletes
+// it. The Best table has no fake key, so its row is saved and restored.
+async function checkSyncTable(options: {
+	table: string;
+	filter: string;
+	valid: Record<string, unknown>;
+	invalid: Record<string, unknown>;
+	readBack: (row: Record<string, unknown>) => boolean;
+	restore?: Record<string, unknown> | null;
+}) {
+	const { table, filter, valid, invalid, readBack } = options;
+	const own = { account_id: id };
+	const anonRead = await rest("GET", `${table}?select=account_id`);
+	report(
+		`anonymous cannot read ${table}`,
+		refusedByGrant(anonRead) ||
+			(anonRead.status === 200 &&
+				Array.isArray(anonRead.body) &&
+				anonRead.body.length === 0),
+		anonRead,
+	);
+	const saved = await rest("GET", `${table}?${filter}&select=*`, { token });
+	const savedRow =
+		Array.isArray(saved.body) && saved.body.length > 0
+			? (saved.body[0] as Record<string, unknown>)
+			: null;
+	try {
+		const upsert = await rest("POST", `${table}`, {
+			token,
+			body: { ...own, ...valid },
+			prefer: "resolution=merge-duplicates,return=representation",
+		});
+		report(`own upsert into ${table} succeeds`, upsert.status < 300, upsert);
+		const back = await rest("GET", `${table}?${filter}&select=*`, { token });
+		const row =
+			Array.isArray(back.body) && back.body.length > 0
+				? (back.body[0] as Record<string, unknown>)
+				: null;
+		report(
+			`own row of ${table} reads back`,
+			row !== null && readBack(row),
+			back,
+		);
+		const bad = await rest("POST", table, {
+			token,
+			body: { ...own, ...invalid },
+		});
+		report(`invalid row into ${table} is refused`, refusedByCheck(bad), bad);
+		const foreign = await rest("POST", table, {
+			token,
+			body: { ...valid, account_id: randomId },
+		});
+		report(
+			`row of another account into ${table} is refused`,
+			refusedByGrant(foreign),
+			foreign,
+		);
+	} finally {
+		const cleanup = savedRow
+			? await rest("POST", table, {
+					token,
+					body: savedRow,
+					prefer: "resolution=merge-duplicates",
+				})
+			: await rest("DELETE", `${table}?${filter}`, { token });
+		if (cleanup.status >= 300) {
+			console.warn(
+				`WARNING: could not clean up the ${table} test row.`,
+				cleanup,
+			);
+		}
+	}
+}
+
+await checkSyncTable({
+	table: "codex_entries",
+	filter: "entry_id=eq.smoke-test",
+	valid: { entry_id: "smoke-test", state: "identified" },
+	invalid: { entry_id: "smoke-test", state: "wrong" },
+	readBack: (row) => row.state === "identified",
+});
+await checkSyncTable({
+	table: "blitz_bests",
+	filter: "category=eq.mixed&orientation=eq.default&mode=eq.sprint",
+	valid: {
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		score: 7,
+		time_to_score_ms: 1234.5,
+	},
+	invalid: {
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		score: -1,
+	},
+	readBack: (row) => row.score === 7 && row.time_to_score_ms === 1234.5,
+});
+await checkSyncTable({
+	table: "blitz_runs",
+	filter: "ended_at=eq.2000-01-01T00:00:00Z",
+	valid: {
+		ended_at: "2000-01-01T00:00:00.000Z",
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		ended: "lives",
+		score: 2,
+		time_to_score_ms: 10.25,
+		rounds: [
+			{ id: "http", name: "HTTP", port: 80, outcome: "correct", wrong: null },
+		],
+	},
+	invalid: {
+		ended_at: "2000-01-01T00:00:00.000Z",
+		category: "mixed",
+		orientation: "default",
+		mode: "sprint",
+		ended: "quit",
+		score: 2,
+		rounds: [],
+	},
+	readBack: (row) => row.score === 2 && Array.isArray(row.rounds),
+});
+await checkSyncTable({
+	table: "dailies",
+	filter: "category=eq.mixed&day=eq.2000-01-01",
+	valid: {
+		category: "mixed",
+		day: "2000-01-01",
+		status: "playing",
+		guesses: [],
+	},
+	invalid: {
+		category: "mixed",
+		day: "2000-01-01",
+		status: "quit",
+		guesses: [],
+	},
+	readBack: (row) => row.status === "playing" && Array.isArray(row.guesses),
+});
 
 console.log(failed === 0 ? "All checks passed." : `${failed} check(s) failed.`);
 process.exit(failed === 0 ? 0 : 1);
