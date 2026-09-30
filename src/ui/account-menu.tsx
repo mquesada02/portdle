@@ -54,9 +54,9 @@ export function AccountMenu({
 	const fieldRef = useRef<HTMLInputElement>(null);
 	// Set when an edit ends by Save, Cancel, or Escape, so focus goes back to
 	// the pencil; closing the menu never sets it.
-	const restorePencil = useRef(false);
+	const pencilFocusPending = useRef(false);
 	// Set when a save fails, so focus returns to the field once the call ends.
-	const refocusField = useRef(false);
+	const fieldFocusPending = useRef(false);
 
 	useEffect(() => {
 		remote.clearRedirectError();
@@ -95,7 +95,7 @@ export function AccountMenu({
 
 	const close = useCallback(() => {
 		if (!savingName) {
-			restorePencil.current = false;
+			pencilFocusPending.current = false;
 			setOpen(false);
 			setEditing(null);
 		}
@@ -106,21 +106,21 @@ export function AccountMenu({
 	useEffect(() => {
 		if (isEditing) {
 			fieldRef.current?.focus();
-		} else if (restorePencil.current) {
+		} else if (pencilFocusPending.current) {
 			pencilRef.current?.focus();
 		}
-		restorePencil.current = false;
+		pencilFocusPending.current = false;
 	}, [isEditing]);
 
 	useEffect(() => {
-		if (!busy && refocusField.current) {
-			refocusField.current = false;
+		if (!busy && fieldFocusPending.current) {
+			fieldFocusPending.current = false;
 			fieldRef.current?.focus();
 		}
 	}, [busy]);
 
 	const endEdit = useCallback(() => {
-		restorePencil.current = true;
+		pencilFocusPending.current = true;
 		setEditing(null);
 		setError(null);
 	}, []);
@@ -132,6 +132,7 @@ export function AccountMenu({
 		function handleKeyDown(event: KeyboardEvent) {
 			if (event.key === "Escape") {
 				if (isEditing) {
+					// A pending call keeps the edit, like every other close.
 					if (!busy) {
 						endEdit();
 					}
@@ -199,18 +200,15 @@ export function AccountMenu({
 		}
 		const name = editing;
 		return run(async () => {
-			try {
-				await remote.changeDisplayName(name);
-			} catch (failure) {
-				refocusField.current = true;
-				throw failure;
-			}
+			fieldFocusPending.current = true;
+			await remote.changeDisplayName(name);
+			fieldFocusPending.current = false;
 			setView((current) =>
 				current.kind === "signedIn"
 					? { ...current, displayName: name }
 					: current,
 			);
-			restorePencil.current = true;
+			pencilFocusPending.current = true;
 			setEditing(null);
 		}, SAVE_FAILURE);
 	}

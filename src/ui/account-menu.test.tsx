@@ -49,6 +49,10 @@ function accountButton() {
 	return screen.getByRole("button", { name: "Account" });
 }
 
+function pencil() {
+	return screen.getByRole("button", { name: "Edit display name" });
+}
+
 test("without a Remote there is no Account button", async () => {
 	await renderApp({});
 	expect(screen.queryByRole("button", { name: "Account" })).toBeNull();
@@ -364,10 +368,6 @@ test("closing the menu with the person icon mid-edit cancels the edit", async ()
 	expect(await screen.findByText("Ada L.")).toBeTruthy();
 });
 
-function pencil() {
-	return screen.getByRole("button", { name: "Edit display name" });
-}
-
 test("opening the edit focuses the name field", async () => {
 	const user = userEvent.setup();
 	const remote = createFakeRemote(SIGNED_IN);
@@ -455,6 +455,9 @@ test("a failed sign-out mid-edit does not move focus into the field", async () =
 		"Could not sign out. Try again.",
 	);
 	expect(document.activeElement).toBe(signOut);
+	expect(document.activeElement).not.toBe(
+		screen.getByRole("textbox", { name: "Display name" }),
+	);
 });
 
 test("Escape during a pending save changes nothing, then the result focuses the pencil", async () => {
