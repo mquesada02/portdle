@@ -33,6 +33,7 @@ export function createFakeClock(): FakeClock {
 			}
 			now = target;
 		},
+		now: () => now,
 		pending: () => timers.size,
 	};
 }

@@ -46,6 +46,7 @@ export type FakeRemote = Remote & {
 	preloadCalls: number;
 	confirmCalls: string[];
 	changeCalls: string[];
+	getAccountCalls: number;
 	failGetAccount: boolean;
 	failSignIn: boolean;
 	failSignOut: boolean;
@@ -117,6 +118,7 @@ export function createFakeRemote(
 		preloadCalls: 0,
 		confirmCalls: [],
 		changeCalls: [],
+		getAccountCalls: 0,
 		failGetAccount: false,
 		failSignIn: false,
 		failSignOut: false,
@@ -174,6 +176,7 @@ export function createFakeRemote(
 			redirectText = text;
 		},
 		async getAccount() {
+			fake.getAccountCalls += 1;
 			// The state a request sees is the state when it is sent.
 			const current = fake.state;
 			if (gate) {

@@ -10,7 +10,7 @@ import { validateDisplayName } from "../engine/display-name";
 import type { Persist } from "../persist/storage";
 import { AccountGoneError, type Provider, type Remote } from "../remote/remote";
 import { deviceChoicePending } from "../sync/device-progress";
-import type { Sync } from "../sync/sync";
+import type { AccountReport, Sync } from "../sync/sync";
 import { DeleteAccount } from "./delete-account";
 import { DEVICE_CHOICE_FAILURE } from "./device-choice-copy";
 import { DeviceProgressChoice } from "./device-progress-choice";
@@ -80,25 +80,52 @@ export function AccountMenu({
 	// Set when a save fails, so focus returns to the field once the call ends.
 	const fieldFocusPending = useRef(false);
 
+	const viewRef = useRef(view);
+	viewRef.current = view;
+
+	// Sync makes the account read at load and reports it; only a menu with no
+	// sync reads the account itself.
 	useEffect(() => {
 		remote.clearRedirectError();
+		function onReport(report: AccountReport) {
+			if (report.status === "signedIn") {
+				if (viewRef.current.kind === "signedIn") {
+					setView((current) =>
+						current.kind === "signedIn"
+							? {
+									...current,
+									displayName: report.displayName,
+									nameConfirmed: report.nameConfirmed,
+								}
+							: current,
+					);
+					return;
+				}
+				setView({
+					kind: "signedIn",
+					accountId: report.accountId,
+					displayName: report.displayName,
+					nameConfirmed: report.nameConfirmed,
+					choicePending: deviceChoicePending(persist, report.accountId),
+				});
+				setError(null);
+			} else if (viewRef.current.kind === "loading") {
+				if (report.status === "signedOut") {
+					setView({ kind: "signedOut" });
+				} else if (redirectError === null) {
+					setView({ kind: "loadFailed" });
+					setError("Could not load your account.");
+				}
+			}
+		}
+		if (sync) {
+			return sync.onAccount(onReport);
+		}
 		let cancelled = false;
 		remote.getAccount().then(
 			(account) => {
-				if (cancelled) {
-					return;
-				}
-				if (account.status === "signedIn") {
-					setView({
-						kind: "signedIn",
-						accountId: account.accountId,
-						displayName: account.displayName,
-						nameConfirmed: account.nameConfirmed,
-						choicePending: deviceChoicePending(persist, account.accountId),
-					});
-					setError(null);
-				} else {
-					setView({ kind: "signedOut" });
+				if (!cancelled) {
+					onReport(account);
 				}
 			},
 			(reason: unknown) => {
@@ -106,16 +133,11 @@ export function AccountMenu({
 					return;
 				}
 				if (reason instanceof AccountGoneError) {
-					void sync?.accountGone();
 					setView({ kind: "signedOut" });
 					setDeleteOpen(false);
 					return;
 				}
-				if (redirectError !== null) {
-					return;
-				}
-				setView({ kind: "loadFailed" });
-				setError("Could not load your account.");
+				onReport({ status: "failed" });
 			},
 		);
 		return () => {
@@ -130,27 +152,6 @@ export function AccountMenu({
 				setEditing(null);
 				setError(null);
 				setDeleteOpen(false);
-			}),
-		[sync],
-	);
-
-	// A name changed on another device shows after the next pull. A rename
-	// here is followed by a refresh, so a stale read corrects itself.
-	useEffect(
-		() =>
-			sync?.onAccount((account) => {
-				if (account.status !== "signedIn") {
-					return;
-				}
-				setView((current) =>
-					current.kind === "signedIn"
-						? {
-								...current,
-								displayName: account.displayName,
-								nameConfirmed: account.nameConfirmed,
-							}
-						: current,
-				);
 			}),
 		[sync],
 	);

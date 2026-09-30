@@ -11,7 +11,12 @@ import {
 } from "../test/fake-remote";
 import { memoryStore } from "../test/helpers";
 import { deviceChoicePending } from "./device-progress";
-import { createSync, PUSH_DELAY_MS } from "./sync";
+import {
+	type AccountReport,
+	createSync,
+	PULL_THROTTLE_MS,
+	PUSH_DELAY_MS,
+} from "./sync";
 
 const ACCOUNT: AccountState = {
 	status: "signedIn",
@@ -288,35 +293,181 @@ test("a pull that changed no Daily leaves stats alone", async () => {
 	expect(d.persist.readStats("mixed")?.played).toBe(7);
 });
 
-test("visible and focus pull, hidden does not", async () => {
+const focus = async () => {
+	window.dispatchEvent(new Event("focus"));
+	await settle();
+};
+
+function setVisibility(value: "visible" | "hidden") {
+	Object.defineProperty(document, "visibilityState", {
+		configurable: true,
+		value,
+	});
+	document.dispatchEvent(new Event("visibilitychange"));
+}
+
+afterEach(() => {
+	Reflect.deleteProperty(document, "visibilityState");
+});
+
+test("hidden does not pull, visible after the throttle does", async () => {
 	const remote = createFakeRemote(ACCOUNT);
 	const d = device(remote);
 	await d.sync.refresh();
-	expect(remote.pullCalls).toBe(1);
-	const state = Object.getOwnPropertyDescriptor(
-		Document.prototype,
-		"visibilityState",
-	);
-	Object.defineProperty(document, "visibilityState", {
-		configurable: true,
-		value: "hidden",
-	});
-	document.dispatchEvent(new Event("visibilitychange"));
+	d.clock.advance(PULL_THROTTLE_MS);
+	setVisibility("hidden");
 	await settle();
 	expect(remote.pullCalls).toBe(1);
-	Object.defineProperty(document, "visibilityState", {
-		configurable: true,
-		value: "visible",
-	});
-	document.dispatchEvent(new Event("visibilitychange"));
+	setVisibility("visible");
 	await settle();
 	expect(remote.pullCalls).toBe(2);
-	window.dispatchEvent(new Event("focus"));
+});
+
+test("a focus inside the throttle does not pull, at 30 seconds it does", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.clock.advance(10000);
+	await focus();
+	expect(remote.pullCalls).toBe(1);
+	d.clock.advance(PULL_THROTTLE_MS - 10000 - 1);
+	await focus();
+	expect(remote.pullCalls).toBe(1);
+	d.clock.advance(1);
+	await focus();
+	expect(remote.pullCalls).toBe(2);
+});
+
+test("a focus 31 seconds after a pull pulls, and the pull restarts the window", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.clock.advance(31000);
+	await focus();
+	expect(remote.pullCalls).toBe(2);
+	d.clock.advance(10000);
+	await focus();
+	expect(remote.pullCalls).toBe(2);
+});
+
+test("a visibility change inside the throttle does not pull", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.clock.advance(10000);
+	setVisibility("visible");
 	await settle();
-	expect(remote.pullCalls).toBe(3);
-	Reflect.deleteProperty(document, "visibilityState");
-	expect(state).toBeDefined();
+	expect(remote.pullCalls).toBe(1);
+});
+
+test("a pull at time zero still starts the window", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	expect(d.clock.now()).toBe(0);
+	await d.sync.refresh();
+	d.clock.advance(10000);
+	await focus();
+	expect(remote.pullCalls).toBe(1);
+});
+
+test("a focus after a failed pull pulls", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	remote.failPull = true;
+	await d.sync.refresh();
+	remote.failPull = false;
+	await focus();
+	expect(remote.pullCalls).toBe(2);
+	await focus();
+	expect(remote.pullCalls).toBe(2);
+});
+
+test("a focus after a failed account read pulls", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	remote.failGetAccount = true;
+	await d.sync.refresh();
+	remote.failGetAccount = false;
+	await focus();
+	expect(remote.pullCalls).toBe(1);
+});
+
+test("a pull that stops on a name confirm records no time", async () => {
+	const remote = createFakeRemote(UNCONFIRMED);
+	const d = device(remote);
+	await d.sync.refresh();
+	expect(remote.pullCalls).toBe(0);
+	remote.state = ACCOUNT;
+	await focus();
+	expect(remote.pullCalls).toBe(1);
+});
+
+test("a focus after a pull whose push failed pulls and retries the push", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	remote.failPush = true;
+	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
+	d.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	expect(remote.pushCalls).toHaveLength(1);
+	remote.failPush = false;
+	await focus();
+	expect(remote.pullCalls).toBe(2);
+	expect(remote.rows.codex.http).toBe("correct");
+});
+
+test("refresh pulls inside the throttle", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.clock.advance(1000);
+	await d.sync.refresh();
+	expect(remote.pullCalls).toBe(2);
+});
+
+test("stop clears the recorded pull", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
 	d.sync.stop();
+	d.clock.advance(1000);
+	await focus();
+	expect(remote.pullCalls).toBe(2);
+});
+
+test("a clock moved back does not skip the pull", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	d.clock.advance(60000);
+	await d.sync.refresh();
+	d.clock.now = () => 1000;
+	await focus();
+	expect(remote.pullCalls).toBe(2);
+});
+
+test("a focus during a pull is skipped, unless a row waits to be pushed", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.clock.advance(PULL_THROTTLE_MS);
+	const release = remote.holdPull();
+	const running = d.sync.refresh();
+	await settle();
+	expect(remote.pullCalls).toBe(2);
+	await focus();
+	release();
+	await running;
+	expect(remote.pullCalls).toBe(2);
+	d.clock.advance(PULL_THROTTLE_MS);
+	const releaseAgain = remote.holdPull();
+	const runningAgain = d.sync.refresh();
+	await settle();
+	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
+	await focus();
+	releaseAgain();
+	await runningAgain;
+	expect(remote.pullCalls).toBe(4);
 });
 
 test("failures are silent and the next write retries the push", async () => {
@@ -607,20 +758,78 @@ test("a run with an invalid endedAt is never pushed", async () => {
 	]);
 });
 
-test("every successful pull reports the sign-in state it read again", async () => {
+test("every account read is reported, a failed one included", async () => {
 	const remote = createFakeRemote(ACCOUNT);
 	const d = device(remote);
-	const seen: AccountState[] = [];
-	d.sync.onAccount((account) => seen.push(account));
+	const seen: AccountReport[] = [];
+	d.sync.onAccount((report) => seen.push(report));
 	await d.sync.refresh();
 	remote.state = { ...ACCOUNT, displayName: "Grace" };
 	await d.sync.refresh();
 	expect(
-		seen.map((account) => account.status === "signedIn" && account.displayName),
+		seen.map((report) => report.status === "signedIn" && report.displayName),
 	).toEqual(["Ada", "Grace"]);
 	remote.failPull = true;
 	await d.sync.refresh();
-	expect(seen).toHaveLength(2);
+	expect(seen).toHaveLength(3);
+	remote.failGetAccount = true;
+	await d.sync.refresh();
+	expect(seen[3]).toEqual({ status: "failed" });
+	remote.failGetAccount = false;
+	remote.state = { status: "signedOut" };
+	await d.sync.refresh();
+	expect(seen[4]).toEqual({ status: "signedOut" });
+});
+
+test("a listener added later gets the latest report at once", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	const early: AccountReport[] = [];
+	d.sync.onAccount((report) => early.push(report));
+	expect(early).toEqual([]);
+	await d.sync.refresh();
+	const late: AccountReport[] = [];
+	d.sync.onAccount((report) => late.push(report));
+	expect(late).toEqual([ACCOUNT]);
+	expect(remote.getAccountCalls).toBe(1);
+});
+
+test("stop makes the kept report signed out without telling listeners", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	const seen: AccountReport[] = [];
+	d.sync.onAccount((report) => seen.push(report));
+	await d.sync.refresh();
+	d.sync.stop();
+	expect(seen).toEqual([ACCOUNT]);
+	const late: AccountReport[] = [];
+	d.sync.onAccount((report) => late.push(report));
+	expect(late).toEqual([{ status: "signedOut" }]);
+});
+
+test("a read that a stop overtook is not reported", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	const seen: AccountReport[] = [];
+	d.sync.onAccount((report) => seen.push(report));
+	const release = remote.holdGetAccount();
+	const running = d.sync.refresh();
+	await settle();
+	d.sync.stop();
+	release();
+	await running;
+	expect(seen).toEqual([]);
+});
+
+test("an account that is gone is not reported as a failed read", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.gone = true;
+	const d = device(remote);
+	const seen: AccountReport[] = [];
+	d.sync.onAccount((report) => seen.push(report));
+	await d.sync.refresh();
+	expect(seen).toEqual([]);
+	expect(remote.signOutCalls).toBe(1);
 });
 
 test("deleteAccount clears the device and notifies only after the remote succeeded", async () => {

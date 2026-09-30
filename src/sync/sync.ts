@@ -29,16 +29,24 @@ import {
 import { deviceChoicePending } from "./device-progress";
 
 export const PUSH_DELAY_MS = 1500;
+// A pull from the tab regaining focus or becoming visible is skipped when the
+// last successful pull finished less than this long ago.
+export const PULL_THROTTLE_MS = 30000;
 
 export type SyncClock = {
+	now(): number;
 	setTimeout(callback: () => void, ms: number): unknown;
 	clearTimeout(handle: unknown): void;
 };
 
 export const systemClock: SyncClock = {
+	now: () => Date.now(),
 	setTimeout: (callback, ms) => setTimeout(callback, ms),
 	clearTimeout: (handle) => clearTimeout(handle as number),
 };
+
+// What one account read produced, as sync reports it.
+export type AccountReport = AccountState | { status: "failed" };
 
 export type Sync = {
 	attach(): () => void;
@@ -50,8 +58,9 @@ export type Sync = {
 	deleteAccount(): Promise<void>;
 	onAccountDeleted(listener: () => void): () => void;
 	onAccountGone(listener: () => void): () => void;
-	// Runs after each successful pull is applied, with the sign-in state that pull read again.
-	onAccount(listener: (account: AccountState) => void): () => void;
+	// Runs after each account read sync makes (the load read included), and at
+	// once with the latest report when added, so a late listener needs no read.
+	onAccount(listener: (report: AccountReport) => void): () => void;
 };
 
 type Kind = "codex" | "bests" | "runs" | "dailies" | "preferences";
@@ -98,6 +107,10 @@ export function createSync(options: {
 	let epoch = 0;
 	let activeAccount: string | null = null;
 	let pulled = false;
+	// When the last pull finished successfully; null when none did.
+	let lastPullAt: number | null = null;
+	// Survives `reset`; `stop` (the session ended) makes it signed out.
+	let latestReport: AccountReport | null = null;
 	let writing = false;
 	let timer: unknown = null;
 	let running: Promise<void> | null = null;
@@ -108,7 +121,7 @@ export function createSync(options: {
 	let snapshot = emptySnapshot();
 	const goneListeners = new Set<() => void>();
 	const deletedListeners = new Set<() => void>();
-	const accountListeners = new Set<(account: AccountState) => void>();
+	const accountListeners = new Set<(report: AccountReport) => void>();
 
 	function enqueue(task: () => Promise<void>): Promise<void> {
 		const next = queue.then(task, task);
@@ -121,6 +134,7 @@ export function createSync(options: {
 		epoch += 1;
 		activeAccount = null;
 		pulled = false;
+		lastPullAt = null;
 		snapshot = emptySnapshot();
 		if (timer !== null) {
 			clock.clearTimeout(timer);
@@ -460,12 +474,16 @@ export function createSync(options: {
 		try {
 			account = await remote.getAccount();
 		} catch (error) {
+			if (epoch === startEpoch && !(error instanceof AccountGoneError)) {
+				report({ status: "failed" });
+			}
 			await handleFailure(error, startEpoch);
 			return;
 		}
 		if (epoch !== startEpoch) {
 			return;
 		}
+		report(account);
 		if (account.status === "signedOut") {
 			if (activeAccount !== null) {
 				await accountGone();
@@ -503,9 +521,7 @@ export function createSync(options: {
 		}
 		applyPull(rows, persist.readSyncAccount() === null);
 		pulled = true;
-		for (const listener of accountListeners) {
-			listener(account);
-		}
+		lastPullAt = clock.now();
 		persist.writeSyncAccount(account.accountId);
 		// Preferences are marked only by writes and the first-sync import.
 		for (const kind of KINDS) {
@@ -535,8 +551,40 @@ export function createSync(options: {
 		return running;
 	}
 
+	function report(next: AccountReport) {
+		latestReport = next;
+		for (const listener of accountListeners) {
+			listener(next);
+		}
+	}
+
+	// A focus or visibility pull is skipped while one is in flight, or when the
+	// last successful one is recent; a row still waiting to be pushed lets it
+	// through, so a failed push is retried.
+	function pullThrottled(): boolean {
+		const changes = persist.readSyncChanges();
+		if (KINDS.some((kind) => changes[kind].length > 0)) {
+			return false;
+		}
+		if (running !== null) {
+			return true;
+		}
+		if (lastPullAt === null) {
+			return false;
+		}
+		const elapsed = clock.now() - lastPullAt;
+		return elapsed >= 0 && elapsed < PULL_THROTTLE_MS;
+	}
+
+	function refreshUnlessThrottled() {
+		if (!pullThrottled()) {
+			void refresh();
+		}
+	}
+
 	function stop() {
 		reset();
+		latestReport = { status: "signedOut" };
 		rerun = false;
 	}
 
@@ -586,11 +634,11 @@ export function createSync(options: {
 			const unlisten = persist.onWrite(onWrite);
 			function onVisibility() {
 				if (document.visibilityState === "visible") {
-					void refresh();
+					refreshUnlessThrottled();
 				}
 			}
 			function onFocus() {
-				void refresh();
+				refreshUnlessThrottled();
 			}
 			document.addEventListener("visibilitychange", onVisibility);
 			window.addEventListener("focus", onFocus);
@@ -619,6 +667,9 @@ export function createSync(options: {
 		},
 		onAccount(listener) {
 			accountListeners.add(listener);
+			if (latestReport !== null) {
+				listener(latestReport);
+			}
 			return () => {
 				accountListeners.delete(listener);
 			};
