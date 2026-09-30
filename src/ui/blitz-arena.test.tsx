@@ -2,9 +2,9 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import { applications, protocols } from "../catalogs/production";
-import type { BlitzRun, CatalogEntry } from "../engine/types";
+import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
+import { currentEntry, missThree } from "../test/blitz";
 import { padToAnswer, UTC_TODAY } from "../test/dailies";
 import {
 	memoryStore,
@@ -13,17 +13,6 @@ import {
 	stubViewTransitions,
 } from "../test/helpers";
 import { App } from "./app";
-
-const catalog = [...protocols, ...applications];
-
-function currentEntry(): CatalogEntry {
-	const name = screen.getByRole("heading", { level: 1 }).textContent;
-	const entry = catalog.find((candidate) => candidate.name === name);
-	if (!entry) {
-		throw new Error(`missing entry ${name}`);
-	}
-	return entry;
-}
 
 async function renderBlitz(
 	options: {
@@ -40,16 +29,6 @@ async function renderBlitz(
 	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
 	await screen.findByRole("navigation", { name: "Main" });
 	return persist;
-}
-
-async function missThree(user: ReturnType<typeof userEvent.setup>) {
-	for (let i = 0; i < 3; i += 1) {
-		const answer = currentEntry();
-		const missPort = answer.port === 80 ? 19 : 80;
-		await user.clear(portDigits());
-		await user.type(portDigits(), padToAnswer(missPort, answer));
-		await user.click(screen.getByRole("button", { name: "Submit" }));
-	}
 }
 
 function fakeRun(overrides: Partial<BlitzRun> = {}): BlitzRun {

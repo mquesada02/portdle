@@ -9,11 +9,10 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
-import { applications, protocols } from "../catalogs/production";
-import type { BlitzRun, CatalogEntry } from "../engine/types";
+import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import type { AccountState, LeaderboardRow } from "../remote/remote";
-import { padToAnswer } from "../test/dailies";
+import { missThree } from "../test/blitz";
 import {
 	createFakeRemote,
 	type FakeRemote,
@@ -21,7 +20,6 @@ import {
 } from "../test/fake-remote";
 import {
 	memoryStore,
-	portDigits,
 	stubMatchMedia,
 	stubViewTransitions,
 } from "../test/helpers";
@@ -33,7 +31,6 @@ const SIGNED_IN: AccountState = {
 	displayName: "Ada L.",
 	nameConfirmed: true,
 };
-const catalog = [...protocols, ...applications];
 
 afterEach(() => {
 	cleanup();
@@ -130,28 +127,13 @@ test("arrow keys move between the tabs", async () => {
 	).toBe("true");
 });
 
-function currentEntry(): CatalogEntry {
-	const name = screen.getByRole("heading", { level: 1 }).textContent;
-	const entry = catalog.find((candidate) => candidate.name === name);
-	if (!entry) {
-		throw new Error(`missing entry ${name}`);
-	}
-	return entry;
-}
-
 test("the tabs are hidden during a run and on the end card", async () => {
 	const user = userEvent.setup();
 	await mountBlitz(createFakeRemote());
 	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 	expect(screen.queryByRole("tablist")).toBeNull();
-	for (let i = 0; i < 3; i += 1) {
-		const answer = currentEntry();
-		const missPort = answer.port === 80 ? 19 : 80;
-		await user.clear(portDigits());
-		await user.type(portDigits(), padToAnswer(missPort, answer));
-		await user.click(screen.getByRole("button", { name: "Submit" }));
-	}
+	await missThree(user);
 	await screen.findByRole("button", { name: "Play again" });
 	expect(screen.queryByRole("tablist")).toBeNull();
 	await user.click(screen.getByRole("button", { name: "Play again" }));
@@ -386,13 +368,7 @@ async function startRun(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function loseByLives(user: ReturnType<typeof userEvent.setup>) {
-	for (let i = 0; i < 3; i += 1) {
-		const answer = currentEntry();
-		const missPort = answer.port === 80 ? 19 : 80;
-		await user.clear(portDigits());
-		await user.type(portDigits(), padToAnswer(missPort, answer));
-		await user.click(screen.getByRole("button", { name: "Submit" }));
-	}
+	await missThree(user);
 	await screen.findByRole("button", { name: "Play again" });
 }
 
