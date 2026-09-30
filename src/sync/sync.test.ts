@@ -626,3 +626,163 @@ test("every successful pull reports the sign-in state it read again", async () =
 	await d.sync.refresh();
 	expect(seen).toHaveLength(2);
 });
+
+test("deleteAccount clears the device and notifies only after the remote succeeded", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.persist.writeCodex({ http: { state: "correct", fresh: true } });
+	d.persist.writeTheme("dark");
+	const events: string[] = [];
+	d.sync.onAccountDeleted(() => {
+		events.push(
+			`notified, codex keys ${Object.keys(d.persist.readCodex()).length}`,
+		);
+	});
+	const release = remote.holdDeleteAccount();
+	const deleting = d.sync.deleteAccount();
+	await settle();
+	expect(d.persist.readTheme()).toBe("dark");
+	expect(events).toEqual([]);
+	release();
+	await deleting;
+	expect(events).toEqual(["notified, codex keys 0"]);
+	expect(d.store.data.size).toBe(0);
+	expect(remote.rows.codex).toEqual({});
+	expect(remote.deleteCalls).toBe(1);
+});
+
+test("a failed delete rejects, changes nothing, and sync resumes and pushes pending changes", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.persist.writeCodex({ http: { state: "correct", fresh: true } });
+	const notified: number[] = [];
+	d.sync.onAccountDeleted(() => notified.push(1));
+	remote.failDeleteAccount = true;
+	await expect(d.sync.deleteAccount()).rejects.toThrow("delete failed");
+	expect(notified).toEqual([]);
+	expect(d.persist.readCodex().http?.state).toBe("correct");
+	await settle();
+	expect(remote.rows.codex).toEqual({ http: "correct" });
+	d.persist.writeCodex({ dns: { state: "correct", fresh: true } });
+	d.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	expect(remote.rows.codex).toEqual({ http: "correct", dns: "correct" });
+});
+
+test("an account already gone counts as a delete: the sign-in is dropped and the device is cleared", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.persist.writeCodex({ http: { state: "correct", fresh: true } });
+	const notified: number[] = [];
+	const gone: number[] = [];
+	d.sync.onAccountDeleted(() => notified.push(1));
+	d.sync.onAccountGone(() => gone.push(1));
+	remote.gone = true;
+	await d.sync.deleteAccount();
+	expect(remote.signOutCalls).toBe(1);
+	expect(notified).toEqual([1]);
+	expect(gone).toEqual([]);
+	expect(d.store.data.size).toBe(0);
+});
+
+test("a delete pauses sync: a queued task and a new refresh never read the account or report it gone", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.persist.writeCodex({ http: { state: "correct", fresh: true } });
+	const releasePush = remote.holdPush();
+	d.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	// The push is held; a refresh queues a task behind it.
+	const queued = d.sync.refresh();
+	const gone: number[] = [];
+	d.sync.onAccountGone(() => gone.push(1));
+	const pullsBefore = remote.pullCalls;
+	const releaseDelete = remote.holdDeleteAccount();
+	const deleting = d.sync.deleteAccount();
+	remote.gone = true;
+	releasePush();
+	await d.sync.refresh();
+	releaseDelete();
+	await deleting;
+	await queued;
+	expect(remote.pullCalls).toBe(pullsBefore);
+	expect(gone).toEqual([]);
+	expect(remote.signOutCalls).toBe(1);
+	expect(d.store.data.size).toBe(0);
+});
+
+test("a pull held across the delete writes nothing after the clear", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.rows.codex = { dns: "correct" };
+	const d = device(remote);
+	const release = remote.holdPull();
+	const pulling = d.sync.refresh();
+	await settle();
+	await d.sync.deleteAccount();
+	release();
+	await pulling;
+	await settle();
+	expect(d.store.data.size).toBe(0);
+});
+
+test("a push held across the delete writes nothing after the clear", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.persist.writeCodex({ http: { state: "correct", fresh: true } });
+	const release = remote.holdPush();
+	d.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	expect(remote.pushCalls).toHaveLength(1);
+	await d.sync.deleteAccount();
+	release();
+	await settle();
+	expect(d.store.data.size).toBe(0);
+	expect(remote.pushCalls).toHaveLength(1);
+});
+
+test("a second delete call while one is held does nothing", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	const release = remote.holdDeleteAccount();
+	const first = d.sync.deleteAccount();
+	await d.sync.deleteAccount();
+	release();
+	await first;
+	expect(remote.deleteCalls).toBe(1);
+});
+
+test("a new sync on the cleared device reads the signed-out account and does nothing", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	await d.sync.deleteAccount();
+	const next = createSync({
+		persist: d.persist,
+		remote,
+		clock: d.clock,
+		utcToday: () => TODAY,
+	});
+	detachers.push(next.attach());
+	const pulls = remote.pullCalls;
+	await next.refresh();
+	expect(remote.pullCalls).toBe(pulls);
+	expect(d.store.data.size).toBe(0);
+});
+
+test("after a delete a late refresh does nothing, and a second delete call is ignored", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	await d.sync.deleteAccount();
+	const pulls = remote.pullCalls;
+	await d.sync.refresh();
+	await d.sync.deleteAccount();
+	expect(remote.pullCalls).toBe(pulls);
+	expect(remote.deleteCalls).toBe(1);
+});

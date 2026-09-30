@@ -9,6 +9,7 @@ import {
 import { validateDisplayName } from "../engine/display-name";
 import { AccountGoneError, type Provider, type Remote } from "../remote/remote";
 import type { Sync } from "../sync/sync";
+import { DeleteAccount } from "./delete-account";
 import {
 	DISPLAY_NAME_HINT,
 	SAVE_FAILURE,
@@ -51,6 +52,7 @@ export function AccountMenu({
 	const [error, setError] = useState<string | null>(redirectError);
 	const [busy, setBusy] = useState(false);
 	const [editing, setEditing] = useState<string | null>(null);
+	const [deleteOpen, setDeleteOpen] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLButtonElement>(null);
 	const pencilRef = useRef<HTMLButtonElement>(null);
@@ -87,6 +89,7 @@ export function AccountMenu({
 				if (reason instanceof AccountGoneError) {
 					void sync?.accountGone();
 					setView({ kind: "signedOut" });
+					setDeleteOpen(false);
 					return;
 				}
 				if (redirectError !== null) {
@@ -107,6 +110,7 @@ export function AccountMenu({
 				setView({ kind: "signedOut" });
 				setEditing(null);
 				setError(null);
+				setDeleteOpen(false);
 			}),
 		[sync],
 	);
@@ -374,6 +378,21 @@ export function AccountMenu({
 									</form>
 								)}
 								{signOutButton}
+								{sync && (
+									<button
+										type="button"
+										disabled={busy}
+										onClick={() => {
+											setOpen(false);
+											setEditing(null);
+											setError(null);
+											setDeleteOpen(true);
+										}}
+										className={MENU_BUTTON}
+									>
+										Delete account
+									</button>
+								)}
 							</>
 						)}
 						{view.kind === "loadFailed" && signOutButton}
@@ -388,6 +407,15 @@ export function AccountMenu({
 					</div>
 				)}
 			</div>
+			{deleteOpen && sync && (
+				<DeleteAccount
+					onConfirm={() => sync.deleteAccount()}
+					onCancel={() => {
+						setDeleteOpen(false);
+						buttonRef.current?.focus();
+					}}
+				/>
+			)}
 			{view.kind === "signedIn" && !view.nameConfirmed && (
 				<NameConfirm
 					initialName={view.displayName}

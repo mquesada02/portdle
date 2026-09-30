@@ -37,6 +37,10 @@ export type Sync = {
 	refresh(): Promise<void>;
 	stop(): void;
 	accountGone(): Promise<void>;
+	// Deletes the account, then clears the device and tells the listeners.
+	// Rejects, changing nothing, when the delete fails.
+	deleteAccount(): Promise<void>;
+	onAccountDeleted(listener: () => void): () => void;
 	onAccountGone(listener: () => void): () => void;
 	// Runs after each successful pull is applied, with the sign-in state that pull read again.
 	onAccount(listener: (account: AccountState) => void): () => void;
@@ -82,9 +86,13 @@ export function createSync(options: {
 	let timer: unknown = null;
 	let running: Promise<void> | null = null;
 	let rerun = false;
+	// Set while an account deletion runs; on success it stays set for the life
+	// of this sync, which the remount discards.
+	let deleting = false;
 	let queue: Promise<unknown> = Promise.resolve();
 	let snapshot = emptySnapshot();
 	const goneListeners = new Set<() => void>();
+	const deletedListeners = new Set<() => void>();
 	const accountListeners = new Set<(account: AccountState) => void>();
 
 	function enqueue(task: () => Promise<void>): Promise<void> {
@@ -364,6 +372,10 @@ export function createSync(options: {
 	}
 
 	async function syncOnce(): Promise<void> {
+		// A task queued before the delete began starts with the new epoch.
+		if (deleting) {
+			return;
+		}
 		const startEpoch = epoch;
 		let account: AccountState;
 		try {
@@ -416,6 +428,9 @@ export function createSync(options: {
 	}
 
 	function refresh(): Promise<void> {
+		if (deleting) {
+			return Promise.resolve();
+		}
 		if (running) {
 			rerun = true;
 			return running;
@@ -448,6 +463,33 @@ export function createSync(options: {
 		}
 	}
 
+	async function deleteAccount() {
+		if (deleting) {
+			return;
+		}
+		deleting = true;
+		stop();
+		try {
+			await remote.deleteAccount();
+		} catch (error) {
+			if (!(error instanceof AccountGoneError)) {
+				deleting = false;
+				void refresh();
+				throw error;
+			}
+			// The account is already gone, which is what the player asked for.
+			try {
+				await remote.signOut();
+			} catch {
+				// The sign-in stays stored; the next open reads it again.
+			}
+		}
+		persist.clearAll();
+		for (const listener of deletedListeners) {
+			listener();
+		}
+	}
+
 	return {
 		attach() {
 			const unlisten = persist.onWrite(onWrite);
@@ -471,6 +513,13 @@ export function createSync(options: {
 		refresh,
 		stop,
 		accountGone,
+		deleteAccount,
+		onAccountDeleted(listener) {
+			deletedListeners.add(listener);
+			return () => {
+				deletedListeners.delete(listener);
+			};
+		},
 		onAccountGone(listener) {
 			goneListeners.add(listener);
 			return () => {

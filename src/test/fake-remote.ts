@@ -34,12 +34,14 @@ export type FakeRemote = Remote & {
 	state: AccountState;
 	signInCalls: Provider[];
 	signOutCalls: number;
+	deleteCalls: number;
 	preloadCalls: number;
 	confirmCalls: string[];
 	changeCalls: string[];
 	failGetAccount: boolean;
 	failSignIn: boolean;
 	failSignOut: boolean;
+	failDeleteAccount: boolean;
 	failConfirmDisplayName: boolean;
 	failChangeDisplayName: boolean;
 	rows: SyncedRows;
@@ -54,6 +56,7 @@ export type FakeRemote = Remote & {
 	holdPush(): () => void;
 	holdConfirmDisplayName(): () => void;
 	holdChangeDisplayName(): () => void;
+	holdDeleteAccount(): () => void;
 	holdGetAccount(): () => void;
 	setRedirectError(text: string | null): void;
 };
@@ -69,6 +72,7 @@ export function createFakeRemote(
 	let gate: Promise<void> | null = null;
 	let confirmGate: Promise<void> | null = null;
 	let changeGate: Promise<void> | null = null;
+	let deleteGate: Promise<void> | null = null;
 	function hold(assign: (gate: Promise<void>) => void): () => void {
 		let release: () => void = () => {};
 		assign(
@@ -92,12 +96,14 @@ export function createFakeRemote(
 		state,
 		signInCalls: [],
 		signOutCalls: 0,
+		deleteCalls: 0,
 		preloadCalls: 0,
 		confirmCalls: [],
 		changeCalls: [],
 		failGetAccount: false,
 		failSignIn: false,
 		failSignOut: false,
+		failDeleteAccount: false,
 		failConfirmDisplayName: false,
 		failChangeDisplayName: false,
 		rows,
@@ -128,6 +134,11 @@ export function createFakeRemote(
 				changeGate = g;
 			});
 		},
+		holdDeleteAccount() {
+			return hold((g) => {
+				deleteGate = g;
+			});
+		},
 		holdGetAccount() {
 			return hold((g) => {
 				gate = g;
@@ -141,6 +152,10 @@ export function createFakeRemote(
 			const current = fake.state;
 			if (gate) {
 				await gate;
+			}
+			// A dropped sign-in has no user left to look up.
+			if (current.status === "signedOut") {
+				return current;
 			}
 			if (fake.gone) {
 				throw new AccountGoneError();
@@ -162,6 +177,21 @@ export function createFakeRemote(
 				throw new Error("sign-out failed");
 			}
 			fake.state = { status: "signedOut" };
+		},
+		async deleteAccount() {
+			fake.deleteCalls += 1;
+			if (deleteGate) {
+				await deleteGate;
+			}
+			if (fake.gone) {
+				throw new AccountGoneError();
+			}
+			if (fake.failDeleteAccount) {
+				throw new Error("delete failed");
+			}
+			fake.state = { status: "signedOut" };
+			// In place: fakes that share `rows` are devices of this account.
+			Object.assign(fake.rows, emptyRows());
 		},
 		async confirmDisplayName(name) {
 			fake.confirmCalls.push(name);
