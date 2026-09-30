@@ -13,6 +13,12 @@
 //
 //   SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_ACCESS_TOKEN=... pnpm smoke:backend
 //
+// The account deletion checks destroy the account whose token is used, so they
+// run only with --delete-account (pnpm smoke:backend --delete-account), only
+// after every other check passed, and only when the account's display name is
+// exactly "Test". Use the token of a throwaway TEST account, then sign in
+// again with that provider to re-create it.
+//
 // Copy the token from the browser's localStorage after signing in on the
 // deployed site (key `sb-<project>-auth-token`, field `access_token`). It
 // expires in about an hour, so copy it fresh.
@@ -28,6 +34,8 @@ if (!url || !anonKey || !token) {
 	);
 	process.exit(2);
 }
+
+const deleteAccountRequested = process.argv.includes("--delete-account");
 
 type Reply = { status: number; body: unknown; code: string | null };
 
@@ -140,6 +148,12 @@ if (!row) {
 }
 const id = String(row.id);
 const original = String(row.display_name);
+if (deleteAccountRequested && original !== "Test") {
+	console.error(
+		`Refusing --delete-account: the display name is "${original}", not exactly "Test". The flag deletes this account for good, so it runs only on a throwaway TEST account.`,
+	);
+	process.exit(2);
+}
 console.log(
 	`Seeded display name: "${original}" (compare with your provider name)`,
 );
@@ -554,6 +568,96 @@ for (const table of ["blitz_runs", "blitz_bests"]) {
 				anonTable.body.length === 0),
 		anonTable,
 	);
+}
+
+// Account deletion (ticket #140). It destroys the account, so it comes last,
+// behind the flag, and only when every check above passed.
+if (!deleteAccountRequested) {
+	console.log(
+		"SKIP the account deletion checks: pass --delete-account to run them (they delete the signed-in account).",
+	);
+} else if (failed > 0) {
+	console.log(
+		"SKIP the account deletion checks: an earlier check failed, so the account stays.",
+	);
+} else {
+	const anonDelete = await rest("POST", "rpc/delete_account", { body: {} });
+	report(
+		"anonymous cannot call delete_account",
+		refusedByGrant(anonDelete),
+		anonDelete,
+	);
+	const deletion = await rest("POST", "rpc/delete_account", {
+		token,
+		body: {},
+	});
+	report(
+		"signed-in call to delete_account succeeds",
+		deletion.status < 300,
+		deletion,
+	);
+	if (deletion.status < 300) {
+		// The tagged rows went with the account, so no cleanup reminder is due.
+		wroteTaggedRows = false;
+		// The token still verifies until it expires, so a read reaches the
+		// database, where the row-level security finds no row of this account.
+		for (const [table, column] of [
+			["accounts", "id"],
+			["codex_entries", "account_id"],
+			["blitz_bests", "account_id"],
+			["blitz_runs", "account_id"],
+			["dailies", "account_id"],
+			["preferences", "account_id"],
+		] as const) {
+			const after = await rest("GET", `${table}?select=${column}`, { token });
+			report(
+				`${table} has no row of the deleted account`,
+				refusedByGrant(after) ||
+					(after.status === 200 &&
+						Array.isArray(after.body) &&
+						after.body.length === 0),
+				after,
+			);
+		}
+		for (const view of [
+			"leaderboard_all_time",
+			"leaderboard_weekly",
+			"leaderboard_today",
+		]) {
+			const ranked = await rest(
+				"GET",
+				`${view}?select=account_id&account_id=eq.${id}`,
+				{
+					token,
+				},
+			);
+			report(
+				`${view} has no row of the deleted account`,
+				ranked.status === 200 &&
+					Array.isArray(ranked.body) &&
+					ranked.body.length === 0,
+				ranked,
+			);
+		}
+		// A second deletion in the app starts with a session read, and the auth
+		// API answers "user_not_found" for a deleted user. The app treats that as
+		// success (src/remote/supabase.ts, AccountGoneError). The RPC itself has
+		// nothing to report on a second call: it deletes zero rows.
+		const gone = await fetch(`${url}/auth/v1/user`, {
+			headers: { apikey: anonKey as string, Authorization: `Bearer ${token}` },
+		});
+		const goneBody = (await gone.json().catch(() => null)) as {
+			error_code?: string;
+		} | null;
+		report(
+			"a second deletion finds the account gone (auth API user_not_found)",
+			goneBody?.error_code === "user_not_found",
+			{ status: gone.status, body: goneBody },
+		);
+		console.log(
+			"The TEST account is deleted. Sign in again with that provider to re-create it.",
+		);
+	}
 }
 
 console.log(failed === 0 ? "All checks passed." : `${failed} check(s) failed.`);
