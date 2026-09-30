@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { utcDateString } from "../engine/utc";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
-import { createAppRouter } from "../router";
+import { type Backend, createAppRouter } from "../router";
 import { createSync } from "../sync/sync";
 
 export function App({
@@ -38,17 +38,19 @@ export function App({
 	}, [utcToday]);
 	const utcTodayRef = useRef(utcToday);
 	utcTodayRef.current = utcToday;
-	const sync = useMemo(
+	const backend = useMemo<Backend | undefined>(
 		() =>
-			remote
-				? createSync({
-						persist,
-						remote,
-						utcToday: () => utcTodayRef.current ?? utcDateString(new Date()),
-					})
-				: undefined,
+			remote && {
+				remote,
+				sync: createSync({
+					persist,
+					remote,
+					utcToday: () => utcTodayRef.current ?? utcDateString(new Date()),
+				}),
+			},
 		[persist, remote],
 	);
+	const sync = backend?.sync;
 	useEffect(() => {
 		if (!sync) {
 			return;
@@ -65,13 +67,12 @@ export function App({
 		() =>
 			createAppRouter({
 				persist,
-				remote,
-				sync,
+				backend,
 				remount,
 				history,
 				utcToday: clockToday,
 			}),
-		[persist, remote, sync, remount, history, clockToday],
+		[persist, backend, remount, history, clockToday],
 	);
 	// The router moves to the Daily before the remount, so the remount opens
 	// the Daily, not the screen the player deleted from, and no screen mounts

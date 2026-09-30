@@ -8,7 +8,7 @@ import {
 } from "react";
 import { validateDisplayName } from "../engine/display-name";
 import type { Persist } from "../persist/storage";
-import { AccountGoneError, type Provider, type Remote } from "../remote/remote";
+import type { Provider, Remote } from "../remote/remote";
 import {
 	addDeviceProgress,
 	deviceChoicePending,
@@ -57,7 +57,7 @@ export function AccountMenu({
 }: {
 	persist: Persist;
 	remote: Remote;
-	sync?: Sync;
+	sync: Sync;
 	remount: () => void;
 	buttonClassName: string;
 	icon: ReactNode;
@@ -86,8 +86,7 @@ export function AccountMenu({
 	const viewRef = useRef(view);
 	viewRef.current = view;
 
-	// Sync makes the account read at load and reports it; only a menu with no
-	// sync reads the account itself.
+	// Sync makes the account read at load and reports it.
 	useEffect(() => {
 		remote.clearRedirectError();
 		function onReport(report: AccountReport) {
@@ -121,36 +120,12 @@ export function AccountMenu({
 				}
 			}
 		}
-		if (sync) {
-			return sync.onAccount(onReport);
-		}
-		let cancelled = false;
-		remote.getAccount().then(
-			(account) => {
-				if (!cancelled) {
-					onReport(account);
-				}
-			},
-			(reason: unknown) => {
-				if (cancelled) {
-					return;
-				}
-				if (reason instanceof AccountGoneError) {
-					setView({ kind: "signedOut" });
-					setDeleteOpen(false);
-					return;
-				}
-				onReport({ status: "failed" });
-			},
-		);
-		return () => {
-			cancelled = true;
-		};
+		return sync.onAccount(onReport);
 	}, [remote, sync, persist, redirectError]);
 
 	useEffect(
 		() =>
-			sync?.onAccountGone(() => {
+			sync.onAccountGone(() => {
 				setView({ kind: "signedOut" });
 				setEditing(null);
 				setError(null);
@@ -254,7 +229,7 @@ export function AccountMenu({
 
 	async function endSession() {
 		await remote.signOut();
-		sync?.stop();
+		sync.stop();
 		setView({ kind: "signedOut" });
 		setEditing(null);
 	}
@@ -290,7 +265,7 @@ export function AccountMenu({
 			return;
 		}
 		clearChoicePending();
-		void sync?.refresh();
+		void sync.refresh();
 	}
 
 	async function startFromAccount(accountId: string) {
@@ -299,12 +274,12 @@ export function AccountMenu({
 		}
 		// Never reset: the remount below discards this state.
 		setChoiceBusy(true);
-		sync?.stop();
+		sync.stop();
 		persist.clearAll();
 		// Ignored on failure: an empty device is not pending, and the pull
 		// writes the id again.
 		persist.writeSyncAccount(accountId);
-		await sync?.refresh();
+		await sync.refresh();
 		remount();
 	}
 
@@ -325,7 +300,7 @@ export function AccountMenu({
 			);
 			pencilFocusPending.current = true;
 			setEditing(null);
-			void sync?.refresh();
+			void sync.refresh();
 		}, SAVE_FAILURE);
 	}
 
@@ -446,21 +421,19 @@ export function AccountMenu({
 									</form>
 								)}
 								{signOutButton}
-								{sync && (
-									<button
-										type="button"
-										disabled={busy}
-										onClick={() => {
-											setOpen(false);
-											setEditing(null);
-											setError(null);
-											setDeleteOpen(true);
-										}}
-										className={MENU_BUTTON}
-									>
-										Delete account
-									</button>
-								)}
+								<button
+									type="button"
+									disabled={busy}
+									onClick={() => {
+										setOpen(false);
+										setEditing(null);
+										setError(null);
+										setDeleteOpen(true);
+									}}
+									className={MENU_BUTTON}
+								>
+									Delete account
+								</button>
 							</>
 						)}
 						{view.kind === "loadFailed" && signOutButton}
@@ -475,7 +448,7 @@ export function AccountMenu({
 					</div>
 				)}
 			</div>
-			{deleteOpen && sync && (
+			{deleteOpen && (
 				<DeleteAccount
 					onConfirm={() => sync.deleteAccount()}
 					onCancel={() => {
@@ -504,7 +477,7 @@ export function AccountMenu({
 								displayName: name,
 								nameConfirmed: true,
 							});
-							void sync?.refresh();
+							void sync.refresh();
 						}}
 						onSignOut={endSession}
 					/>

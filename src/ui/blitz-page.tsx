@@ -491,7 +491,7 @@ function SetupDialog({
 }
 
 export function BlitzPage() {
-	const { persist, utcToday, remote, sync } = useRouteContext({
+	const { persist, utcToday, backend } = useRouteContext({
 		from: "__root__",
 	});
 	// Read once, at mount: the dialog preselects the last run's setup, or the
@@ -809,7 +809,7 @@ export function BlitzPage() {
 				<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
 					<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
 					<ProgressNotice show={saveWarning} />
-					{remote ? (
+					{backend ? (
 						<>
 							<BlitzTabs tab={tab} onChange={changeTab} />
 							<div
@@ -822,8 +822,8 @@ export function BlitzPage() {
 									arena
 								) : (
 									<Leaderboards
-										remote={remote}
-										sync={sync}
+										remote={backend.remote}
+										sync={backend.sync}
 										picker={picker}
 										onPickerChange={setPicker}
 									/>
