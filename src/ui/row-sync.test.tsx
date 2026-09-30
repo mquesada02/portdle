@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { createPersist } from "../persist/storage";
+import { PULL_THROTTLE_MS } from "../sync/sync";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
 import { memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
@@ -16,6 +17,7 @@ const CONFIRMED = {
 const UNCONFIRMED = { ...CONFIRMED, nameConfirmed: false } as const;
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	vi.useRealTimers();
 	cleanup();
 });
@@ -135,13 +137,43 @@ test("signing out stops syncing and keeps local data", async () => {
 	expect(remote.rows.codex).toEqual({});
 });
 
+test("app open reads the account once, and the menu shows that read", async () => {
+	const remote = createFakeRemote(CONFIRMED);
+	const persist = mountApp(remote);
+	await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));
+	await userEvent.click(await screen.findByRole("button", { name: "Account" }));
+	expect(await screen.findByText("Ada L.")).toBeTruthy();
+	expect(remote.getAccountCalls).toBe(1);
+});
+
+test("a signed-out open reads the account once", async () => {
+	const remote = createFakeRemote();
+	mountApp(remote);
+	await userEvent.click(await screen.findByRole("button", { name: "Account" }));
+	await screen.findByRole("button", { name: "Sign in with Google" });
+	expect(remote.getAccountCalls).toBe(1);
+});
+
+test("an account already gone at open makes one read and one sign-out, and the menu is signed out", async () => {
+	const remote = createFakeRemote(CONFIRMED);
+	remote.gone = true;
+	mountApp(remote);
+	await userEvent.click(await screen.findByRole("button", { name: "Account" }));
+	await screen.findByRole("button", { name: "Sign in with Google" });
+	await waitFor(() => expect(remote.signOutCalls).toBe(1));
+	expect(remote.getAccountCalls).toBe(1);
+});
+
 test("a display name changed on another device shows in the menu after the next pull", async () => {
 	const remote = createFakeRemote(CONFIRMED);
-	mountApp(remote);
-	await waitFor(() => expect(remote.pullCalls).toBe(1));
+	const persist = mountApp(remote);
+	await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));
 	await userEvent.click(screen.getByRole("button", { name: "Account" }));
 	expect(await screen.findByText("Ada L.")).toBeTruthy();
 	remote.state = { ...CONFIRMED, displayName: "Grace H." };
+	// The open pull is recent, so the focus pull needs the throttle to lapse.
+	const later = Date.now() + PULL_THROTTLE_MS;
+	vi.spyOn(Date, "now").mockReturnValue(later);
 	window.dispatchEvent(new Event("focus"));
 	expect(await screen.findByText("Grace H.")).toBeTruthy();
 	expect(screen.queryByText("Ada L.")).toBeNull();

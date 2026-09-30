@@ -84,19 +84,13 @@ test.each([
 		expect(
 			screen.getByRole("button", { name: DEVICE_CHOICE_START }),
 		).toBeTruthy();
-		// The menu made one getAccount call and Sync's first run made another
-		// (these counts follow the current call structure).
-		await waitFor(() =>
-			expect(remote.getAccountCalls).toBeGreaterThanOrEqual(2),
-		);
-		// A trigger queues one more run after the first, so a third call means
-		// the first run has finished its pending check.
-		await act(async () => {
+		// Sync's first run makes the only account read at open. A focus during
+		// that run is skipped, so focus until a second read shows the first run
+		// has finished its pending check.
+		await waitFor(() => {
 			window.dispatchEvent(new Event("focus"));
+			expect(remote.getAccountCalls).toBeGreaterThanOrEqual(2);
 		});
-		await waitFor(() =>
-			expect(remote.getAccountCalls).toBeGreaterThanOrEqual(3),
-		);
 		expect(remote.pullCalls).toBe(0);
 		expect(remote.pushCalls).toHaveLength(0);
 		expect(persist.readCodex().http?.state).toBe("correct");

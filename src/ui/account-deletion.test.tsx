@@ -8,8 +8,9 @@ import {
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { createPersist } from "../persist/storage";
+import { PULL_THROTTLE_MS } from "../sync/sync";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import {
 	createFakeRemote,
@@ -27,6 +28,7 @@ const SIGNED_IN = {
 } as const;
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	cleanup();
 });
 
@@ -158,6 +160,8 @@ test("confirming deletes the account, clears the device, and opens a fresh signe
 	expect(
 		await screen.findByRole("button", { name: "Sign in with Google" }),
 	).toBeTruthy();
+	// The remounted menu takes the signed-out report; no new read.
+	expect(remote.getAccountCalls).toBe(1);
 	// Nothing on screen writes the cleared data back.
 	await new Promise((resolve) => setTimeout(resolve, 20));
 	expect(persist.readCodex()).toEqual({});
@@ -275,9 +279,11 @@ test("another device signs itself out after a deletion elsewhere and keeps its l
 	const deleter = createFakeRemote(SIGNED_IN, rows);
 	const other = createFakeRemote(SIGNED_IN, rows);
 	const { persist } = await renderApp(other);
-	await waitFor(() => expect(other.pullCalls).toBe(1));
+	await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));
 	await deleter.deleteAccount();
 	other.gone = true;
+	// The open pull is recent, so the focus pull needs the throttle to lapse.
+	vi.spyOn(Date, "now").mockReturnValue(Date.now() + PULL_THROTTLE_MS);
 	fireEvent.focus(window);
 	await waitFor(() => expect(other.signOutCalls).toBe(1));
 	await user.click(accountButton());
@@ -291,9 +297,11 @@ test("another device signs itself out after a deletion elsewhere and keeps its l
 test("the dialog closes when the account is reported gone while it is open", async () => {
 	const user = userEvent.setup();
 	const remote = createFakeRemote(SIGNED_IN);
-	await renderApp(remote);
+	const { persist } = await renderApp(remote);
+	await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));
 	await openDeleteDialog(user);
 	remote.gone = true;
+	vi.spyOn(Date, "now").mockReturnValue(Date.now() + PULL_THROTTLE_MS);
 	fireEvent.focus(window);
 	await waitFor(() =>
 		expect(screen.queryByRole("dialog", { name: "Delete account" })).toBeNull(),
