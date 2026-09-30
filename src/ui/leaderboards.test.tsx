@@ -181,7 +181,7 @@ test("each pill row requests its own leaderboard", async () => {
 	const user = userEvent.setup();
 	await mountBlitz(remote);
 	await openLeaderboards(user);
-	await screen.findByText("Nobody has played this leaderboard yet.");
+	await screen.findByText("Nobody has played this Leaderboard yet.");
 	await user.click(screen.getByRole("radio", { name: "Weekly" }));
 	await user.click(screen.getByRole("radio", { name: "Applications" }));
 	await user.click(screen.getByRole("radio", { name: "Inverted" }));
@@ -247,7 +247,7 @@ test("a loading line shows until the read answers", async () => {
 	await openLeaderboards(user);
 	expect((await screen.findByRole("status")).textContent).toBe("Loading…");
 	release();
-	await screen.findByText("Nobody has played this leaderboard yet.");
+	await screen.findByText("Nobody has played this Leaderboard yet.");
 	expect(screen.queryByRole("status")).toBeNull();
 });
 
@@ -258,10 +258,10 @@ test("a failed read shows an error line, not the empty line", async () => {
 	await mountBlitz(remote);
 	await openLeaderboards(user);
 	expect((await screen.findByRole("alert")).textContent).toBe(
-		"Could not load this leaderboard.",
+		"Could not load this Leaderboard.",
 	);
 	expect(
-		screen.queryByText("Nobody has played this leaderboard yet."),
+		screen.queryByText("Nobody has played this Leaderboard yet."),
 	).toBeNull();
 });
 
@@ -274,4 +274,73 @@ test("opening the tab pushes pending changes before the read", async () => {
 	await waitFor(() => expect(remote.leaderboardCalls).toHaveLength(1));
 	expect(remote.pushesAtRead[0]).toBeGreaterThanOrEqual(1);
 	expect(remote.rows.bests["mixed|default|sprint"]).toEqual({ score: 7 });
+});
+
+test("a superseded read is ignored when it answers last", async () => {
+	const remote = createFakeRemote();
+	remote.leaderboards[ALL_TIME_MIXED_DEFAULT_SPRINT] = [row(1, "Stale", 5)];
+	remote.leaderboards[
+		leaderboardId({
+			window: "weekly",
+			category: "mixed",
+			orientation: "default",
+			mode: "sprint",
+		})
+	] = [row(1, "Fresh", 9)];
+	const releaseFirst = remote.holdLeaderboard();
+	const user = userEvent.setup();
+	await mountBlitz(remote);
+	await openLeaderboards(user);
+	await waitFor(() => expect(remote.leaderboardCalls).toHaveLength(1));
+	const releaseSecond = remote.holdLeaderboard();
+	await user.click(screen.getByRole("radio", { name: "Weekly" }));
+	await waitFor(() => expect(remote.leaderboardCalls).toHaveLength(2));
+	releaseSecond();
+	await screen.findByText("Fresh");
+	releaseFirst();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	expect(screen.getByText("Fresh")).toBeTruthy();
+	expect(screen.queryByText("Stale")).toBeNull();
+});
+
+test("a signed-out viewer sees no You marker", async () => {
+	const remote = createFakeRemote();
+	remote.leaderboards[ALL_TIME_MIXED_DEFAULT_SPRINT] = [
+		row(1, "Grace", 20, "u1"),
+	];
+	const user = userEvent.setup();
+	await mountBlitz(remote);
+	await openLeaderboards(user);
+	await screen.findByText("Grace");
+	expect(screen.queryByText("You")).toBeNull();
+});
+
+test("the tabs, panel, and pill groups expose their roles and states", async () => {
+	const user = userEvent.setup();
+	await mountBlitz(createFakeRemote());
+	await openLeaderboards(user);
+	const tab = screen.getByRole("tab", { name: "Leaderboards" });
+	const panel = screen.getByRole("tabpanel", { name: "Leaderboards" });
+	expect(tab.getAttribute("aria-selected")).toBe("true");
+	expect(tab.getAttribute("aria-controls")).toBe(panel.id);
+	expect(tab.getAttribute("tabindex")).toBe("0");
+	const play = screen.getByRole("tab", { name: "Play" });
+	expect(play.getAttribute("aria-selected")).toBe("false");
+	expect(play.getAttribute("tabindex")).toBe("-1");
+	for (const [group, checked] of [
+		["Window", "All-time"],
+		["Daily category", "Mixed"],
+		["Orientation", "Default"],
+		["Blitz mode", "Sprint (1m)"],
+	] as const) {
+		const radios = within(screen.getByRole("group", { name: group }))
+			.getAllByRole("radio")
+			.filter((radio) => (radio as HTMLInputElement).checked);
+		expect(radios).toHaveLength(1);
+		expect(
+			within(screen.getByRole("group", { name: group })).getByRole("radio", {
+				name: checked,
+			}),
+		).toBe(radios[0]);
+	}
 });

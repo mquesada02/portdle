@@ -63,17 +63,17 @@ function YouBadge() {
 }
 
 function RankedList({ page }: { page: LeaderboardPage }) {
+	if (page.rows.length === 0) {
+		return (
+			<p className="mt-4 text-sm">Nobody has played this Leaderboard yet.</p>
+		);
+	}
 	const top = page.rows.filter((row) => row.rank <= LEADERBOARD_TOP);
 	const own: LeaderboardRow | undefined =
 		page.viewerId === null
 			? undefined
 			: page.rows.find((row) => row.accountId === page.viewerId);
 	const pinned = own && own.rank > LEADERBOARD_TOP ? own : undefined;
-	if (page.rows.length === 0) {
-		return (
-			<p className="mt-4 text-sm">Nobody has played this leaderboard yet.</p>
-		);
-	}
 	return (
 		<div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
 			<table className="w-full text-sm">
@@ -205,7 +205,7 @@ export function Leaderboards({
 				</p>
 			) : result.status === "error" ? (
 				<p role="alert" className="mt-4 text-sm">
-					Could not load this leaderboard.
+					Could not load this Leaderboard.
 				</p>
 			) : (
 				<RankedList page={result.page} />
