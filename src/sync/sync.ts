@@ -106,7 +106,6 @@ export function createSync(options: {
 
 	let epoch = 0;
 	let activeAccount: string | null = null;
-	let pulled = false;
 	// When the last pull finished successfully; null when none did.
 	let lastPullAt: number | null = null;
 	// Survives `reset`; `stop` (the session ended) makes it signed out.
@@ -133,7 +132,6 @@ export function createSync(options: {
 	function reset() {
 		epoch += 1;
 		activeAccount = null;
-		pulled = false;
 		lastPullAt = null;
 		snapshot = emptySnapshot();
 		if (timer !== null) {
@@ -261,7 +259,7 @@ export function createSync(options: {
 			if (epoch !== scheduledEpoch) {
 				return;
 			}
-			if (!pulled) {
+			if (lastPullAt === null) {
 				refresh();
 				return;
 			}
@@ -370,7 +368,7 @@ export function createSync(options: {
 	}
 
 	async function pushPending(pushEpoch: number): Promise<void> {
-		if (epoch !== pushEpoch || !pulled) {
+		if (epoch !== pushEpoch || lastPullAt === null) {
 			return;
 		}
 		const pushAccount = activeAccount;
@@ -453,7 +451,7 @@ export function createSync(options: {
 			persist.writeSyncChanges(next);
 		}
 		// A row that changed during the call is still pending.
-		if (timer === null && KINDS.some((kind) => next[kind].length > 0)) {
+		if (timer === null && anyPending(next)) {
 			schedulePush();
 		}
 	}
@@ -520,7 +518,6 @@ export function createSync(options: {
 			return;
 		}
 		applyPull(rows, persist.readSyncAccount() === null);
-		pulled = true;
 		lastPullAt = clock.now();
 		persist.writeSyncAccount(account.accountId);
 		// Preferences are marked only by writes and the first-sync import.
@@ -558,8 +555,7 @@ export function createSync(options: {
 		}
 	}
 
-	function hasPendingChanges(): boolean {
-		const changes = persist.readSyncChanges();
+	function anyPending(changes: SyncChanges): boolean {
 		return KINDS.some((kind) => changes[kind].length > 0);
 	}
 
@@ -567,9 +563,11 @@ export function createSync(options: {
 	// last successful one is recent; a row still waiting to be pushed lets it
 	// through, so a failed push is retried.
 	function pullThrottled(): boolean {
-		const elapsed = lastPullAt === null ? -1 : clock.now() - lastPullAt;
+		const elapsed = clock.now() - (lastPullAt ?? Number.NEGATIVE_INFINITY);
 		const recent = elapsed >= 0 && elapsed < PULL_THROTTLE_MS;
-		return (running !== null || recent) && !hasPendingChanges();
+		return (
+			(running !== null || recent) && !anyPending(persist.readSyncChanges())
+		);
 	}
 
 	function refreshUnlessThrottled() {
