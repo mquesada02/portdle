@@ -89,21 +89,6 @@ test("an unconfirmed name syncs nothing until Continue, then imports the device"
 	await waitFor(() => expect(remote.rows.codex).toEqual({ http: "correct" }));
 });
 
-test("an account gone at app open shows the menu signed out, signs Sync out, and keeps the device's data", async () => {
-	const user = userEvent.setup();
-	const remote = createFakeRemote(CONFIRMED);
-	remote.gone = true;
-	const persist = mountApp(remote);
-	persist.writeCodex({ http: { state: "correct", fresh: false } });
-	await waitFor(() => expect(remote.signOutCalls).toBeGreaterThan(0));
-	await user.click(screen.getByRole("button", { name: "Account" }));
-	expect(
-		await screen.findByRole("button", { name: "Sign in with Google" }),
-	).toBeTruthy();
-	expect(screen.queryByText("Could not load your account.")).toBeNull();
-	expect(persist.readCodex().http?.state).toBe("correct");
-});
-
 test("with no Remote nothing is pulled, pushed, or scheduled", () => {
 	stubMatchMedia();
 	const persist = createPersist(memoryStore());
@@ -154,14 +139,17 @@ test("a signed-out open reads the account once", async () => {
 	expect(remote.getAccountCalls).toBe(1);
 });
 
-test("an account already gone at open makes one read and one sign-out, and the menu is signed out", async () => {
+test("an account already gone at open makes one read and one sign-out, shows the menu signed out, and keeps the device's data", async () => {
 	const remote = createFakeRemote(CONFIRMED);
 	remote.gone = true;
-	mountApp(remote);
+	const persist = mountApp(remote);
+	persist.writeCodex({ http: { state: "correct", fresh: false } });
 	await userEvent.click(await screen.findByRole("button", { name: "Account" }));
 	await screen.findByRole("button", { name: "Sign in with Google" });
 	await waitFor(() => expect(remote.signOutCalls).toBe(1));
 	expect(remote.getAccountCalls).toBe(1);
+	expect(screen.queryByText("Could not load your account.")).toBeNull();
+	expect(persist.readCodex().http?.state).toBe("correct");
 });
 
 test("a display name changed on another device shows in the menu after the next pull", async () => {
