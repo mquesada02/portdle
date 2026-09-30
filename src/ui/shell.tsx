@@ -80,7 +80,7 @@ const ICON_BUTTON =
 	"rounded-full p-2 text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800";
 
 export function Shell() {
-	const { persist, utcToday, remote, sync } = useRouteContext({
+	const { persist, utcToday, remote, sync, remount } = useRouteContext({
 		from: "__root__",
 	});
 	const [storedTheme, setStoredTheme] = useState(() => persist.readTheme());
@@ -192,8 +192,10 @@ export function Shell() {
 						</button>
 						{remote && (
 							<AccountMenu
+								persist={persist}
 								remote={remote}
 								sync={sync}
+								remount={remount}
 								buttonClassName={ICON_BUTTON}
 								icon={<NavIcon d={PERSON} />}
 							/>

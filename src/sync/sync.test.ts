@@ -10,6 +10,7 @@ import {
 	type FakeRemote,
 } from "../test/fake-remote";
 import { memoryStore } from "../test/helpers";
+import { deviceChoicePending } from "./device-progress";
 import { createSync, PUSH_DELAY_MS } from "./sync";
 
 const ACCOUNT: AccountState = {
@@ -557,6 +558,8 @@ test("a different account starts from an empty snapshot", async () => {
 	d.sync.stop();
 	remote.rows.codex = {};
 	remote.state = { ...ACCOUNT, accountId: "acc-2" };
+	// The player chose to add this device's progress to the new account.
+	d.persist.writeSyncAccount("acc-2");
 	await d.sync.refresh();
 	expect(remote.rows.codex).toEqual({ http: "correct" });
 	expect(d.persist.readSyncAccount()).toBe("acc-2");
@@ -569,6 +572,8 @@ test("an account id change while active is a new activation", async () => {
 	await d.sync.refresh();
 	remote.rows.codex = {};
 	remote.state = { ...ACCOUNT, accountId: "acc-2" };
+	// The player chose to add this device's progress to the new account.
+	d.persist.writeSyncAccount("acc-2");
 	await d.sync.refresh();
 	expect(remote.rows.codex).toEqual({ http: "correct" });
 });
@@ -796,4 +801,59 @@ test("account gone on a preference push signs the device out and keeps the prefe
 	await settle();
 	expect(remote.signOutCalls).toBe(1);
 	expect(d.persist.readTheme()).toBe("dark");
+});
+
+test("a pending device progress choice keeps Sync inactive until the account id is written", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	d.persist.writeSyncAccount("acc-other");
+	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
+	await d.sync.refresh();
+	d.clock.advance(PUSH_DELAY_MS);
+	document.dispatchEvent(new Event("visibilitychange"));
+	window.dispatchEvent(new Event("focus"));
+	await settle();
+	expect(remote.pullCalls).toBe(0);
+	expect(remote.pushCalls).toHaveLength(0);
+	d.persist.writeSyncAccount(ACCOUNT.accountId);
+	await d.sync.refresh();
+	expect(remote.pullCalls).toBe(1);
+	expect(remote.rows.codex.http).toBe("correct");
+});
+
+test("an active Sync that sees another account with pending progress resets and pushes nothing", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	expect(remote.pullCalls).toBe(1);
+	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
+	remote.state = { ...ACCOUNT, accountId: "acc-2" };
+	await d.sync.refresh();
+	expect(remote.pullCalls).toBe(1);
+	d.persist.writeCodex({ http: { state: "missed", fresh: false } });
+	await settle();
+	expect(remote.pushCalls).toHaveLength(0);
+});
+
+test("the pending rule needs a different last synced account and importable rows", async () => {
+	const persist = createPersist(memoryStore());
+	const pending = () => deviceChoicePending(persist, "acc-1");
+	persist.writeTheme("dark");
+	persist.writeSyncAccount("acc-other");
+	expect(pending()).toBe(false);
+	persist.writeBlitzRuns([run("not a date", 1)]);
+	expect(pending()).toBe(false);
+	persist.writeBlitzRuns([run("2026-09-09T10:00:00.000Z", 1)]);
+	expect(pending()).toBe(true);
+	persist.writeSyncAccount("acc-1");
+	expect(pending()).toBe(false);
+	persist.clearAll();
+	persist.writeDaily("mixed", "2026-09-09", PLAYING);
+	expect(pending()).toBe(false);
+	persist.writeSyncAccount("acc-other");
+	expect(pending()).toBe(true);
+	persist.clearAll();
+	persist.writeSyncAccount("acc-other");
+	persist.writeBlitzBests({ "mixed|default|sprint": { score: 1 } });
+	expect(pending()).toBe(true);
 });

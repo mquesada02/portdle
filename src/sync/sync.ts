@@ -26,6 +26,7 @@ import {
 	type Remote,
 	type SyncedRows,
 } from "../remote/remote";
+import { deviceChoicePending } from "./device-progress";
 
 export const PUSH_DELAY_MS = 1500;
 
@@ -456,6 +457,13 @@ export function createSync(options: {
 		if (account.status === "signedOut") {
 			if (activeAccount !== null) {
 				await accountGone();
+			}
+			return;
+		}
+		if (deviceChoicePending(persist, account.accountId)) {
+			// The player has not chosen what happens to this device's progress.
+			if (activeAccount !== null) {
+				reset();
 			}
 			return;
 		}
