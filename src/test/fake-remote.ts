@@ -12,7 +12,7 @@ import {
 } from "../remote/remote";
 
 export function emptyRows(): SyncedRows {
-	return { codex: {}, bests: {}, runs: [], dailies: {} };
+	return { codex: {}, bests: {}, runs: [], dailies: {}, preferences: {} };
 }
 
 function clone<T>(value: T): T {
@@ -242,6 +242,7 @@ export function createFakeRemote(
 			Object.assign(fake.rows.codex, incoming.codex);
 			Object.assign(fake.rows.bests, incoming.bests);
 			Object.assign(fake.rows.dailies, incoming.dailies);
+			Object.assign(fake.rows.preferences, incoming.preferences);
 			const byEndedAt = new Map(fake.rows.runs.map((r) => [r.endedAt, r]));
 			for (const run of incoming.runs) {
 				byEndedAt.set(run.endedAt, run);

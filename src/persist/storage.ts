@@ -17,6 +17,13 @@ import type {
 
 export type Theme = "system" | "light" | "dark";
 
+// The preferences stored on a device; an absent key was never set.
+export type Preferences = {
+	theme?: Theme;
+	howToSeen?: true;
+	codexSort?: CodexSort;
+};
+
 export type KeyValueStore = {
 	readonly length: number;
 	key(index: number): string | null;
@@ -340,6 +347,7 @@ export type Persist = {
 	readCodex(): CodexMap;
 	writeCodex(value: CodexMap): { ok: true } | { ok: false };
 	readCodexSort(): CodexSort;
+	readPreferences(): Preferences;
 	writeCodexSort(value: CodexSort): { ok: true } | { ok: false };
 	listDailyDates(category: DailyCategory): string[];
 	readSyncChanges(): SyncChanges;
@@ -458,6 +466,21 @@ export function createPersist(store: KeyValueStore): Persist {
 			return write(CODEX_SORT_KEY, value, {
 				kind: "codexSort",
 			});
+		},
+		readPreferences() {
+			const preferences: Preferences = {};
+			const theme = readJson(store, THEME_KEY);
+			if (isTheme(theme)) {
+				preferences.theme = theme;
+			}
+			if (readJson(store, HOW_TO_SEEN_KEY) === true) {
+				preferences.howToSeen = true;
+			}
+			const codexSort = readJson(store, CODEX_SORT_KEY);
+			if (isCodexSort(codexSort)) {
+				preferences.codexSort = codexSort;
+			}
+			return preferences;
 		},
 		listDailyDates(category) {
 			const prefix = dailyKeyPrefix(category);

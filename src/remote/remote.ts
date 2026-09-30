@@ -7,6 +7,7 @@ import type {
 	DailyPersist,
 	Orientation,
 } from "../engine/types";
+import type { Preferences } from "../persist/storage";
 
 export type Provider = "google" | "github";
 
@@ -26,6 +27,8 @@ export type SyncedRows = {
 	bests: BlitzBests;
 	runs: BlitzRun[];
 	dailies: Record<string, DailyPersist>;
+	// Only the set preferences.
+	preferences: Preferences;
 };
 
 // A pull returns this many of the newest runs.
