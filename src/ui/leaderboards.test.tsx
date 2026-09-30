@@ -1,15 +1,16 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import {
 	cleanup,
+	fireEvent,
 	render,
 	screen,
 	waitFor,
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { applications, protocols } from "../catalogs/production";
-import type { CatalogEntry } from "../engine/types";
+import type { BlitzRun, CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import type { AccountState, LeaderboardRow } from "../remote/remote";
 import { padToAnswer } from "../test/dailies";
@@ -36,6 +37,7 @@ const catalog = [...protocols, ...applications];
 
 afterEach(() => {
 	cleanup();
+	vi.useRealTimers();
 });
 
 function row(rank: number, name: string, score: number, id = `p${rank}`) {
@@ -55,10 +57,14 @@ const ALL_TIME_MIXED_DEFAULT_SPRINT = leaderboardId({
 	mode: "sprint",
 });
 
-async function mountBlitz(remote?: FakeRemote) {
+async function mountBlitz(
+	remote?: FakeRemote,
+	seed?: (persist: ReturnType<typeof createPersist>) => void,
+) {
 	stubMatchMedia();
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
+	seed?.(persist);
 	const history = createMemoryHistory({ initialEntries: ["/portdle/blitz"] });
 	render(
 		<App
@@ -343,4 +349,176 @@ test("the tabs, panel, and pill groups expose their roles and states", async () 
 			}),
 		).toBe(radios[0]);
 	}
+});
+
+function checkedPills(): Record<string, string> {
+	const result: Record<string, string> = {};
+	for (const group of [
+		"Window",
+		"Daily category",
+		"Orientation",
+		"Blitz mode",
+	]) {
+		const checked = within(
+			screen.getByRole("group", { name: group }),
+		).getAllByRole("radio", { checked: true });
+		result[group] = checked[0]?.closest("label")?.textContent ?? "";
+	}
+	return result;
+}
+
+function storedRun(overrides: Partial<BlitzRun> = {}): BlitzRun {
+	return {
+		category: "protocols",
+		orientation: "inverted",
+		mode: "marathon",
+		ended: "timeout",
+		endedAt: "2026-09-09T12:00:00.000Z",
+		score: 3,
+		rounds: [],
+		...overrides,
+	};
+}
+
+async function startRun(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+}
+
+async function loseByLives(user: ReturnType<typeof userEvent.setup>) {
+	for (let i = 0; i < 3; i += 1) {
+		const answer = currentEntry();
+		const missPort = answer.port === 80 ? 19 : 80;
+		await user.clear(portDigits());
+		await user.type(portDigits(), padToAnswer(missPort, answer));
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+	}
+	await screen.findByRole("button", { name: "Play again" });
+}
+
+test("the picker starts on the last run's Leaderboard with the window on All-time", async () => {
+	const remote = createFakeRemote();
+	const user = userEvent.setup();
+	await mountBlitz(remote, (persist) => persist.writeBlitzRuns([storedRun()]));
+	await openLeaderboards(user);
+	await waitFor(() =>
+		expect(remote.leaderboardCalls).toEqual([
+			{
+				window: "allTime",
+				category: "protocols",
+				orientation: "inverted",
+				mode: "marathon",
+			},
+		]),
+	);
+	expect(checkedPills()).toEqual({
+		Window: "All-time",
+		"Daily category": "Protocols",
+		Orientation: "Inverted",
+		"Blitz mode": "Marathon (5m)",
+	});
+});
+
+test("with no stored run the picker starts on Mixed, Default, and Sprint", async () => {
+	const user = userEvent.setup();
+	await mountBlitz(createFakeRemote());
+	await openLeaderboards(user);
+	expect(checkedPills()).toEqual({
+		Window: "All-time",
+		"Daily category": "Mixed",
+		Orientation: "Default",
+		"Blitz mode": "Sprint (1m)",
+	});
+});
+
+test("a pick in the picker is kept across a Play and Leaderboards tab change", async () => {
+	const user = userEvent.setup();
+	await mountBlitz(createFakeRemote());
+	await openLeaderboards(user);
+	await user.click(screen.getByRole("radio", { name: "Weekly" }));
+	await user.click(screen.getByRole("radio", { name: "Applications" }));
+	await user.click(screen.getByRole("tab", { name: "Play" }));
+	await openLeaderboards(user);
+	expect(checkedPills()).toMatchObject({
+		Window: "Weekly",
+		"Daily category": "Applications",
+	});
+});
+
+test("changing the setup dialog and cancelling leaves the picker's seed unchanged", async () => {
+	const user = userEvent.setup();
+	await mountBlitz(createFakeRemote());
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("radio", { name: "Applications" }));
+	await user.click(screen.getByRole("button", { name: "Cancel" }));
+	await openLeaderboards(user);
+	expect(checkedPills()).toMatchObject({ "Daily category": "Mixed" });
+});
+
+test("a run that ends by lives resets the picker to that run's Leaderboard and keeps the window", async () => {
+	const user = userEvent.setup();
+	await mountBlitz(createFakeRemote());
+	await openLeaderboards(user);
+	await user.click(screen.getByRole("radio", { name: "Weekly" }));
+	await user.click(screen.getByRole("radio", { name: "Applications" }));
+	await user.click(screen.getByRole("tab", { name: "Play" }));
+	await startRun(user);
+	await loseByLives(user);
+	await user.click(screen.getByRole("button", { name: "Play again" }));
+	await openLeaderboards(user);
+	expect(checkedPills()).toEqual({
+		Window: "Weekly",
+		"Daily category": "Mixed",
+		Orientation: "Default",
+		"Blitz mode": "Sprint (1m)",
+	});
+});
+
+test("a run that ends by timeout resets the picker to that run's whole Leaderboard and keeps the window", async () => {
+	const user = userEvent.setup();
+	await mountBlitz(createFakeRemote());
+	await openLeaderboards(user);
+	await user.click(screen.getByRole("radio", { name: "Weekly" }));
+	await user.click(screen.getByRole("radio", { name: "Protocols" }));
+	await user.click(screen.getByRole("radio", { name: "Survival" }));
+	await user.click(screen.getByRole("tab", { name: "Play" }));
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("radio", { name: "Applications" }));
+	await user.click(screen.getByRole("radio", { name: "Inverted" }));
+	await user.click(screen.getByRole("radio", { name: /^Marathon/ }));
+	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "Start" }));
+	await vi.advanceTimersByTimeAsync(300_000);
+	expect(screen.getByText("Time's up")).toBeTruthy();
+	vi.useRealTimers();
+	await user.click(screen.getByRole("button", { name: "Play again" }));
+	await openLeaderboards(user);
+	expect(checkedPills()).toEqual({
+		Window: "Weekly",
+		"Daily category": "Applications",
+		Orientation: "Inverted",
+		"Blitz mode": "Marathon (5m)",
+	});
+});
+
+test("a nav tap on Blitz at rest leaves the Leaderboards tab selected", async () => {
+	const user = userEvent.setup();
+	await mountBlitz(createFakeRemote());
+	await openLeaderboards(user);
+	await user.click(screen.getByRole("link", { name: "Blitz" }));
+	expect(
+		screen
+			.getByRole("tab", { name: "Leaderboards" })
+			.getAttribute("aria-selected"),
+	).toBe("true");
+});
+
+test("with a Remote a nav tap on the end card returns to the Arena with its tabs", async () => {
+	const user = userEvent.setup();
+	await mountBlitz(createFakeRemote());
+	await startRun(user);
+	await loseByLives(user);
+	await user.click(screen.getByRole("link", { name: "Blitz" }));
+	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+	expect(screen.getByRole("tablist")).toBeTruthy();
 });
