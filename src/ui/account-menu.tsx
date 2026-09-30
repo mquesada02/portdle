@@ -7,8 +7,12 @@ import {
 	useState,
 } from "react";
 import { validateDisplayName } from "../engine/display-name";
+import type { Persist } from "../persist/storage";
 import { AccountGoneError, type Provider, type Remote } from "../remote/remote";
+import { deviceChoicePending } from "../sync/device-progress";
 import type { Sync } from "../sync/sync";
+import { DEVICE_CHOICE_FAILURE } from "./device-choice-copy";
+import { DeviceProgressChoice } from "./device-progress-choice";
 import {
 	DISPLAY_NAME_HINT,
 	SAVE_FAILURE,
@@ -19,7 +23,14 @@ import { NameConfirm } from "./name-confirm";
 type View =
 	| { kind: "loading" }
 	| { kind: "signedOut" }
-	| { kind: "signedIn"; displayName: string; nameConfirmed: boolean }
+	| {
+			kind: "signedIn";
+			accountId: string;
+			displayName: string;
+			nameConfirmed: boolean;
+			// A pull cannot run while this is set, so a pull never changes it.
+			choicePending: boolean;
+	  }
 	| { kind: "loadFailed" };
 
 const PROVIDERS = [
@@ -33,13 +44,17 @@ const MENU_BUTTON =
 	"w-full rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800";
 
 export function AccountMenu({
+	persist,
 	remote,
 	sync,
+	remount,
 	buttonClassName,
 	icon,
 }: {
+	persist: Persist;
 	remote: Remote;
 	sync?: Sync;
+	remount: () => void;
 	buttonClassName: string;
 	icon: ReactNode;
 }) {
@@ -50,6 +65,8 @@ export function AccountMenu({
 	);
 	const [error, setError] = useState<string | null>(redirectError);
 	const [busy, setBusy] = useState(false);
+	const [choiceBusy, setChoiceBusy] = useState(false);
+	const [choiceFailure, setChoiceFailure] = useState<string | null>(null);
 	const [editing, setEditing] = useState<string | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLButtonElement>(null);
@@ -72,8 +89,10 @@ export function AccountMenu({
 				if (account.status === "signedIn") {
 					setView({
 						kind: "signedIn",
+						accountId: account.accountId,
 						displayName: account.displayName,
 						nameConfirmed: account.nameConfirmed,
+						choicePending: deviceChoicePending(persist, account.accountId),
 					});
 					setError(null);
 				} else {
@@ -99,7 +118,7 @@ export function AccountMenu({
 		return () => {
 			cancelled = true;
 		};
-	}, [remote, sync, redirectError]);
+	}, [remote, sync, persist, redirectError]);
 
 	useEffect(
 		() =>
@@ -234,6 +253,37 @@ export function AccountMenu({
 
 	function signOut() {
 		return run(endSession, SIGN_OUT_FAILURE);
+	}
+
+	async function choose(start: boolean) {
+		if (view.kind !== "signedIn") {
+			return;
+		}
+		const { accountId } = view;
+		setChoiceFailure(null);
+		// Another tab may have chosen already; then this tab must not act.
+		if (!deviceChoicePending(persist, accountId)) {
+			setView({ ...view, choicePending: false });
+			void sync?.refresh();
+			return;
+		}
+		if (start) {
+			setChoiceBusy(true);
+			sync?.stop();
+			persist.clearAll();
+			// Ignored on failure: an empty device is not pending, and the pull
+			// writes the id again.
+			persist.writeSyncAccount(accountId);
+			await sync?.refresh();
+			remount();
+			return;
+		}
+		if (!persist.writeSyncAccount(accountId).ok) {
+			setChoiceFailure(DEVICE_CHOICE_FAILURE);
+			return;
+		}
+		setView({ ...view, choicePending: false });
+		void sync?.refresh();
 	}
 
 	function saveName(event: FormEvent) {
@@ -388,21 +438,31 @@ export function AccountMenu({
 					</div>
 				)}
 			</div>
-			{view.kind === "signedIn" && !view.nameConfirmed && (
-				<NameConfirm
-					initialName={view.displayName}
-					onConfirm={async (name) => {
-						await remote.confirmDisplayName(name);
-						setView({
-							kind: "signedIn",
-							displayName: name,
-							nameConfirmed: true,
-						});
-						void sync?.refresh();
-					}}
-					onSignOut={endSession}
+			{view.kind === "signedIn" && view.choicePending && (
+				<DeviceProgressChoice
+					busy={choiceBusy}
+					failure={choiceFailure}
+					onAdd={() => void choose(false)}
+					onStart={() => void choose(true)}
 				/>
 			)}
+			{view.kind === "signedIn" &&
+				!view.choicePending &&
+				!view.nameConfirmed && (
+					<NameConfirm
+						initialName={view.displayName}
+						onConfirm={async (name) => {
+							await remote.confirmDisplayName(name);
+							setView({
+								...view,
+								displayName: name,
+								nameConfirmed: true,
+							});
+							void sync?.refresh();
+						}}
+						onSignOut={endSession}
+					/>
+				)}
 		</>
 	);
 }
