@@ -15,10 +15,12 @@ import { HistoryPage } from "./ui/history-page";
 import { screenFor } from "./ui/nav";
 import { Shell } from "./ui/shell";
 
+// Absent on a build with no hosted backend; present, it holds both halves.
+export type Backend = { remote: Remote; sync: Sync };
+
 export type RouterContext = {
 	persist: Persist;
-	remote?: Remote;
-	sync?: Sync;
+	backend?: Backend;
 	remount: () => void;
 	utcToday: string;
 };
@@ -102,8 +104,7 @@ const routeTree = rootRoute.addChildren([
 
 export function createAppRouter(options: {
 	persist: Persist;
-	remote?: Remote;
-	sync?: Sync;
+	backend?: Backend;
 	remount: () => void;
 	history?: RouterHistory;
 	utcToday: string;
@@ -112,8 +113,7 @@ export function createAppRouter(options: {
 		routeTree,
 		context: {
 			persist: options.persist,
-			remote: options.remote,
-			sync: options.sync,
+			backend: options.backend,
 			remount: options.remount,
 			utcToday: options.utcToday,
 		},

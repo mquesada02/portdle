@@ -137,7 +137,7 @@ export function Leaderboards({
 	onPickerChange,
 }: {
 	remote: Remote;
-	sync?: Sync;
+	sync: Sync;
 	picker: LeaderboardPicker;
 	onPickerChange: (picker: LeaderboardPicker) => void;
 }) {
@@ -149,7 +149,7 @@ export function Leaderboards({
 	useEffect(() => {
 		let current = true;
 		setResult({ status: "loading" });
-		synced.current ??= sync ? sync.refresh() : Promise.resolve();
+		synced.current ??= sync.refresh();
 		synced.current
 			.then(() =>
 				remote.readLeaderboard({
