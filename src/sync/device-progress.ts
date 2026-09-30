@@ -30,3 +30,17 @@ export function deviceChoicePending(
 	const last = persist.readSyncAccount();
 	return last !== null && last !== accountId && holdsProgress(persist);
 }
+
+// "Add this device's progress": the account's preferences win, so preference
+// changes made on this device for the previous account are dropped. The
+// account id is written last, so a failed write leaves the choice pending.
+export function addDeviceProgress(
+	persist: Persist,
+	accountId: string,
+): boolean {
+	const changes = persist.readSyncChanges();
+	return (
+		persist.writeSyncChanges({ ...changes, preferences: [] }).ok &&
+		persist.writeSyncAccount(accountId).ok
+	);
+}

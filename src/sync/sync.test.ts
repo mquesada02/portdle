@@ -10,7 +10,7 @@ import {
 	type FakeRemote,
 } from "../test/fake-remote";
 import { memoryStore } from "../test/helpers";
-import { deviceChoicePending } from "./device-progress";
+import { addDeviceProgress, deviceChoicePending } from "./device-progress";
 import { createSync, PUSH_DELAY_MS } from "./sync";
 
 const ACCOUNT: AccountState = {
@@ -1037,4 +1037,32 @@ test("a stored Daily that cannot be read is not progress", () => {
 	expect(deviceChoicePending(persist, "acc-1")).toBe(false);
 	persist.writeCodex({ http: { state: "correct", fresh: false } });
 	expect(deviceChoicePending(persist, "acc-1")).toBe(true);
+});
+
+test("Add drops a theme changed while signed out, so the account's theme wins and nothing is pushed", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.rows.preferences = { theme: "light" };
+	const d = device(remote);
+	d.persist.writeSyncAccount("acc-other");
+	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
+	d.persist.writeTheme("dark");
+	expect(d.persist.readSyncChanges().preferences).toEqual(["theme"]);
+	expect(addDeviceProgress(d.persist, ACCOUNT.accountId)).toBe(true);
+	expect(d.persist.readSyncChanges().preferences).toEqual([]);
+	await d.sync.refresh();
+	expect(d.persist.readTheme()).toBe("light");
+	expect(
+		remote.pushCalls.some((call) => Object.keys(call.preferences).length > 0),
+	).toBe(false);
+});
+
+test("the same account signing back in still pushes its signed-out theme", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.rows.preferences = { theme: "light" };
+	const d = device(remote);
+	d.persist.writeSyncAccount(ACCOUNT.accountId);
+	d.persist.writeTheme("dark");
+	await d.sync.refresh();
+	expect(d.persist.readTheme()).toBe("dark");
+	expect(remote.rows.preferences.theme).toBe("dark");
 });
