@@ -358,6 +358,63 @@ await checkSyncTable({
 	readBack: (row) => row.status === "playing" && Array.isArray(row.guesses),
 });
 
+// Leaderboard views (ticket #139). Read-only: a visitor and the signed-in
+// account both read every window, only the exposed columns come back, and a
+// write to a view or a read of the tables behind it is refused. The ranking
+// rules are checked by supabase/tests/leaderboards.sql.
+const LEADERBOARD_COLUMNS = [
+	"account_id",
+	"category",
+	"display_name",
+	"mode",
+	"orientation",
+	"rank",
+	"score",
+	"time_to_score_ms",
+];
+for (const view of [
+	"leaderboard_all_time",
+	"leaderboard_weekly",
+	"leaderboard_today",
+]) {
+	for (const [who, viewer] of [
+		["anonymous", undefined],
+		["signed-in", token],
+	] as const) {
+		const read = await rest("GET", `${view}?select=*&limit=1`, {
+			token: viewer,
+		});
+		const first =
+			Array.isArray(read.body) && read.body.length > 0
+				? (read.body[0] as Record<string, unknown>)
+				: null;
+		report(
+			`${who} read of ${view} succeeds and exposes only the leaderboard columns`,
+			read.status === 200 &&
+				Array.isArray(read.body) &&
+				(first === null ||
+					Object.keys(first).sort().join() === LEADERBOARD_COLUMNS.join()),
+			read,
+		);
+	}
+	const write = await rest("POST", view, {
+		token,
+		body: { account_id: id, score: 1 },
+	});
+	report(`write to ${view} is refused`, refusedByGrant(write), write);
+}
+for (const table of ["blitz_runs", "blitz_bests"]) {
+	const anonTable = await rest("GET", `${table}?select=score&limit=1`);
+	report(
+		`anonymous cannot read ${table}`,
+		refusedByGrant(anonTable) ||
+			(anonTable.status === 200 &&
+				Array.isArray(anonTable.body) &&
+				anonTable.body.length === 0),
+		anonTable,
+	);
+}
+
 console.log(failed === 0 ? "All checks passed." : `${failed} check(s) failed.`);
 console.log(
 	"Now close every Portdle tab signed in as you, then run supabase/tests/row-sync-cleanup.sql in the SQL editor to remove the tagged rows. (An open tab pulls them and can push them back.)",
