@@ -639,7 +639,9 @@ test("a pending device progress choice keeps Sync inactive until the account id 
 	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
 	await d.sync.refresh();
 	d.clock.advance(PUSH_DELAY_MS);
-	await d.sync.refresh();
+	document.dispatchEvent(new Event("visibilitychange"));
+	window.dispatchEvent(new Event("focus"));
+	await settle();
 	expect(remote.pullCalls).toBe(0);
 	expect(remote.pushCalls).toHaveLength(0);
 	d.persist.writeSyncAccount(ACCOUNT.accountId);

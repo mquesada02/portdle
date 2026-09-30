@@ -309,22 +309,30 @@ test("a failed write of the choice shows an error and keeps the dialog", async (
 	expect(remote.pushCalls).toHaveLength(0);
 });
 
-test("a dialog left open by another tab's choice does nothing", async () => {
-	const user = userEvent.setup();
-	const { persist } = deviceOfAccountA();
-	const remote = createFakeRemote(CONFIRMED);
-	mountApp(persist, remote);
-	await findChoice();
-	// Another tab chose "Add" and marked the device as this account's.
-	persist.writeSyncAccount("acc-b");
-	await user.click(screen.getByRole("button", { name: DEVICE_CHOICE_START }));
-	await waitFor(() =>
-		expect(
-			screen.queryByRole("dialog", { name: DEVICE_CHOICE_TITLE }),
-		).toBeNull(),
-	);
-	expect(persist.readCodex().http?.state).toBe("correct");
-});
+test.each([
+	["Add", DEVICE_CHOICE_ADD],
+	["Start", DEVICE_CHOICE_START],
+])(
+	"a dialog left open by another tab's choice does nothing on %s",
+	async (_name, label) => {
+		const user = userEvent.setup();
+		const { persist } = deviceOfAccountA();
+		const remote = createFakeRemote(CONFIRMED);
+		mountApp(persist, remote);
+		await findChoice();
+		// Another tab chose "Add" and marked the device as this account's.
+		persist.writeSyncAccount("acc-b");
+		await user.click(screen.getByRole("button", { name: label }));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("dialog", { name: DEVICE_CHOICE_TITLE }),
+			).toBeNull(),
+		);
+		expect(persist.readCodex().http?.state).toBe("correct");
+		expect(remote.pullCalls).toBe(0);
+		expect(remote.pushCalls).toHaveLength(0);
+	},
+);
 
 test("the choice shows above an open How-to", async () => {
 	const { persist } = deviceOfAccountA();

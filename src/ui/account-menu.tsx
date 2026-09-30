@@ -264,7 +264,6 @@ export function AccountMenu({
 		// Another tab may have chosen already; then this tab must not act.
 		if (!deviceChoicePending(persist, accountId)) {
 			setView({ ...view, choicePending: false });
-			void sync?.refresh();
 			return;
 		}
 		if (start) {
