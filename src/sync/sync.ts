@@ -53,7 +53,8 @@ export type Sync = {
 type Kind = "codex" | "bests" | "runs" | "dailies" | "preferences";
 const KINDS: Kind[] = ["codex", "bests", "runs", "dailies", "preferences"];
 
-const PREFERENCE_KEYS: Array<keyof Preferences> = [
+// Each key is both a preference and the kind of its persist change.
+const PREFERENCE_KEYS: Array<keyof Preferences & PersistChange["kind"]> = [
 	"theme",
 	"howToSeen",
 	"codexSort",

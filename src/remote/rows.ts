@@ -137,6 +137,30 @@ export function fromRows(rows: {
 	return { codex, bests, runs, dailies, preferences };
 }
 
+// One row of only the changed columns, so a column left out keeps its value
+// and its timestamp; none at all when nothing changed.
+function preferencesRow(
+	accountId: string,
+	preferences: Preferences,
+): Array<Partial<PreferencesRow> & { account_id: string }> {
+	if (Object.keys(preferences).length === 0) {
+		return [];
+	}
+	const row: Partial<PreferencesRow> & { account_id: string } = {
+		account_id: accountId,
+	};
+	if (preferences.theme !== undefined) {
+		row.theme = preferences.theme;
+	}
+	if (preferences.howToSeen !== undefined) {
+		row.how_to_seen = preferences.howToSeen;
+	}
+	if (preferences.codexSort !== undefined) {
+		row.codex_sort = preferences.codexSort;
+	}
+	return [row];
+}
+
 // Records with a value the database refuses (a run with an invalid `endedAt`,
 // a Daily with an invalid date) are left out, so one bad local value never
 // fails a whole chunk.
@@ -189,25 +213,7 @@ export function toRows(
 				time_to_score_ms: run.timeToScoreMs ?? null,
 				rounds: run.rounds,
 			})),
-		// One row of only the changed columns, so a column left out keeps its
-		// value and its timestamp.
-		preferences:
-			Object.keys(rows.preferences).length === 0
-				? []
-				: [
-						{
-							account_id: accountId,
-							...(rows.preferences.theme !== undefined && {
-								theme: rows.preferences.theme,
-							}),
-							...(rows.preferences.howToSeen !== undefined && {
-								how_to_seen: rows.preferences.howToSeen,
-							}),
-							...(rows.preferences.codexSort !== undefined && {
-								codex_sort: rows.preferences.codexSort,
-							}),
-						},
-					],
+		preferences: preferencesRow(accountId, rows.preferences),
 		dailies: Object.entries(rows.dailies).flatMap(([key, daily]) => {
 			const [category, day] = parseDailyKey(key);
 			if (!isValidUtcDate(day)) {
