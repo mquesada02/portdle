@@ -1,6 +1,10 @@
 import {
 	AccountGoneError,
 	type AccountState,
+	LEADERBOARD_TOP,
+	type LeaderboardPage,
+	type LeaderboardQuery,
+	type LeaderboardRow,
 	NEWEST_RUNS,
 	type Provider,
 	type Remote,
@@ -30,6 +34,10 @@ function reverseKeys(value: unknown): unknown {
 	return value;
 }
 
+export function leaderboardId(query: LeaderboardQuery): string {
+	return `${query.window}|${query.category}|${query.orientation}|${query.mode}`;
+}
+
 export type FakeRemote = Remote & {
 	state: AccountState;
 	signInCalls: Provider[];
@@ -48,10 +56,17 @@ export type FakeRemote = Remote & {
 	pushAccounts: string[];
 	failPull: boolean;
 	failPush: boolean;
+	// Ranked rows per `leaderboardId`, as the views return them.
+	leaderboards: Record<string, LeaderboardRow[]>;
+	leaderboardCalls: LeaderboardQuery[];
+	// How many pushes had completed when each leaderboard read arrived.
+	pushesAtRead: number[];
+	failLeaderboard: boolean;
 	gone: boolean;
 	reorderKeys: boolean;
 	holdPull(): () => void;
 	holdPush(): () => void;
+	holdLeaderboard(): () => void;
 	holdConfirmDisplayName(): () => void;
 	holdChangeDisplayName(): () => void;
 	holdGetAccount(): () => void;
@@ -65,6 +80,8 @@ export function createFakeRemote(
 ): FakeRemote {
 	let pullGate: Promise<void> | null = null;
 	let pushGate: Promise<void> | null = null;
+	let leaderboardGate: Promise<void> | null = null;
+	let completedPushes = 0;
 	let redirectText: string | null = null;
 	let gate: Promise<void> | null = null;
 	let confirmGate: Promise<void> | null = null;
@@ -106,6 +123,10 @@ export function createFakeRemote(
 		pushAccounts: [],
 		failPull: false,
 		failPush: false,
+		leaderboards: {},
+		leaderboardCalls: [],
+		pushesAtRead: [],
+		failLeaderboard: false,
 		gone: false,
 		reorderKeys: false,
 		holdPull() {
@@ -116,6 +137,11 @@ export function createFakeRemote(
 		holdPush() {
 			return hold((g) => {
 				pushGate = g;
+			});
+		},
+		holdLeaderboard() {
+			return hold((g) => {
+				leaderboardGate = g;
 			});
 		},
 		holdConfirmDisplayName() {
@@ -222,6 +248,27 @@ export function createFakeRemote(
 				byEndedAt.set(run.endedAt, run);
 			}
 			fake.rows.runs = [...byEndedAt.values()];
+			completedPushes += 1;
+		},
+		async readLeaderboard(query): Promise<LeaderboardPage> {
+			fake.leaderboardCalls.push(query);
+			fake.pushesAtRead.push(completedPushes);
+			// The answer a request gets is the one held when it is sent.
+			const viewerId =
+				fake.state.status === "signedIn" ? fake.state.accountId : null;
+			const held = clone(fake.leaderboards[leaderboardId(query)] ?? []);
+			if (leaderboardGate) {
+				await leaderboardGate;
+			}
+			if (fake.failLeaderboard) {
+				throw new Error("leaderboard failed");
+			}
+			const rows = held
+				.filter(
+					(row) => row.rank <= LEADERBOARD_TOP || row.accountId === viewerId,
+				)
+				.sort((a, b) => a.rank - b.rank);
+			return { rows, viewerId };
 		},
 		redirectError: () => redirectText,
 		clearRedirectError() {
