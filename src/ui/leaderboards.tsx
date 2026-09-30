@@ -1,0 +1,215 @@
+import { useEffect, useRef, useState } from "react";
+import type { BlitzMode, DailyCategory, Orientation } from "../engine/types";
+import {
+	LEADERBOARD_TOP,
+	type LeaderboardPage,
+	type LeaderboardRow,
+	type LeaderboardWindow,
+	type Remote,
+} from "../remote/remote";
+import type { Sync } from "../sync/sync";
+import { CATEGORIES, MODES, Pill } from "./blitz-choices";
+
+const WINDOWS: Array<{ value: LeaderboardWindow; label: string }> = [
+	{ value: "allTime", label: "All-time" },
+	{ value: "weekly", label: "Weekly" },
+	{ value: "today", label: "Today" },
+];
+const ORIENTATIONS: Array<{ value: Orientation; label: string }> = [
+	{ value: "default", label: "Default" },
+	{ value: "inverted", label: "Inverted" },
+];
+
+type Result =
+	| { status: "loading" }
+	| { status: "error" }
+	| { status: "ready"; page: LeaderboardPage };
+
+function Choice<T extends string>({
+	legend,
+	name,
+	items,
+	value,
+	onChange,
+}: {
+	legend: string;
+	name: string;
+	items: Array<{ value: T; label: string }>;
+	value: T;
+	onChange: (value: T) => void;
+}) {
+	return (
+		<fieldset className="flex flex-wrap gap-2">
+			<legend className="sr-only">{legend}</legend>
+			{items.map((item) => (
+				<Pill
+					key={item.value}
+					name={name}
+					checked={value === item.value}
+					label={item.label}
+					onChange={() => onChange(item.value)}
+				/>
+			))}
+		</fieldset>
+	);
+}
+
+function YouBadge() {
+	return (
+		<span className="ml-2 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+			You
+		</span>
+	);
+}
+
+function RankedList({ page }: { page: LeaderboardPage }) {
+	const top = page.rows.filter((row) => row.rank <= LEADERBOARD_TOP);
+	const own: LeaderboardRow | undefined =
+		page.viewerId === null
+			? undefined
+			: page.rows.find((row) => row.accountId === page.viewerId);
+	const pinned = own && own.rank > LEADERBOARD_TOP ? own : undefined;
+	if (page.rows.length === 0) {
+		return (
+			<p className="mt-4 text-sm">Nobody has played this leaderboard yet.</p>
+		);
+	}
+	return (
+		<div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+			<table className="w-full text-sm">
+				<thead className="sr-only">
+					<tr>
+						<th>Rank</th>
+						<th>Player</th>
+						<th>Score</th>
+					</tr>
+				</thead>
+				<tbody>
+					{top.map((row) => (
+						<tr
+							key={row.accountId}
+							className="border-t border-zinc-200 first:border-t-0 dark:border-zinc-800"
+						>
+							<td className="py-2 pr-1 pl-3 tabular-nums text-zinc-500">
+								{row.rank}
+							</td>
+							<td className="py-2">
+								{row.displayName}
+								{row.accountId === own?.accountId ? <YouBadge /> : null}
+							</td>
+							<td className="py-2 pr-3 text-right font-mono font-semibold tabular-nums">
+								{row.score}
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+			{pinned ? (
+				<div className="flex items-center justify-between border-t border-zinc-300 bg-zinc-100 px-3 py-2 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-800">
+					<span>
+						<span className="tabular-nums text-zinc-600 dark:text-zinc-300">
+							{pinned.rank}
+						</span>{" "}
+						{pinned.displayName}
+						<YouBadge />
+					</span>
+					<span className="font-mono tabular-nums">{pinned.score}</span>
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+export function Leaderboards({
+	remote,
+	sync,
+}: {
+	remote: Remote;
+	sync?: Sync;
+}) {
+	const [windowKey, setWindowKey] = useState<LeaderboardWindow>("allTime");
+	const [category, setCategory] = useState<DailyCategory>("mixed");
+	const [orientation, setOrientation] = useState<Orientation>("default");
+	const [mode, setMode] = useState<BlitzMode>("sprint");
+	const [result, setResult] = useState<Result>({ status: "loading" });
+	// Opening the panel pushes pending changes once; every read waits for it.
+	const synced = useRef<Promise<void> | null>(null);
+
+	useEffect(() => {
+		let current = true;
+		setResult({ status: "loading" });
+		synced.current ??= sync ? sync.refresh() : Promise.resolve();
+		synced.current
+			.then(() =>
+				remote.readLeaderboard({
+					window: windowKey,
+					category,
+					orientation,
+					mode,
+				}),
+			)
+			.then(
+				(page) => {
+					if (current) {
+						setResult({ status: "ready", page });
+					}
+				},
+				() => {
+					if (current) {
+						setResult({ status: "error" });
+					}
+				},
+			);
+		return () => {
+			current = false;
+		};
+	}, [remote, sync, windowKey, category, orientation, mode]);
+
+	return (
+		<div>
+			<div className="mt-4 space-y-2">
+				<Choice
+					legend="Window"
+					name="leaderboard-window"
+					items={WINDOWS}
+					value={windowKey}
+					onChange={setWindowKey}
+				/>
+				<Choice
+					legend="Daily category"
+					name="leaderboard-category"
+					items={CATEGORIES}
+					value={category}
+					onChange={setCategory}
+				/>
+				<div className="flex flex-wrap gap-x-2 gap-y-2">
+					<Choice
+						legend="Orientation"
+						name="leaderboard-orientation"
+						items={ORIENTATIONS}
+						value={orientation}
+						onChange={setOrientation}
+					/>
+					<Choice
+						legend="Blitz mode"
+						name="leaderboard-mode"
+						items={MODES}
+						value={mode}
+						onChange={setMode}
+					/>
+				</div>
+			</div>
+			{result.status === "loading" ? (
+				<p role="status" className="mt-4 text-sm">
+					Loading…
+				</p>
+			) : result.status === "error" ? (
+				<p role="alert" className="mt-4 text-sm">
+					Could not load this leaderboard.
+				</p>
+			) : (
+				<RankedList page={result.page} />
+			)}
+		</div>
+	);
+}

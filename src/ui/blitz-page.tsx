@@ -25,24 +25,16 @@ import type {
 import { DAILY_CATEGORIES } from "../engine/types";
 import type { Persist } from "../persist/storage";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
+import { CATEGORIES, MODES, Pill } from "./blitz-choices";
 import { DigitSlots } from "./digit-slots";
 import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
+import { Leaderboards } from "./leaderboards";
 import { ProgressNotice } from "./notice";
 import { RoundLog } from "./round-log";
 import { Typeahead } from "./typeahead";
 import { runViewTransition } from "./view-transition";
 
 const EMPTY_POOL = "Cannot start Blitz: not enough unused answers today.";
-const CATEGORIES: Array<{ value: DailyCategory; label: string }> = [
-	{ value: "mixed", label: "Mixed" },
-	{ value: "protocols", label: "Protocols" },
-	{ value: "applications", label: "Applications" },
-];
-const MODES: Array<{ value: BlitzMode; label: string }> = [
-	{ value: "sprint", label: "Sprint (1m)" },
-	{ value: "marathon", label: "Marathon (5m)" },
-	{ value: "survival", label: "Survival" },
-];
 const ORIENTATION_ORDER: Orientation[] = ["default", "inverted"];
 const MODE_ORDER: BlitzMode[] = MODES.map((item) => item.value);
 const PRIMARY_BUTTON =
@@ -133,37 +125,6 @@ function sortedBests(bests: BlitzBests): Array<{
 			}
 			return MODE_ORDER.indexOf(a.mode) - MODE_ORDER.indexOf(b.mode);
 		});
-}
-
-function Pill({
-	name,
-	checked,
-	label,
-	onChange,
-}: {
-	name: string;
-	checked: boolean;
-	label: string;
-	onChange: () => void;
-}) {
-	return (
-		<label
-			className={`inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-				checked
-					? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-					: "border-zinc-300 text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600"
-			}`}
-		>
-			<input
-				type="radio"
-				name={name}
-				checked={checked}
-				onChange={onChange}
-				className="sr-only"
-			/>
-			{label}
-		</label>
-	);
 }
 
 // The title alone (inside the label) is the radio's accessible name; the
@@ -320,6 +281,69 @@ function BestsTable({ bests }: { bests: BlitzBests }) {
 	);
 }
 
+type BlitzTab = "play" | "leaderboards";
+const TABS: Array<{ value: BlitzTab; label: string }> = [
+	{ value: "play", label: "Play" },
+	{ value: "leaderboards", label: "Leaderboards" },
+];
+
+function BlitzTabs({
+	tab,
+	onChange,
+}: {
+	tab: BlitzTab;
+	onChange: (tab: BlitzTab) => void;
+}) {
+	function handleKeyDown(event: React.KeyboardEvent, index: number) {
+		let next: number;
+		if (event.key === "ArrowRight") {
+			next = (index + 1) % TABS.length;
+		} else if (event.key === "ArrowLeft") {
+			next = (index - 1 + TABS.length) % TABS.length;
+		} else if (event.key === "Home") {
+			next = 0;
+		} else if (event.key === "End") {
+			next = TABS.length - 1;
+		} else {
+			return;
+		}
+		event.preventDefault();
+		const target = TABS[next];
+		if (target) {
+			onChange(target.value);
+			document.getElementById(`blitz-tab-${target.value}`)?.focus();
+		}
+	}
+	return (
+		<div
+			role="tablist"
+			aria-label="Blitz view"
+			className="mt-4 flex border-b border-zinc-200 dark:border-zinc-800"
+		>
+			{TABS.map((item, index) => (
+				<button
+					key={item.value}
+					type="button"
+					role="tab"
+					id={`blitz-tab-${item.value}`}
+					aria-selected={tab === item.value}
+					aria-controls="blitz-tabpanel"
+					tabIndex={tab === item.value ? 0 : -1}
+					onClick={() => onChange(item.value)}
+					onKeyDown={(event) => handleKeyDown(event, index)}
+					className={`-mb-px flex-1 border-b-2 py-2.5 text-center text-sm font-medium transition-colors ${
+						tab === item.value
+							? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
+							: "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+					}`}
+				>
+					{item.label}
+				</button>
+			))}
+		</div>
+	);
+}
+
 function SetupDialog({
 	open,
 	category,
@@ -467,7 +491,9 @@ function SetupDialog({
 }
 
 export function BlitzPage() {
-	const { persist, utcToday } = useRouteContext({ from: "__root__" });
+	const { persist, utcToday, remote, sync } = useRouteContext({
+		from: "__root__",
+	});
 	// Read once, at mount: the dialog preselects the last run's setup, or the
 	// fixed fallback when there is none.
 	const [initialSetup] = useState(() => {
@@ -491,6 +517,7 @@ export function BlitzPage() {
 	const [remaining, setRemaining] = useState<number | null>(null);
 	const [shakeKey, setShakeKey] = useState(0);
 	const [newBest, setNewBest] = useState(false);
+	const [tab, setTab] = useState<BlitzTab>("play");
 
 	const ended = run?.ended ?? null;
 
@@ -721,26 +748,55 @@ export function BlitzPage() {
 		});
 	}
 
+	function changeTab(next: BlitzTab) {
+		if (next !== tab) {
+			runViewTransition(["switcher"], () => setTab(next));
+		}
+	}
+
 	if (!run) {
 		const lastRun = persist.readBlitzRuns()[0];
 		const bests = persist.readBlitzBests();
+		const arena = (
+			<>
+				<button
+					type="button"
+					className={`mt-4 ${PRIMARY_BUTTON}`}
+					onClick={() => setDialogOpen(true)}
+				>
+					New run
+				</button>
+				<section className="mt-8">
+					<h2 className="text-sm font-semibold">Last run</h2>
+					<LastRun run={lastRun} />
+				</section>
+				<BestsTable bests={bests} />
+			</>
+		);
 		return (
 			<>
 				<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
 					<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
 					<ProgressNotice show={saveWarning} />
-					<button
-						type="button"
-						className={`mt-4 ${PRIMARY_BUTTON}`}
-						onClick={() => setDialogOpen(true)}
-					>
-						New run
-					</button>
-					<section className="mt-8">
-						<h2 className="text-sm font-semibold">Last run</h2>
-						<LastRun run={lastRun} />
-					</section>
-					<BestsTable bests={bests} />
+					{remote ? (
+						<>
+							<BlitzTabs tab={tab} onChange={changeTab} />
+							<div
+								role="tabpanel"
+								id="blitz-tabpanel"
+								aria-labelledby={`blitz-tab-${tab}`}
+								className="[view-transition-name:switcher-content]"
+							>
+								{tab === "play" ? (
+									arena
+								) : (
+									<Leaderboards remote={remote} sync={sync} />
+								)}
+							</div>
+						</>
+					) : (
+						arena
+					)}
 				</main>
 				<SetupDialog
 					open={dialogOpen}
