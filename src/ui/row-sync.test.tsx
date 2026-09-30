@@ -89,7 +89,7 @@ test("an unconfirmed name syncs nothing until Continue, then imports the device"
 	await waitFor(() => expect(remote.rows.codex).toEqual({ http: "correct" }));
 });
 
-test("the account menu's own read rejecting with AccountGoneError shows signed out, signs Sync out, and keeps the device's data", async () => {
+test("an account gone at app open shows the menu signed out, signs Sync out, and keeps the device's data", async () => {
 	const user = userEvent.setup();
 	const remote = createFakeRemote(CONFIRMED);
 	remote.gone = true;
