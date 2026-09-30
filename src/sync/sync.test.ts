@@ -610,3 +610,19 @@ test("a run with an invalid endedAt is never pushed", async () => {
 		"2026-09-29T10:00:00.000Z",
 	]);
 });
+
+test("every successful pull reports the sign-in state it read again", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	const seen: AccountState[] = [];
+	d.sync.onAccount((account) => seen.push(account));
+	await d.sync.refresh();
+	remote.state = { ...ACCOUNT, displayName: "Grace" };
+	await d.sync.refresh();
+	expect(
+		seen.map((account) => account.status === "signedIn" && account.displayName),
+	).toEqual(["Ada", "Grace"]);
+	remote.failPull = true;
+	await d.sync.refresh();
+	expect(seen).toHaveLength(2);
+});

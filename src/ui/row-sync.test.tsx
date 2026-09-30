@@ -130,3 +130,15 @@ test("signing out stops syncing and keeps local data", async () => {
 	expect(remote.pushCalls).toHaveLength(0);
 	expect(remote.rows.codex).toEqual({});
 });
+
+test("a display name changed on another device shows in the menu after the next pull", async () => {
+	const remote = createFakeRemote(CONFIRMED);
+	mountApp(remote);
+	await waitFor(() => expect(remote.pullCalls).toBe(1));
+	await userEvent.click(screen.getByRole("button", { name: "Account" }));
+	expect(await screen.findByText("Ada L.")).toBeTruthy();
+	remote.state = { ...CONFIRMED, displayName: "Grace H." };
+	window.dispatchEvent(new Event("focus"));
+	expect(await screen.findByText("Grace H.")).toBeTruthy();
+	expect(screen.queryByText("Ada L.")).toBeNull();
+});

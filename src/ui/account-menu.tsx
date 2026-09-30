@@ -111,6 +111,27 @@ export function AccountMenu({
 		[sync],
 	);
 
+	// A name changed on another device shows after the next pull. A rename
+	// here is followed by a refresh, so a stale read corrects itself.
+	useEffect(
+		() =>
+			sync?.onAccount((account) => {
+				if (account.status !== "signedIn") {
+					return;
+				}
+				setView((current) =>
+					current.kind === "signedIn"
+						? {
+								...current,
+								displayName: account.displayName,
+								nameConfirmed: account.nameConfirmed,
+							}
+						: current,
+				);
+			}),
+		[sync],
+	);
+
 	// A pending rename keeps the menu open, so its result lands on the field.
 	const savingName = editing !== null && busy;
 
@@ -232,6 +253,7 @@ export function AccountMenu({
 			);
 			pencilFocusPending.current = true;
 			setEditing(null);
+			void sync?.refresh();
 		}, SAVE_FAILURE);
 	}
 

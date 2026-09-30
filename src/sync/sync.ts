@@ -38,6 +38,8 @@ export type Sync = {
 	stop(): void;
 	accountGone(): Promise<void>;
 	onAccountGone(listener: () => void): () => void;
+	// Runs after each successful pull is applied, with the sign-in state that pull read again.
+	onAccount(listener: (account: AccountState) => void): () => void;
 };
 
 type Kind = "codex" | "bests" | "runs" | "dailies";
@@ -83,6 +85,7 @@ export function createSync(options: {
 	let queue: Promise<unknown> = Promise.resolve();
 	let snapshot = emptySnapshot();
 	const goneListeners = new Set<() => void>();
+	const accountListeners = new Set<(account: AccountState) => void>();
 
 	function enqueue(task: () => Promise<void>): Promise<void> {
 		const next = queue.then(task, task);
@@ -402,6 +405,9 @@ export function createSync(options: {
 		}
 		applyPull(rows);
 		pulled = true;
+		for (const listener of accountListeners) {
+			listener(account);
+		}
 		persist.writeSyncAccount(account.accountId);
 		for (const kind of KINDS) {
 			mark(kind, localRows(kind));
@@ -469,6 +475,12 @@ export function createSync(options: {
 			goneListeners.add(listener);
 			return () => {
 				goneListeners.delete(listener);
+			};
+		},
+		onAccount(listener) {
+			accountListeners.add(listener);
+			return () => {
+				accountListeners.delete(listener);
 			};
 		},
 	};
