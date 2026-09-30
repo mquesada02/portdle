@@ -194,5 +194,9 @@
 	"storybook": {
 		"name": "Storybook",
 		"port": 6006
+	},
+	"docker": {
+		"name": "Docker API",
+		"port": 2375
 	}
 }

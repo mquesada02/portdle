@@ -49,6 +49,10 @@ function accountButton() {
 	return screen.getByRole("button", { name: "Account" });
 }
 
+function pencil() {
+	return screen.getByRole("button", { name: "Edit display name" });
+}
+
 test("without a Remote there is no Account button", async () => {
 	await renderApp({});
 	expect(screen.queryByRole("button", { name: "Account" })).toBeNull();
@@ -351,7 +355,55 @@ test("a failed rename shows one line, changes nothing, keeps editing, and a retr
 	expect(remote.state).toMatchObject({ displayName: "Graces" });
 });
 
-test("closing the menu mid-edit cancels the edit", async () => {
+test("closing the menu with the person icon mid-edit cancels the edit", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	const input = await openRename(user);
+	await user.type(input, "xyz");
+	await user.click(accountButton());
+	expect(screen.queryByRole("textbox", { name: "Display name" })).toBeNull();
+	expect(document.activeElement).toBe(accountButton());
+	await user.click(accountButton());
+	expect(await screen.findByText("Ada L.")).toBeTruthy();
+});
+
+test("opening the edit focuses the name field", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	const input = await openRename(user);
+	expect(document.activeElement).toBe(input);
+});
+
+test("a successful Save focuses the pencil, by button and by Enter", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	await openRename(user);
+	await user.type(screen.getByRole("textbox", { name: "Display name" }), "1");
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	expect(await screen.findByText("Ada L.1")).toBeTruthy();
+	expect(document.activeElement).toBe(pencil());
+	await user.click(pencil());
+	await user.type(
+		screen.getByRole("textbox", { name: "Display name" }),
+		"2{Enter}",
+	);
+	expect(await screen.findByText("Ada L.12")).toBeTruthy();
+	expect(document.activeElement).toBe(pencil());
+});
+
+test("Cancel focuses the pencil", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	await renderApp({ remote });
+	await openRename(user);
+	await user.click(screen.getByRole("button", { name: "Cancel" }));
+	expect(document.activeElement).toBe(pencil());
+});
+
+test("Escape in the field ends only the edit and focuses the pencil", async () => {
 	const user = userEvent.setup();
 	const remote = createFakeRemote(SIGNED_IN);
 	await renderApp({ remote });
@@ -359,8 +411,69 @@ test("closing the menu mid-edit cancels the edit", async () => {
 	await user.type(input, "xyz");
 	await user.keyboard("{Escape}");
 	expect(screen.queryByRole("textbox", { name: "Display name" })).toBeNull();
-	await user.click(accountButton());
-	expect(await screen.findByText("Ada L.")).toBeTruthy();
+	expect(accountButton().getAttribute("aria-expanded")).toBe("true");
+	expect(screen.getByText("Ada L.")).toBeTruthy();
+	expect(document.activeElement).toBe(pencil());
+	await user.click(pencil());
+	expect(
+		(screen.getByRole("textbox", { name: "Display name" }) as HTMLInputElement)
+			.value,
+	).toBe("Ada L.");
+});
+
+test("a failed Save keeps focus in the field with the alert, each time", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	remote.failChangeDisplayName = true;
+	await renderApp({ remote });
+	const input = await openRename(user);
+	await user.type(input, "1");
+	for (let attempt = 0; attempt < 2; attempt++) {
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect((await screen.findByRole("alert")).textContent).toBe(
+			"Could not save your name. Try again.",
+		);
+		await waitFor(() => expect(document.activeElement).toBe(input));
+		await user.click(document.getElementById("account-menu") as HTMLElement);
+		expect(document.activeElement).not.toBe(input);
+	}
+	remote.failChangeDisplayName = false;
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	expect(await screen.findByText("Ada L.1")).toBeTruthy();
+	expect(document.activeElement).toBe(pencil());
+});
+
+test("a failed sign-out mid-edit does not move focus into the field", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	remote.failSignOut = true;
+	await renderApp({ remote });
+	await openRename(user);
+	const signOut = screen.getByRole("button", { name: "Sign out" });
+	await user.click(signOut);
+	expect((await screen.findByRole("alert")).textContent).toBe(
+		"Could not sign out. Try again.",
+	);
+	expect(document.activeElement).toBe(signOut);
+	expect(document.activeElement).not.toBe(
+		screen.getByRole("textbox", { name: "Display name" }),
+	);
+});
+
+test("Escape during a pending save changes nothing, then the result focuses the pencil", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	const release = remote.holdChangeDisplayName();
+	await renderApp({ remote });
+	await openRename(user);
+	await user.type(screen.getByRole("textbox", { name: "Display name" }), "1");
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	await user.keyboard("{Escape}");
+	expect(accountButton().getAttribute("aria-expanded")).toBe("true");
+	expect(screen.getByRole("textbox", { name: "Display name" })).toBeTruthy();
+	await act(async () => release());
+	expect(await screen.findByText("Ada L.1")).toBeTruthy();
+	expect(document.activeElement).toBe(pencil());
 });
 
 test("a pending save disables the buttons and keeps the menu open", async () => {

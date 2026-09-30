@@ -53,6 +53,13 @@ export function AccountMenu({
 	const [editing, setEditing] = useState<string | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLButtonElement>(null);
+	const pencilRef = useRef<HTMLButtonElement>(null);
+	const fieldRef = useRef<HTMLInputElement>(null);
+	// Set when an edit ends by Save, Cancel, or Escape, so focus goes back to
+	// the pencil; closing the menu never sets it.
+	const pencilFocusPending = useRef(false);
+	// Set when a save fails, so focus returns to the field once the call ends.
+	const fieldFocusPending = useRef(false);
 
 	useEffect(() => {
 		remote.clearRedirectError();
@@ -109,10 +116,35 @@ export function AccountMenu({
 
 	const close = useCallback(() => {
 		if (!savingName) {
+			pencilFocusPending.current = false;
 			setOpen(false);
 			setEditing(null);
 		}
 	}, [savingName]);
+
+	const isEditing = editing !== null;
+
+	useEffect(() => {
+		if (isEditing) {
+			fieldRef.current?.focus();
+		} else if (pencilFocusPending.current) {
+			pencilRef.current?.focus();
+		}
+		pencilFocusPending.current = false;
+	}, [isEditing]);
+
+	useEffect(() => {
+		if (!busy && fieldFocusPending.current) {
+			fieldFocusPending.current = false;
+			fieldRef.current?.focus();
+		}
+	}, [busy]);
+
+	const endEdit = useCallback(() => {
+		pencilFocusPending.current = true;
+		setEditing(null);
+		setError(null);
+	}, []);
 
 	useEffect(() => {
 		if (!open) {
@@ -120,6 +152,13 @@ export function AccountMenu({
 		}
 		function handleKeyDown(event: KeyboardEvent) {
 			if (event.key === "Escape") {
+				if (isEditing) {
+					// A pending call keeps the edit, like every other close.
+					if (!busy) {
+						endEdit();
+					}
+					return;
+				}
 				close();
 				buttonRef.current?.focus();
 			}
@@ -135,7 +174,7 @@ export function AccountMenu({
 			document.removeEventListener("keydown", handleKeyDown);
 			document.removeEventListener("mousedown", handleMouseDown);
 		};
-	}, [open, close]);
+	}, [open, close, endEdit, isEditing, busy]);
 
 	function toggle() {
 		if (open) {
@@ -183,12 +222,15 @@ export function AccountMenu({
 		}
 		const name = editing;
 		return run(async () => {
+			fieldFocusPending.current = true;
 			await remote.changeDisplayName(name);
+			fieldFocusPending.current = false;
 			setView((current) =>
 				current.kind === "signedIn"
 					? { ...current, displayName: name }
 					: current,
 			);
+			pencilFocusPending.current = true;
 			setEditing(null);
 		}, SAVE_FAILURE);
 	}
@@ -249,6 +291,7 @@ export function AccountMenu({
 											{view.displayName}
 										</p>
 										<button
+											ref={pencilRef}
 											type="button"
 											aria-label="Edit display name"
 											onClick={() => {
@@ -274,6 +317,7 @@ export function AccountMenu({
 								) : (
 									<form onSubmit={saveName} className="flex flex-col gap-2">
 										<input
+											ref={fieldRef}
 											type="text"
 											aria-label="Display name"
 											value={editing}
@@ -299,10 +343,7 @@ export function AccountMenu({
 											<button
 												type="button"
 												disabled={busy}
-												onClick={() => {
-													setEditing(null);
-													setError(null);
-												}}
+												onClick={endEdit}
 												className={MENU_BUTTON}
 											>
 												Cancel
