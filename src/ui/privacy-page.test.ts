@@ -34,17 +34,20 @@ test("page is English, mobile-ready, and self-contained", () => {
 	expect(page.querySelector('link[rel="stylesheet"]')).toBeNull();
 });
 
-test("page links back to the game and to the GitHub issues", () => {
+test("page links back to the game and shows the contact email", () => {
 	expect(page.querySelector('a[href="./"]')).toBeTruthy();
 	expect(
-		page.querySelector(
-			'a[href="https://github.com/mquesada02/portdle/issues"]',
-		),
+		page.querySelector('a[href="mailto:mquesada@itba.edu.ar"]'),
 	).toBeTruthy();
+	expect(text).toContain("Email mquesada@itba.edu.ar.");
+	for (const link of page.querySelectorAll("a[href]")) {
+		expect(link.getAttribute("href")).not.toContain("github.com/mquesada02");
+	}
 });
 
 test("page shows a last updated date", () => {
-	expect(page.querySelector('time[datetime="2026-09-29"]')).toBeTruthy();
+	expect(page.querySelector('time[datetime="2026-09-30"]')).toBeTruthy();
+	expect(text).toContain("Last updated: September 30, 2026");
 });
 
 test("page states what Portdle stores and who can see it", () => {
