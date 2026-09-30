@@ -255,34 +255,49 @@ export function AccountMenu({
 		return run(endSession, SIGN_OUT_FAILURE);
 	}
 
-	async function choose(start: boolean) {
-		if (view.kind !== "signedIn") {
-			return;
-		}
-		const { accountId } = view;
+	function clearChoicePending() {
+		setView((current) =>
+			current.kind === "signedIn"
+				? { ...current, choicePending: false }
+				: current,
+		);
+	}
+
+	// Another tab may have chosen already; then this tab must not act.
+	function beginChoice(accountId: string): boolean {
 		setChoiceFailure(null);
-		// Another tab may have chosen already; then this tab must not act.
-		if (!deviceChoicePending(persist, accountId)) {
-			setView({ ...view, choicePending: false });
-			return;
+		if (deviceChoicePending(persist, accountId)) {
+			return true;
 		}
-		if (start) {
-			setChoiceBusy(true);
-			sync?.stop();
-			persist.clearAll();
-			// Ignored on failure: an empty device is not pending, and the pull
-			// writes the id again.
-			persist.writeSyncAccount(accountId);
-			await sync?.refresh();
-			remount();
+		clearChoicePending();
+		return false;
+	}
+
+	function addProgress(accountId: string) {
+		if (!beginChoice(accountId)) {
 			return;
 		}
 		if (!persist.writeSyncAccount(accountId).ok) {
 			setChoiceFailure(DEVICE_CHOICE_FAILURE);
 			return;
 		}
-		setView({ ...view, choicePending: false });
+		clearChoicePending();
 		void sync?.refresh();
+	}
+
+	async function startFromAccount(accountId: string) {
+		if (!beginChoice(accountId)) {
+			return;
+		}
+		// Never reset: the remount below discards this state.
+		setChoiceBusy(true);
+		sync?.stop();
+		persist.clearAll();
+		// Ignored on failure: an empty device is not pending, and the pull
+		// writes the id again.
+		persist.writeSyncAccount(accountId);
+		await sync?.refresh();
+		remount();
 	}
 
 	function saveName(event: FormEvent) {
@@ -441,8 +456,8 @@ export function AccountMenu({
 				<DeviceProgressChoice
 					busy={choiceBusy}
 					failure={choiceFailure}
-					onAdd={() => void choose(false)}
-					onStart={() => void choose(true)}
+					onAdd={() => addProgress(view.accountId)}
+					onStart={() => void startFromAccount(view.accountId)}
 				/>
 			)}
 			{view.kind === "signedIn" &&

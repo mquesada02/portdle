@@ -1,8 +1,9 @@
 import { DAILY_CATEGORIES } from "../engine/types";
-import { isValidTimestamp } from "../engine/utc";
+import { isValidTimestamp, isValidUtcDate } from "../engine/utc";
 import type { Persist } from "../persist/storage";
 
-// Rows Sync could import: a run needs a valid `endedAt`, a Daily must read back.
+// Rows Sync could import: a run needs a valid `endedAt`, a Daily needs a
+// valid date and must read back.
 function holdsProgress(persist: Persist): boolean {
 	return (
 		Object.keys(persist.readCodex()).length > 0 ||
@@ -11,7 +12,10 @@ function holdsProgress(persist: Persist): boolean {
 		DAILY_CATEGORIES.some((category) =>
 			persist
 				.listDailyDates(category)
-				.some((date) => persist.readDaily(category, date) !== null),
+				.some(
+					(date) =>
+						isValidUtcDate(date) && persist.readDaily(category, date) !== null,
+				),
 		)
 	);
 }

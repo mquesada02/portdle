@@ -334,15 +334,13 @@ test.each([
 	},
 );
 
-test("the choice shows above an open How-to", async () => {
-	const { persist } = deviceOfAccountA();
-	persist.writeSyncAccount("acc-a");
-	stubMatchMedia();
+test("the choice opens over an open How-to", async () => {
 	const fresh = createPersist(memoryStore());
 	fresh.writeSyncAccount("acc-a");
 	fresh.writeCodex({ http: { state: "correct", fresh: false } });
 	mountApp(fresh, createFakeRemote(CONFIRMED));
-	await screen.findByRole("dialog", { name: "How-to" });
+	const howTo = await screen.findByRole("dialog", { name: "How-to" });
 	const choice = await findChoice();
+	expect(howTo.hasAttribute("open")).toBe(true);
 	expect(choice.hasAttribute("open")).toBe(true);
 });
