@@ -1,6 +1,6 @@
 import type { RouterHistory } from "@tanstack/react-router";
 import { RouterProvider } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { utcDateString } from "../engine/utc";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
@@ -57,10 +57,21 @@ export function App({
 		void sync.refresh();
 		return detach;
 	}, [sync]);
+	// A remount rebuilds every screen, so nothing typed before a device clear
+	// can write cleared data back.
+	const [generation, setGeneration] = useState(0);
+	const remount = useCallback(() => setGeneration((count) => count + 1), []);
 	const router = useMemo(
 		() =>
-			createAppRouter({ persist, remote, sync, history, utcToday: clockToday }),
-		[persist, remote, sync, history, clockToday],
+			createAppRouter({
+				persist,
+				remote,
+				sync,
+				remount,
+				history,
+				utcToday: clockToday,
+			}),
+		[persist, remote, sync, remount, history, clockToday],
 	);
-	return <RouterProvider router={router} />;
+	return <RouterProvider key={generation} router={router} />;
 }
