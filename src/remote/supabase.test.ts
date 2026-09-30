@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { AccountGoneError } from "./remote";
 import {
 	createSupabaseRemote,
 	hasStoredSignIn,
@@ -371,4 +372,286 @@ test("a name update throws on a library error, an empty result, or no session", 
 		),
 	});
 	await expect(signedOut.remote.changeDisplayName("Ada")).rejects.toThrow();
+});
+
+class AuthError extends Error {
+	status?: number;
+	code?: string;
+	constructor(name: string, status?: number, code?: string) {
+		super(name);
+		this.name = name;
+		this.status = status;
+		this.code = code;
+	}
+}
+
+test("getAccount rejects with AccountGoneError when the account row is missing or the user is not found", async () => {
+	const client = fakeClient();
+	client.from = () => ({
+		select: () => ({
+			eq: () => ({
+				single: async () => ({
+					data: null,
+					error: Object.assign(new Error("no rows"), { code: "PGRST116" }),
+				}),
+			}),
+		}),
+	});
+	const missing = makeRemote({ stored: true, client });
+	await expect(missing.remote.getAccount()).rejects.toBeInstanceOf(
+		AccountGoneError,
+	);
+	const notFound = makeRemote({
+		stored: true,
+		client: fakeClient({
+			getSession: async () => ({
+				data: { session: null },
+				error: new AuthError("AuthApiError", 403, "user_not_found"),
+			}),
+		}),
+	});
+	await expect(notFound.remote.getAccount()).rejects.toBeInstanceOf(
+		AccountGoneError,
+	);
+});
+
+test("getAccount keeps a retryable auth failure an ordinary error and a refused sign-in signed out", async () => {
+	for (const error of [
+		new AuthError("AuthRetryableFetchError", 0),
+		new AuthError("AuthApiError", 503),
+	]) {
+		const { remote } = makeRemote({
+			stored: true,
+			client: fakeClient({
+				getSession: async () => ({ data: { session: null }, error }),
+			}),
+		});
+		const rejection = await remote.getAccount().catch((e: unknown) => e);
+		expect(rejection).toBe(error);
+	}
+	const refused = makeRemote({
+		stored: true,
+		client: fakeClient({
+			getSession: async () => ({
+				data: { session: null },
+				error: new AuthError("AuthApiError", 400, "refresh_token_not_found"),
+			}),
+		}),
+	});
+	expect(await refused.remote.getAccount()).toEqual({ status: "signedOut" });
+});
+
+type Call = { table: string; steps: unknown[][] };
+
+// A query builder that records its calls and answers a paged read from `rows`.
+function dataClient(
+	tables: Record<string, unknown[]>,
+	calls: Call[],
+	upsertError: Error | null = null,
+): FakeClient {
+	const client = fakeClient();
+	client.from = (table: string) => {
+		const call: Call = { table, steps: [] };
+		calls.push(call);
+		const builder: Record<string, unknown> = {};
+		let range: [number, number] | null = null;
+		let limit: number | null = null;
+		function answer() {
+			const all = tables[table] ?? [];
+			const data = range
+				? all.slice(range[0], range[1] + 1)
+				: all.slice(0, limit ?? all.length);
+			return { data, error: null };
+		}
+		for (const name of ["select", "order"]) {
+			builder[name] = (...args: unknown[]) => {
+				call.steps.push([name, ...args]);
+				return builder;
+			};
+		}
+		builder.range = (from: number, to: number) => {
+			call.steps.push(["range", from, to]);
+			range = [from, to];
+			return Promise.resolve(answer());
+		};
+		builder.limit = (n: number) => {
+			call.steps.push(["limit", n]);
+			limit = n;
+			return Promise.resolve(answer());
+		};
+		builder.upsert = async (records: unknown[], options: unknown) => {
+			call.steps.push(["upsert", records, options]);
+			return { error: upsertError };
+		};
+		return builder;
+	};
+	return client;
+}
+
+test("pull maps the tables, orders by primary key, pages past 1000 rows, and limits runs to 50", async () => {
+	const dailies = Array.from({ length: 1500 }, (_, i) => ({
+		category: "mixed",
+		day: `2020-01-${String((i % 28) + 1).padStart(2, "0")}#${i}`,
+		status: "won",
+		guesses: [],
+	}));
+	const calls: Call[] = [];
+	const { remote } = makeRemote({
+		client: dataClient(
+			{
+				codex_entries: [{ entry_id: "http", state: "correct" }],
+				blitz_bests: [
+					{
+						category: "mixed",
+						orientation: "default",
+						mode: "sprint",
+						score: 4,
+						time_to_score_ms: null,
+					},
+				],
+				dailies,
+				blitz_runs: [
+					{
+						ended_at: "2026-09-29T10:00:00+00:00",
+						category: "mixed",
+						orientation: "default",
+						mode: "sprint",
+						ended: "lives",
+						score: 4,
+						time_to_score_ms: 12.5,
+						// jsonb returns keys in its own order
+						rounds: [
+							{
+								wrong: null,
+								outcome: "correct",
+								port: 80,
+								name: "HTTP",
+								id: "http",
+							},
+						],
+					},
+				],
+			},
+			calls,
+		),
+	});
+	const rows = await remote.pull();
+	expect(rows.codex).toEqual({ http: "correct" });
+	expect(rows.bests).toEqual({ "mixed|default|sprint": { score: 4 } });
+	expect(Object.keys(rows.dailies)).toHaveLength(1500);
+	expect(JSON.stringify(rows.runs[0])).toBe(
+		JSON.stringify({
+			category: "mixed",
+			orientation: "default",
+			mode: "sprint",
+			ended: "lives",
+			endedAt: "2026-09-29T10:00:00.000Z",
+			score: 4,
+			timeToScoreMs: 12.5,
+			rounds: [
+				{ id: "http", name: "HTTP", port: 80, outcome: "correct", wrong: null },
+			],
+		}),
+	);
+	const dailyReads = calls.filter((c) => c.table === "dailies");
+	expect(dailyReads.map((c) => c.steps.at(-1))).toEqual([
+		["range", 0, 999],
+		["range", 1000, 1999],
+	]);
+	expect(dailyReads[0]?.steps).toContainEqual(["order", "category"]);
+	expect(dailyReads[0]?.steps).toContainEqual(["order", "day"]);
+	const runRead = calls.find((c) => c.table === "blitz_runs");
+	expect(runRead?.steps).toContainEqual([
+		"order",
+		"ended_at",
+		{ ascending: false },
+	]);
+	expect(runRead?.steps.at(-1)).toEqual(["limit", 50]);
+});
+
+test("push upserts each table with its conflict columns, the account id, chunks of 500, and skips invalid values", async () => {
+	const calls: Call[] = [];
+	const { remote } = makeRemote({ client: dataClient({}, calls) });
+	const daily = { status: "won" as const, guesses: [] };
+	const dailies: Record<string, typeof daily> = {
+		"mixed|2026-13-45": daily,
+	};
+	for (let i = 0; i < 600; i += 1) {
+		const day = new Date(Date.UTC(2020, 0, 1 + i)).toISOString().slice(0, 10);
+		dailies[`mixed|${day}`] = daily;
+	}
+	await remote.push("u1", {
+		codex: { http: "correct" },
+		bests: { "mixed|default|sprint": { score: 3, timeToScoreMs: 1.5 } },
+		runs: [
+			{
+				category: "mixed",
+				orientation: "default",
+				mode: "sprint",
+				ended: "lives",
+				endedAt: "nonsense",
+				score: 1,
+				rounds: [],
+			},
+		],
+		dailies,
+	});
+	const upserts = calls.flatMap((c) =>
+		c.steps
+			.filter((s) => s[0] === "upsert")
+			.map((s) => ({ table: c.table, records: s[1] as unknown[], on: s[2] })),
+	);
+	expect(upserts.find((u) => u.table === "codex_entries")).toEqual({
+		table: "codex_entries",
+		records: [{ account_id: "u1", entry_id: "http", state: "correct" }],
+		on: { onConflict: "account_id,entry_id" },
+	});
+	expect(upserts.find((u) => u.table === "blitz_bests")).toEqual({
+		table: "blitz_bests",
+		records: [
+			{
+				account_id: "u1",
+				category: "mixed",
+				orientation: "default",
+				mode: "sprint",
+				score: 3,
+				time_to_score_ms: 1.5,
+			},
+		],
+		on: { onConflict: "account_id,category,orientation,mode" },
+	});
+	expect(upserts.some((u) => u.table === "blitz_runs")).toBe(false);
+	const dailyUpserts = upserts.filter((u) => u.table === "dailies");
+	expect(dailyUpserts.map((u) => u.records.length)).toEqual([500, 100]);
+	expect(dailyUpserts[0]?.on).toEqual({
+		onConflict: "account_id,category,day",
+	});
+});
+
+test("push maps a foreign-key violation to AccountGoneError and rethrows other errors", async () => {
+	const gone = makeRemote({
+		client: dataClient(
+			{},
+			[],
+			Object.assign(new Error("fk"), { code: "23503" }),
+		),
+	});
+	await expect(
+		gone.remote.push("u1", {
+			codex: { http: "correct" },
+			bests: {},
+			runs: [],
+			dailies: {},
+		}),
+	).rejects.toBeInstanceOf(AccountGoneError);
+	const other = new Error("boom");
+	const failing = makeRemote({ client: dataClient({}, [], other) });
+	await expect(
+		failing.remote.push("u1", {
+			codex: { http: "correct" },
+			bests: {},
+			runs: [],
+			dailies: {},
+		}),
+	).rejects.toBe(other);
 });

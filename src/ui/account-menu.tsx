@@ -7,7 +7,8 @@ import {
 	useState,
 } from "react";
 import { validateDisplayName } from "../engine/display-name";
-import type { Provider, Remote } from "../remote/remote";
+import { AccountGoneError, type Provider, type Remote } from "../remote/remote";
+import type { Sync } from "../sync/sync";
 import {
 	DISPLAY_NAME_HINT,
 	SAVE_FAILURE,
@@ -33,10 +34,12 @@ const MENU_BUTTON =
 
 export function AccountMenu({
 	remote,
+	sync,
 	buttonClassName,
 	icon,
 }: {
 	remote: Remote;
+	sync?: Sync;
 	buttonClassName: string;
 	icon: ReactNode;
 }) {
@@ -70,8 +73,16 @@ export function AccountMenu({
 					setView({ kind: "signedOut" });
 				}
 			},
-			() => {
-				if (cancelled || redirectError !== null) {
+			(reason: unknown) => {
+				if (cancelled) {
+					return;
+				}
+				if (reason instanceof AccountGoneError) {
+					void sync?.accountGone();
+					setView({ kind: "signedOut" });
+					return;
+				}
+				if (redirectError !== null) {
 					return;
 				}
 				setView({ kind: "loadFailed" });
@@ -81,7 +92,17 @@ export function AccountMenu({
 		return () => {
 			cancelled = true;
 		};
-	}, [remote, redirectError]);
+	}, [remote, sync, redirectError]);
+
+	useEffect(
+		() =>
+			sync?.onAccountGone(() => {
+				setView({ kind: "signedOut" });
+				setEditing(null);
+				setError(null);
+			}),
+		[sync],
+	);
 
 	// A pending rename keeps the menu open, so its result lands on the field.
 	const savingName = editing !== null && busy;
@@ -146,6 +167,7 @@ export function AccountMenu({
 
 	async function endSession() {
 		await remote.signOut();
+		sync?.stop();
 		setView({ kind: "signedOut" });
 		setEditing(null);
 	}
@@ -313,6 +335,7 @@ export function AccountMenu({
 							displayName: name,
 							nameConfirmed: true,
 						});
+						void sync?.refresh();
 					}}
 					onSignOut={endSession}
 				/>

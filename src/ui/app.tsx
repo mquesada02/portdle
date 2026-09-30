@@ -1,10 +1,11 @@
 import type { RouterHistory } from "@tanstack/react-router";
 import { RouterProvider } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { utcDateString } from "../engine/utc";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { createAppRouter } from "../router";
+import { createSync } from "../sync/sync";
 
 export function App({
 	persist,
@@ -35,9 +36,31 @@ export function App({
 			window.removeEventListener("focus", refresh);
 		};
 	}, [utcToday]);
+	const utcTodayRef = useRef(utcToday);
+	utcTodayRef.current = utcToday;
+	const sync = useMemo(
+		() =>
+			remote
+				? createSync({
+						persist,
+						remote,
+						utcToday: () => utcTodayRef.current ?? utcDateString(new Date()),
+					})
+				: undefined,
+		[persist, remote],
+	);
+	useEffect(() => {
+		if (!sync) {
+			return;
+		}
+		const detach = sync.attach();
+		void sync.refresh();
+		return detach;
+	}, [sync]);
 	const router = useMemo(
-		() => createAppRouter({ persist, remote, history, utcToday: clockToday }),
-		[persist, remote, history, clockToday],
+		() =>
+			createAppRouter({ persist, remote, sync, history, utcToday: clockToday }),
+		[persist, remote, sync, history, clockToday],
 	);
 	return <RouterProvider router={router} />;
 }
