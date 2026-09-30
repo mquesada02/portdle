@@ -386,3 +386,81 @@ test("with reduced motion stubbed to match, Play again starts no view transition
 		restore();
 	}
 });
+
+async function endRunByLives(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+}
+
+function tapBlitzNav(user: ReturnType<typeof userEvent.setup>) {
+	return user.click(screen.getByRole("link", { name: "Blitz" }));
+}
+
+test("a nav tap on Blitz from the end card returns to the Arena with the phase motion", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await endRunByLives(user);
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await tapBlitzNav(user);
+		expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+		expect(screen.queryByText("Out of lives")).toBeNull();
+		expect(calls).toContainEqual(["phase"]);
+	} finally {
+		restore();
+	}
+});
+
+test("with no Remote a nav tap on the end card returns to the Arena with no tabs", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await endRunByLives(user);
+	await tapBlitzNav(user);
+	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+	expect(screen.queryByRole("tablist")).toBeNull();
+});
+
+test("a nav tap on Blitz returns to the Arena from every end card, not only the first", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await endRunByLives(user);
+	await tapBlitzNav(user);
+	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+	await endRunByLives(user);
+	await tapBlitzNav(user);
+	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+});
+
+test("a nav tap on Blitz during a run changes nothing, even after the run ends", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await tapBlitzNav(user);
+		expect(screen.getByText("Round 1")).toBeTruthy();
+		expect(screen.getByText("Score 0")).toBeTruthy();
+		expect(calls).not.toContainEqual(["phase"]);
+	} finally {
+		restore();
+	}
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
+});
+
+test("a nav tap on Blitz at rest starts no phase transition", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await tapBlitzNav(user);
+		expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+		expect(calls).not.toContainEqual(["phase"]);
+	} finally {
+		restore();
+	}
+});

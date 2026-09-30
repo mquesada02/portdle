@@ -1,4 +1,4 @@
-import { useRouteContext } from "@tanstack/react-router";
+import { useLocation, useRouteContext } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { applications, protocols, schedules } from "../catalogs/production";
 import {
@@ -28,7 +28,7 @@ import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { CATEGORIES, MODES, ORIENTATIONS, Pill } from "./blitz-choices";
 import { DigitSlots } from "./digit-slots";
 import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
-import { Leaderboards } from "./leaderboards";
+import { type LeaderboardPicker, Leaderboards } from "./leaderboards";
 import { ProgressNotice } from "./notice";
 import { RoundLog } from "./round-log";
 import { Typeahead } from "./typeahead";
@@ -518,8 +518,21 @@ export function BlitzPage() {
 	const [shakeKey, setShakeKey] = useState(0);
 	const [newBest, setNewBest] = useState(false);
 	const [tab, setTab] = useState<BlitzTab>("play");
+	// The Leaderboards picker lives here so it survives a tab change. It starts
+	// on the last run's setup and is reset whenever a run ends.
+	const [picker, setPicker] = useState<LeaderboardPicker>({
+		window: "allTime",
+		category: initialSetup.category,
+		orientation: initialSetup.orientation,
+		mode: initialSetup.mode,
+	});
 
 	const ended = run?.ended ?? null;
+	// Every navigation, even a tap on the link already showing, gets a new
+	// location key (`__TSR_key`; the nav tap tests cover it); a new key while
+	// the end card shows leaves it.
+	const locationKey = useLocation({ select: (l) => l.state.__TSR_key });
+	const lastLocationKey = useRef(locationKey);
 
 	useEffect(() => {
 		if (deadline === null) {
@@ -578,6 +591,12 @@ export function BlitzPage() {
 		);
 		const bestResult = recordBest(persist, run);
 		setNewBest(bestResult.newBest);
+		setPicker((current) => ({
+			...current,
+			category: run.category,
+			orientation: run.orientation,
+			mode: run.mode,
+		}));
 		if (!runsResult.ok || !bestResult.ok) {
 			setSaveWarning(true);
 		}
@@ -748,6 +767,18 @@ export function BlitzPage() {
 		});
 	}
 
+	// No dependency array on purpose: it must read the current `ended` and
+	// `playAgain`, and the ref guard makes a run without a key change a no-op.
+	useEffect(() => {
+		if (locationKey === lastLocationKey.current) {
+			return;
+		}
+		lastLocationKey.current = locationKey;
+		if (ended) {
+			playAgain();
+		}
+	});
+
 	function changeTab(next: BlitzTab) {
 		if (next !== tab) {
 			runViewTransition(["switcher"], () => setTab(next));
@@ -790,7 +821,12 @@ export function BlitzPage() {
 								{tab === "play" ? (
 									arena
 								) : (
-									<Leaderboards remote={remote} sync={sync} />
+									<Leaderboards
+										remote={remote}
+										sync={sync}
+										picker={picker}
+										onPickerChange={setPicker}
+									/>
 								)}
 							</div>
 						</>
