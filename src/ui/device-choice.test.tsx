@@ -326,22 +326,27 @@ test("a device that never synced, the same account, and preferences only ask not
 	).toBeNull();
 });
 
-test("a failed write of the choice shows an error and keeps the dialog", async () => {
-	const user = userEvent.setup();
-	const { persist } = deviceOfAccountA();
-	const remote = createFakeRemote(CONFIRMED);
-	mountApp(persist, remote);
-	await findChoice();
-	vi.spyOn(persist, "writeSyncAccount").mockReturnValue({ ok: false });
-	await user.click(screen.getByRole("button", { name: DEVICE_CHOICE_ADD }));
-	expect(
-		await screen.findByText("Could not save your choice. Try again."),
-	).toBeTruthy();
-	expect(
-		screen.getByRole("dialog", { name: DEVICE_CHOICE_TITLE }),
-	).toBeTruthy();
-	expect(remote.pushCalls).toHaveLength(0);
-});
+test.each(["writeSyncChanges", "writeSyncAccount"] as const)(
+	"a failed %s on Add shows an error and keeps the dialog",
+	async (write) => {
+		const user = userEvent.setup();
+		const { persist } = deviceOfAccountA();
+		const remote = createFakeRemote(CONFIRMED);
+		mountApp(persist, remote);
+		await findChoice();
+		vi.spyOn(persist, write).mockReturnValue({ ok: false });
+		await user.click(screen.getByRole("button", { name: DEVICE_CHOICE_ADD }));
+		expect(
+			await screen.findByText("Could not save your choice. Try again."),
+		).toBeTruthy();
+		expect(
+			screen.getByRole("dialog", { name: DEVICE_CHOICE_TITLE }),
+		).toBeTruthy();
+		expect(persist.readSyncAccount()).toBe("acc-a");
+		expect(remote.pullCalls).toBe(0);
+		expect(remote.pushCalls).toHaveLength(0);
+	},
+);
 
 test.each([
 	["Add", DEVICE_CHOICE_ADD],
