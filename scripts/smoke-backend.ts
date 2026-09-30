@@ -5,6 +5,8 @@
 // The Preferences checks change the account's preferences and restore them:
 // a restore stamps the restored columns again, and a row the script created
 // stays, holding only nulls. Both are inert, so no cleanup script covers them.
+// Close every Portdle tab signed in as you before the run, or its pushes can be
+// overwritten by the restore.
 // The players' tables grant no delete, so the script cannot remove them: run
 // supabase/tests/row-sync-cleanup.sql afterwards. Every tagged row scores zero,
 // which creates no leaderboard row, so none can rank before that cleanup.
