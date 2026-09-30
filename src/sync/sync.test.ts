@@ -1020,3 +1020,21 @@ test("the pending rule needs a different last synced account and importable rows
 	persist.writeBlitzBests({ "mixed|default|sprint": { score: 1 } });
 	expect(pending()).toBe(true);
 });
+
+test("a device with only Codex rows has a pending choice", () => {
+	const persist = createPersist(memoryStore());
+	persist.writeSyncAccount("acc-other");
+	persist.writeCodex({ http: { state: "correct", fresh: false } });
+	expect(deviceChoicePending(persist, "acc-1")).toBe(true);
+});
+
+test("a stored Daily that cannot be read is not progress", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	persist.writeSyncAccount("acc-other");
+	store.setItem("portdle:v1:daily:mixed:2026-09-09", "not json");
+	expect(persist.readDaily("mixed", "2026-09-09")).toBeNull();
+	expect(deviceChoicePending(persist, "acc-1")).toBe(false);
+	persist.writeCodex({ http: { state: "correct", fresh: false } });
+	expect(deviceChoicePending(persist, "acc-1")).toBe(true);
+});

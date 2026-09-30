@@ -67,22 +67,42 @@ async function findChoice() {
 const confirmDialog = () =>
 	screen.queryByRole("dialog", { name: "Confirm your display name" });
 
-test("a different account on a device with progress asks before the name confirm and pushes nothing", async () => {
-	const { persist } = deviceOfAccountA();
-	const remote = createFakeRemote(UNCONFIRMED);
-	mountApp(persist, remote);
-	const dialog = await findChoice();
-	expect(dialog.hasAttribute("open")).toBe(true);
-	expect(screen.getByRole("button", { name: DEVICE_CHOICE_ADD })).toBeTruthy();
-	expect(
-		screen.getByRole("button", { name: DEVICE_CHOICE_START }),
-	).toBeTruthy();
-	expect(confirmDialog()).toBeNull();
-	await new Promise((resolve) => setTimeout(resolve, 50));
-	expect(remote.pullCalls).toBe(0);
-	expect(remote.pushCalls).toHaveLength(0);
-	expect(persist.readCodex().http?.state).toBe("correct");
-});
+test.each([
+	["an unconfirmed name", UNCONFIRMED],
+	["a confirmed name", CONFIRMED],
+])(
+	"a different account with %s asks first, and nothing is pulled or pushed",
+	async (_name, account) => {
+		const { persist } = deviceOfAccountA();
+		const remote = createFakeRemote(account);
+		mountApp(persist, remote);
+		const dialog = await findChoice();
+		expect(dialog.hasAttribute("open")).toBe(true);
+		expect(
+			screen.getByRole("button", { name: DEVICE_CHOICE_ADD }),
+		).toBeTruthy();
+		expect(
+			screen.getByRole("button", { name: DEVICE_CHOICE_START }),
+		).toBeTruthy();
+		// The menu made one getAccount call and Sync's first run made another
+		// (these counts follow the current call structure).
+		await waitFor(() =>
+			expect(remote.getAccountCalls).toBeGreaterThanOrEqual(2),
+		);
+		// A trigger queues one more run after the first, so a third call means
+		// the first run has finished its pending check.
+		await act(async () => {
+			window.dispatchEvent(new Event("focus"));
+		});
+		await waitFor(() =>
+			expect(remote.getAccountCalls).toBeGreaterThanOrEqual(3),
+		);
+		expect(remote.pullCalls).toBe(0);
+		expect(remote.pushCalls).toHaveLength(0);
+		expect(persist.readCodex().http?.state).toBe("correct");
+		expect(confirmDialog()).toBeNull();
+	},
+);
 
 test("the choice cannot be dismissed with Escape, a backdrop click, or a forced close", async () => {
 	const { persist } = deviceOfAccountA();
@@ -98,6 +118,26 @@ test("the choice cannot be dismissed with Escape, a backdrop click, or a forced 
 		dialog.dispatchEvent(new Event("close"));
 	});
 	await waitFor(() => expect(dialog.hasAttribute("open")).toBe(true));
+});
+
+test("Escape on the choice does not close the How-to under it", async () => {
+	const fresh = createPersist(memoryStore());
+	fresh.writeSyncAccount("acc-a");
+	fresh.writeCodex({ http: { state: "correct", fresh: false } });
+	mountApp(fresh, createFakeRemote(CONFIRMED));
+	const howTo = await screen.findByRole("dialog", { name: "How-to" });
+	const choice = await findChoice();
+	// The test setup's showModal only focuses the dialog element, so focus a
+	// button for the key press to start inside the choice.
+	const add = screen.getByRole("button", { name: DEVICE_CHOICE_ADD });
+	act(() => add.focus());
+	expect(choice.contains(document.activeElement)).toBe(true);
+	const user = userEvent.setup();
+	await user.keyboard("{Escape}");
+	fireEvent.keyDown(choice, { key: "Escape" });
+	expect(howTo.hasAttribute("open")).toBe(true);
+	expect(choice.hasAttribute("open")).toBe(true);
+	expect(fresh.readHowToSeen()).toBe(false);
 });
 
 test("the choice returns on every app load until the player chooses", async () => {

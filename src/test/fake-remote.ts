@@ -53,6 +53,7 @@ export type FakeRemote = Remote & {
 	failConfirmDisplayName: boolean;
 	failChangeDisplayName: boolean;
 	rows: SyncedRows;
+	getAccountCalls: number;
 	pullCalls: number;
 	pushCalls: SyncedRows[];
 	pushAccounts: string[];
@@ -124,6 +125,7 @@ export function createFakeRemote(
 		failConfirmDisplayName: false,
 		failChangeDisplayName: false,
 		rows,
+		getAccountCalls: 0,
 		pullCalls: 0,
 		pushCalls: [],
 		pushAccounts: [],
@@ -174,6 +176,7 @@ export function createFakeRemote(
 			redirectText = text;
 		},
 		async getAccount() {
+			fake.getAccountCalls += 1;
 			// The state a request sees is the state when it is sent.
 			const current = fake.state;
 			if (gate) {
