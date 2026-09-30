@@ -35,9 +35,9 @@ export function DeleteAccount({
 			await onConfirm();
 		} catch {
 			setFailure(DELETE_FAILURE);
-		} finally {
 			setBusy(false);
 		}
+		// On success the buttons stay disabled: the remount replaces this dialog.
 	}
 
 	return (

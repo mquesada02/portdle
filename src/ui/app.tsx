@@ -81,6 +81,7 @@ export function App({
 			sync?.onAccountDeleted(() => {
 				void router
 					.navigate({ to: "/", replace: true, viewTransition: false })
+					.catch(() => {})
 					.finally(remount);
 			}),
 		[sync, router, remount],
