@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {}
     steps:
-      - name: Ping Supabase REST API
+      - name: Read the All-time leaderboard view
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
@@ -54,9 +54,9 @@ jobs:
             exit 0
           fi
           status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-            -H "apikey: $SUPABASE_ANON_KEY" "${SUPABASE_URL%/}/rest/v1/?limit=1")
-          echo "Supabase REST API answered with HTTP $status"
+            -H "apikey: $SUPABASE_ANON_KEY" "${SUPABASE_URL%/}/rest/v1/leaderboard_all_time?select=account_id&limit=1")
+          echo "Supabase answered the leaderboard read with HTTP $status"
           case "$status" in
-            [1-4][0-9][0-9]) ;;
+            2[0-9][0-9]) ;;
             *) exit 1 ;;
           esac

@@ -655,3 +655,111 @@ test("push maps a foreign-key violation to AccountGoneError and rethrows other e
 		}),
 	).rejects.toBe(other);
 });
+
+// A query builder that records each step; `order` ends the chain.
+function leaderboardClient(
+	steps: unknown[][],
+	answer: { data: unknown; error: Error | null },
+	session: unknown = { user: { id: "u1" } },
+): FakeClient {
+	const client = fakeClient({
+		getSession: async () => ({ data: { session }, error: null }),
+	});
+	client.from = (table: string) => {
+		steps.push(["from", table]);
+		const builder: Record<string, unknown> = {};
+		for (const name of ["select", "eq", "lte", "or"]) {
+			builder[name] = (...args: unknown[]) => {
+				steps.push([name, ...args]);
+				return builder;
+			};
+		}
+		builder.order = async (...args: unknown[]) => {
+			steps.push(["order", ...args]);
+			return answer;
+		};
+		return builder;
+	};
+	return client;
+}
+
+const QUERY = {
+	window: "weekly",
+	category: "mixed",
+	orientation: "inverted",
+	mode: "sprint",
+} as const;
+
+test("readLeaderboard reads the window's view for the key, with the viewer's own row, ordered by rank", async () => {
+	const steps: unknown[][] = [];
+	const { remote } = makeRemote({
+		client: leaderboardClient(steps, {
+			data: [
+				{
+					account_id: "p1",
+					display_name: "Grace",
+					score: 9,
+					time_to_score_ms: 1500.5,
+					rank: 1,
+				},
+				{
+					account_id: "u1",
+					display_name: "Ada",
+					score: 2,
+					time_to_score_ms: null,
+					rank: 140,
+				},
+			],
+			error: null,
+		}),
+	});
+	expect(await remote.readLeaderboard(QUERY)).toEqual({
+		viewerId: "u1",
+		rows: [
+			{
+				accountId: "p1",
+				displayName: "Grace",
+				score: 9,
+				timeToScoreMs: 1500.5,
+				rank: 1,
+			},
+			{
+				accountId: "u1",
+				displayName: "Ada",
+				score: 2,
+				timeToScoreMs: null,
+				rank: 140,
+			},
+		],
+	});
+	expect(steps).toEqual([
+		["from", "leaderboard_weekly"],
+		["select", "account_id, display_name, score, time_to_score_ms, rank"],
+		["eq", "category", "mixed"],
+		["eq", "orientation", "inverted"],
+		["eq", "mode", "sprint"],
+		["or", "rank.lte.100,account_id.eq.u1"],
+		["order", "rank"],
+	]);
+});
+
+test("readLeaderboard reads only the top 100 without a session", async () => {
+	const steps: unknown[][] = [];
+	const { remote } = makeRemote({
+		client: leaderboardClient(steps, { data: [], error: null }, null),
+	});
+	expect(await remote.readLeaderboard({ ...QUERY, window: "allTime" })).toEqual(
+		{ viewerId: null, rows: [] },
+	);
+	expect(steps[0]).toEqual(["from", "leaderboard_all_time"]);
+	expect(steps).toContainEqual(["lte", "rank", 100]);
+	expect(steps.some((step) => step[0] === "or")).toBe(false);
+});
+
+test("readLeaderboard rejects with the library's error", async () => {
+	const error = new Error("boom");
+	const { remote } = makeRemote({
+		client: leaderboardClient([], { data: null, error }),
+	});
+	await expect(remote.readLeaderboard(QUERY)).rejects.toBe(error);
+});

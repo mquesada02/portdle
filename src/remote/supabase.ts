@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
 	AccountGoneError,
 	type AccountState,
+	LEADERBOARD_TOP,
+	type LeaderboardPage,
+	type LeaderboardQuery,
+	type LeaderboardRow,
+	type LeaderboardWindow,
 	NEWEST_RUNS,
 	type Provider,
 	type Remote,
@@ -89,6 +94,20 @@ function isRetryableAuthError(error: unknown): boolean {
 		(typeof status === "number" && status >= 500)
 	);
 }
+
+const LEADERBOARD_VIEWS: Record<LeaderboardWindow, string> = {
+	allTime: "leaderboard_all_time",
+	weekly: "leaderboard_weekly",
+	today: "leaderboard_today",
+};
+
+type LeaderboardDbRow = {
+	account_id: string;
+	display_name: string;
+	score: number;
+	time_to_score_ms: number | null;
+	rank: number;
+};
 
 const CONFLICT_COLUMNS = {
 	codex_entries: "account_id,entry_id",
@@ -315,6 +334,36 @@ export function createSupabaseRemote(
 					}
 				}
 			}
+		},
+		async readLeaderboard(query: LeaderboardQuery): Promise<LeaderboardPage> {
+			const supabase = await loadClient();
+			// A session that cannot be read or refreshed reads as a visitor.
+			const { data: sessionData } = await supabase.auth.getSession();
+			const viewerId = sessionData.session?.user.id ?? null;
+			let request = supabase
+				.from(LEADERBOARD_VIEWS[query.window])
+				.select("account_id, display_name, score, time_to_score_ms, rank")
+				.eq("category", query.category)
+				.eq("orientation", query.orientation)
+				.eq("mode", query.mode);
+			request =
+				viewerId === null
+					? request.lte("rank", LEADERBOARD_TOP)
+					: request.or(`rank.lte.${LEADERBOARD_TOP},account_id.eq.${viewerId}`);
+			const { data, error } = await request.order("rank");
+			if (error) {
+				throw error;
+			}
+			const rows = ((data ?? []) as LeaderboardDbRow[]).map(
+				(row): LeaderboardRow => ({
+					accountId: row.account_id,
+					displayName: row.display_name,
+					score: row.score,
+					timeToScoreMs: row.time_to_score_ms,
+					rank: row.rank,
+				}),
+			);
+			return { rows, viewerId };
 		},
 		redirectError: () => pendingError,
 		clearRedirectError() {
