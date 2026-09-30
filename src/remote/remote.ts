@@ -1,8 +1,11 @@
 import type {
 	BlitzBests,
+	BlitzMode,
 	BlitzRun,
 	CodexState,
+	DailyCategory,
 	DailyPersist,
+	Orientation,
 } from "../engine/types";
 
 export type Provider = "google" | "github";
@@ -28,6 +31,32 @@ export type SyncedRows = {
 // A pull returns this many of the newest runs.
 export const NEWEST_RUNS = 50;
 
+export type LeaderboardWindow = "allTime" | "weekly" | "today";
+
+export type LeaderboardQuery = {
+	window: LeaderboardWindow;
+	category: DailyCategory;
+	orientation: Orientation;
+	mode: BlitzMode;
+};
+
+export type LeaderboardRow = {
+	accountId: string;
+	displayName: string;
+	score: number;
+	timeToScoreMs: number | null;
+	rank: number;
+};
+
+// The rows ranked up to LEADERBOARD_TOP, plus the viewer's own row when they
+// are signed in and ranked. `viewerId` is the signed-in account, else null.
+export type LeaderboardPage = {
+	rows: LeaderboardRow[];
+	viewerId: string | null;
+};
+
+export const LEADERBOARD_TOP = 100;
+
 // Any Remote call may reject with this when the account no longer exists.
 export class AccountGoneError extends Error {
 	constructor() {
@@ -45,6 +74,7 @@ export type Remote = {
 	pull(): Promise<SyncedRows>;
 	// Rows go to the given account; a sign-in for another account is refused.
 	push(accountId: string, rows: SyncedRows): Promise<void>;
+	readLeaderboard(query: LeaderboardQuery): Promise<LeaderboardPage>;
 	redirectError(): string | null;
 	clearRedirectError(): void;
 	preload(): void;
