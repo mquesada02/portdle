@@ -12,6 +12,9 @@
 -- Supabase's linter flags such views; this one is intended. account_id is
 -- exposed only because Spec 4 decides the viewer's own row is found by it.
 --
+-- The three views repeat the same shape on purpose (each is one plain query);
+-- change them together.
+--
 -- Rules shared by all three views:
 -- - Only accounts with a confirmed display name, and only scores above zero.
 -- - Per player and key, one row: the highest score, then the lowest time to

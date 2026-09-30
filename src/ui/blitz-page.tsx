@@ -25,7 +25,7 @@ import type {
 import { DAILY_CATEGORIES } from "../engine/types";
 import type { Persist } from "../persist/storage";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
-import { CATEGORIES, MODES, Pill } from "./blitz-choices";
+import { CATEGORIES, MODES, ORIENTATIONS, Pill } from "./blitz-choices";
 import { DigitSlots } from "./digit-slots";
 import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
 import { Leaderboards } from "./leaderboards";
@@ -35,7 +35,7 @@ import { Typeahead } from "./typeahead";
 import { runViewTransition } from "./view-transition";
 
 const EMPTY_POOL = "Cannot start Blitz: not enough unused answers today.";
-const ORIENTATION_ORDER: Orientation[] = ["default", "inverted"];
+const ORIENTATION_ORDER: Orientation[] = ORIENTATIONS.map((item) => item.value);
 const MODE_ORDER: BlitzMode[] = MODES.map((item) => item.value);
 const PRIMARY_BUTTON =
 	"w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900";

@@ -233,7 +233,7 @@ test("a signed-in viewer outside the top 100 sees their row pinned below with th
 	await openLeaderboards(user);
 	await screen.findByText("Player 100");
 	expect(screen.queryByText("Late")).toBeNull();
-	const pinned = screen.getByText("You").parentElement;
+	const pinned = document.querySelector("tfoot");
 	expect(pinned?.textContent).toContain("137");
 	expect(pinned?.textContent).toContain("Ada L.");
 	expect(document.querySelectorAll("tbody tr")).toHaveLength(100);
@@ -248,7 +248,7 @@ test("a loading line shows until the read answers", async () => {
 	expect((await screen.findByRole("status")).textContent).toBe("Loading…");
 	release();
 	await screen.findByText("Nobody has played this Leaderboard yet.");
-	expect(screen.queryByRole("status")).toBeNull();
+	expect(screen.getByRole("status").textContent).toBe("");
 });
 
 test("a failed read shows an error line, not the empty line", async () => {

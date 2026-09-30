@@ -8,18 +8,13 @@ import {
 	type Remote,
 } from "../remote/remote";
 import type { Sync } from "../sync/sync";
-import { CATEGORIES, MODES, Pill } from "./blitz-choices";
+import { CATEGORIES, MODES, ORIENTATIONS, Pill } from "./blitz-choices";
 
 const WINDOWS: Array<{ value: LeaderboardWindow; label: string }> = [
 	{ value: "allTime", label: "All-time" },
 	{ value: "weekly", label: "Weekly" },
 	{ value: "today", label: "Today" },
 ];
-const ORIENTATIONS: Array<{ value: Orientation; label: string }> = [
-	{ value: "default", label: "Default" },
-	{ value: "inverted", label: "Inverted" },
-];
-
 type Result =
 	| { status: "loading" }
 	| { status: "error" }
@@ -62,6 +57,29 @@ function YouBadge() {
 	);
 }
 
+function RankRow({
+	row,
+	you,
+	className,
+}: {
+	row: LeaderboardRow;
+	you: boolean;
+	className: string;
+}) {
+	return (
+		<tr className={className}>
+			<td className="py-2 pr-1 pl-3 tabular-nums">{row.rank}</td>
+			<td className="py-2">
+				{row.displayName}
+				{you ? <YouBadge /> : null}
+			</td>
+			<td className="py-2 pr-3 text-right font-mono tabular-nums">
+				{row.score}
+			</td>
+		</tr>
+	);
+}
+
 function RankedList({ page }: { page: LeaderboardPage }) {
 	if (page.rows.length === 0) {
 		return (
@@ -69,10 +87,7 @@ function RankedList({ page }: { page: LeaderboardPage }) {
 		);
 	}
 	const top = page.rows.filter((row) => row.rank <= LEADERBOARD_TOP);
-	const own: LeaderboardRow | undefined =
-		page.viewerId === null
-			? undefined
-			: page.rows.find((row) => row.accountId === page.viewerId);
+	const own = page.rows.find((row) => row.accountId === page.viewerId);
 	const pinned = own && own.rank > LEADERBOARD_TOP ? own : undefined;
 	return (
 		<div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
@@ -86,36 +101,24 @@ function RankedList({ page }: { page: LeaderboardPage }) {
 				</thead>
 				<tbody>
 					{top.map((row) => (
-						<tr
+						<RankRow
 							key={row.accountId}
+							row={row}
+							you={row === own}
 							className="border-t border-zinc-200 first:border-t-0 dark:border-zinc-800"
-						>
-							<td className="py-2 pr-1 pl-3 tabular-nums text-zinc-500">
-								{row.rank}
-							</td>
-							<td className="py-2">
-								{row.displayName}
-								{row.accountId === own?.accountId ? <YouBadge /> : null}
-							</td>
-							<td className="py-2 pr-3 text-right font-mono font-semibold tabular-nums">
-								{row.score}
-							</td>
-						</tr>
+						/>
 					))}
 				</tbody>
+				{pinned ? (
+					<tfoot>
+						<RankRow
+							row={pinned}
+							you
+							className="border-t border-zinc-300 bg-zinc-100 font-semibold dark:border-zinc-700 dark:bg-zinc-800"
+						/>
+					</tfoot>
+				) : null}
 			</table>
-			{pinned ? (
-				<div className="flex items-center justify-between border-t border-zinc-300 bg-zinc-100 px-3 py-2 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-800">
-					<span>
-						<span className="tabular-nums text-zinc-600 dark:text-zinc-300">
-							{pinned.rank}
-						</span>{" "}
-						{pinned.displayName}
-						<YouBadge />
-					</span>
-					<span className="font-mono tabular-nums">{pinned.score}</span>
-				</div>
-			) : null}
 		</div>
 	);
 }
@@ -199,17 +202,17 @@ export function Leaderboards({
 					/>
 				</div>
 			</div>
-			{result.status === "loading" ? (
-				<p role="status" className="mt-4 text-sm">
-					Loading…
-				</p>
-			) : result.status === "error" ? (
+			<div role="status">
+				{result.status === "loading" ? (
+					<p className="mt-4 text-sm">Loading…</p>
+				) : null}
+			</div>
+			{result.status === "error" ? (
 				<p role="alert" className="mt-4 text-sm">
 					Could not load this Leaderboard.
 				</p>
-			) : (
-				<RankedList page={result.page} />
-			)}
+			) : null}
+			{result.status === "ready" ? <RankedList page={result.page} /> : null}
 		</div>
 	);
 }

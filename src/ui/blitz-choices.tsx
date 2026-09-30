@@ -1,9 +1,13 @@
-import type { BlitzMode, DailyCategory } from "../engine/types";
+import type { BlitzMode, DailyCategory, Orientation } from "../engine/types";
 
 export const CATEGORIES: Array<{ value: DailyCategory; label: string }> = [
 	{ value: "mixed", label: "Mixed" },
 	{ value: "protocols", label: "Protocols" },
 	{ value: "applications", label: "Applications" },
+];
+export const ORIENTATIONS: Array<{ value: Orientation; label: string }> = [
+	{ value: "default", label: "Default" },
+	{ value: "inverted", label: "Inverted" },
 ];
 export const MODES: Array<{ value: BlitzMode; label: string }> = [
 	{ value: "sprint", label: "Sprint (1m)" },
