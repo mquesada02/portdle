@@ -1,7 +1,7 @@
 -- Owner-run in the Supabase SQL editor after the account deletion migration.
 -- Raises on the first failed assertion; prints a notice on success.
 -- It inserts two auth.users rows (user A and user B), each with a row in the
--- four private tables. It calls delete_account() as anon (refused), as
+-- five private tables. It calls delete_account() as anon (refused), as
 -- authenticated with no user (refused), and as authenticated with A's claims
 -- (A and every row of A go, B stays). B is deleted at the end. The SQL editor
 -- role bypasses row-level security, so the final reads run after reset role.
@@ -24,6 +24,7 @@ begin
 			values (target, '2026-09-29T10:00:00.123Z', 'mixed', 'default', 'sprint', 'lives', 3, '[]');
 		insert into public.dailies (account_id, category, day, status, guesses)
 			values (target, 'mixed', '2026-09-29', 'playing', '[]');
+		insert into public.preferences (account_id, theme) values (target, 'dark');
 	end loop;
 
 	assert not has_function_privilege('anon', 'public.delete_account()', 'execute'), 'anon cannot execute';
@@ -60,6 +61,7 @@ begin
 	assert not exists (select 1 from public.blitz_bests where account_id = a_id), 'A Bests are gone';
 	assert not exists (select 1 from public.blitz_runs where account_id = a_id), 'A runs are gone';
 	assert not exists (select 1 from public.dailies where account_id = a_id), 'A Dailies are gone';
+	assert not exists (select 1 from public.preferences where account_id = a_id), 'A preferences are gone';
 
 	assert exists (select 1 from auth.users where id = b_id), 'B auth user stays';
 	assert exists (select 1 from public.accounts where id = b_id), 'B account row stays';
@@ -67,6 +69,7 @@ begin
 	assert exists (select 1 from public.blitz_bests where account_id = b_id), 'B Bests stay';
 	assert exists (select 1 from public.blitz_runs where account_id = b_id), 'B runs stay';
 	assert exists (select 1 from public.dailies where account_id = b_id), 'B Dailies stay';
+	assert exists (select 1 from public.preferences where account_id = b_id), 'B preferences stay';
 
 	delete from auth.users where id = b_id;
 	assert not exists (select 1 from public.accounts where id = b_id), 'cascade removes B';
