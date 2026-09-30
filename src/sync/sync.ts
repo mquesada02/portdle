@@ -563,11 +563,11 @@ export function createSync(options: {
 	// last successful one is recent; a row still waiting to be pushed lets it
 	// through, so a failed push is retried.
 	function pullThrottled(): boolean {
+		// With no pull yet, the elapsed time is infinite, so never recent.
 		const elapsed = clock.now() - (lastPullAt ?? Number.NEGATIVE_INFINITY);
 		const recent = elapsed >= 0 && elapsed < PULL_THROTTLE_MS;
-		return (
-			(running !== null || recent) && !anyPending(persist.readSyncChanges())
-		);
+		const inFlight = running !== null;
+		return (inFlight || recent) && !anyPending(persist.readSyncChanges());
 	}
 
 	function refreshUnlessThrottled() {
