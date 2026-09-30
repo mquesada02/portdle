@@ -9,7 +9,10 @@ import {
 import { validateDisplayName } from "../engine/display-name";
 import type { Persist } from "../persist/storage";
 import { AccountGoneError, type Provider, type Remote } from "../remote/remote";
-import { deviceChoicePending } from "../sync/device-progress";
+import {
+	addDeviceProgress,
+	deviceChoicePending,
+} from "../sync/device-progress";
 import type { AccountReport, Sync } from "../sync/sync";
 import { DeleteAccount } from "./delete-account";
 import { DEVICE_CHOICE_FAILURE } from "./device-choice-copy";
@@ -282,7 +285,7 @@ export function AccountMenu({
 		if (!beginChoice(accountId)) {
 			return;
 		}
-		if (!persist.writeSyncAccount(accountId).ok) {
+		if (!addDeviceProgress(persist, accountId)) {
 			setChoiceFailure(DEVICE_CHOICE_FAILURE);
 			return;
 		}

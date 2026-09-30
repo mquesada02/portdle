@@ -46,7 +46,6 @@ export type FakeRemote = Remote & {
 	preloadCalls: number;
 	confirmCalls: string[];
 	changeCalls: string[];
-	getAccountCalls: number;
 	failGetAccount: boolean;
 	failSignIn: boolean;
 	failSignOut: boolean;
@@ -54,6 +53,7 @@ export type FakeRemote = Remote & {
 	failConfirmDisplayName: boolean;
 	failChangeDisplayName: boolean;
 	rows: SyncedRows;
+	getAccountCalls: number;
 	pullCalls: number;
 	pushCalls: SyncedRows[];
 	pushAccounts: string[];
@@ -118,7 +118,6 @@ export function createFakeRemote(
 		preloadCalls: 0,
 		confirmCalls: [],
 		changeCalls: [],
-		getAccountCalls: 0,
 		failGetAccount: false,
 		failSignIn: false,
 		failSignOut: false,
@@ -126,6 +125,7 @@ export function createFakeRemote(
 		failConfirmDisplayName: false,
 		failChangeDisplayName: false,
 		rows,
+		getAccountCalls: 0,
 		pullCalls: 0,
 		pushCalls: [],
 		pushAccounts: [],
