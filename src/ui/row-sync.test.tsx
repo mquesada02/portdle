@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { createPersist } from "../persist/storage";
+import { PULL_THROTTLE_MS } from "../sync/sync";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
 import { memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
@@ -171,7 +172,7 @@ test("a display name changed on another device shows in the menu after the next 
 	expect(await screen.findByText("Ada L.")).toBeTruthy();
 	remote.state = { ...CONFIRMED, displayName: "Grace H." };
 	// The open pull is recent, so the focus pull needs the throttle to lapse.
-	const later = Date.now() + 30000;
+	const later = Date.now() + PULL_THROTTLE_MS;
 	vi.spyOn(Date, "now").mockReturnValue(later);
 	window.dispatchEvent(new Event("focus"));
 	expect(await screen.findByText("Grace H.")).toBeTruthy();

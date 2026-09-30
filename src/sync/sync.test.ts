@@ -29,8 +29,22 @@ const TODAY = "2026-09-29";
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+const focus = async () => {
+	window.dispatchEvent(new Event("focus"));
+	await settle();
+};
+
+function setVisibility(value: "visible" | "hidden") {
+	Object.defineProperty(document, "visibilityState", {
+		configurable: true,
+		value,
+	});
+	document.dispatchEvent(new Event("visibilitychange"));
+}
+
 const detachers: Array<() => void> = [];
 afterEach(() => {
+	Reflect.deleteProperty(document, "visibilityState");
 	for (const detach of detachers.splice(0)) {
 		detach();
 	}
@@ -293,23 +307,6 @@ test("a pull that changed no Daily leaves stats alone", async () => {
 	expect(d.persist.readStats("mixed")?.played).toBe(7);
 });
 
-const focus = async () => {
-	window.dispatchEvent(new Event("focus"));
-	await settle();
-};
-
-function setVisibility(value: "visible" | "hidden") {
-	Object.defineProperty(document, "visibilityState", {
-		configurable: true,
-		value,
-	});
-	document.dispatchEvent(new Event("visibilitychange"));
-}
-
-afterEach(() => {
-	Reflect.deleteProperty(document, "visibilityState");
-});
-
 test("hidden does not pull, visible after the throttle does", async () => {
 	const remote = createFakeRemote(ACCOUNT);
 	const d = device(remote);
@@ -342,7 +339,7 @@ test("a focus 31 seconds after a pull pulls, and the pull restarts the window", 
 	const remote = createFakeRemote(ACCOUNT);
 	const d = device(remote);
 	await d.sync.refresh();
-	d.clock.advance(31000);
+	d.clock.advance(PULL_THROTTLE_MS + 1000);
 	await focus();
 	expect(remote.pullCalls).toBe(2);
 	d.clock.advance(10000);
@@ -400,6 +397,28 @@ test("a pull that stops on a name confirm records no time", async () => {
 	remote.state = ACCOUNT;
 	await focus();
 	expect(remote.pullCalls).toBe(1);
+});
+
+test("a pull that stops on a device progress choice records no time", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	d.persist.writeSyncAccount("acc-other");
+	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
+	await d.sync.refresh();
+	expect(remote.pullCalls).toBe(0);
+	d.persist.writeSyncAccount(ACCOUNT.accountId);
+	await focus();
+	expect(remote.pullCalls).toBe(1);
+});
+
+test("a visibility change then a focus on tab return make one pull", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	d.clock.advance(PULL_THROTTLE_MS);
+	setVisibility("visible");
+	await focus();
+	expect(remote.pullCalls).toBe(2);
 });
 
 test("a focus after a pull whose push failed pulls and retries the push", async () => {

@@ -558,22 +558,18 @@ export function createSync(options: {
 		}
 	}
 
+	function hasPendingChanges(): boolean {
+		const changes = persist.readSyncChanges();
+		return KINDS.some((kind) => changes[kind].length > 0);
+	}
+
 	// A focus or visibility pull is skipped while one is in flight, or when the
 	// last successful one is recent; a row still waiting to be pushed lets it
 	// through, so a failed push is retried.
 	function pullThrottled(): boolean {
-		const changes = persist.readSyncChanges();
-		if (KINDS.some((kind) => changes[kind].length > 0)) {
-			return false;
-		}
-		if (running !== null) {
-			return true;
-		}
-		if (lastPullAt === null) {
-			return false;
-		}
-		const elapsed = clock.now() - lastPullAt;
-		return elapsed >= 0 && elapsed < PULL_THROTTLE_MS;
+		const elapsed = lastPullAt === null ? -1 : clock.now() - lastPullAt;
+		const recent = elapsed >= 0 && elapsed < PULL_THROTTLE_MS;
+		return (running !== null || recent) && !hasPendingChanges();
 	}
 
 	function refreshUnlessThrottled() {

@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { createPersist } from "../persist/storage";
+import { PULL_THROTTLE_MS } from "../sync/sync";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import {
 	createFakeRemote,
@@ -282,7 +283,7 @@ test("another device signs itself out after a deletion elsewhere and keeps its l
 	await deleter.deleteAccount();
 	other.gone = true;
 	// The open pull is recent, so the focus pull needs the throttle to lapse.
-	vi.spyOn(Date, "now").mockReturnValue(Date.now() + 30000);
+	vi.spyOn(Date, "now").mockReturnValue(Date.now() + PULL_THROTTLE_MS);
 	fireEvent.focus(window);
 	await waitFor(() => expect(other.signOutCalls).toBe(1));
 	await user.click(accountButton());
@@ -300,7 +301,7 @@ test("the dialog closes when the account is reported gone while it is open", asy
 	await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));
 	await openDeleteDialog(user);
 	remote.gone = true;
-	vi.spyOn(Date, "now").mockReturnValue(Date.now() + 30000);
+	vi.spyOn(Date, "now").mockReturnValue(Date.now() + PULL_THROTTLE_MS);
 	fireEvent.focus(window);
 	await waitFor(() =>
 		expect(screen.queryByRole("dialog", { name: "Delete account" })).toBeNull(),
