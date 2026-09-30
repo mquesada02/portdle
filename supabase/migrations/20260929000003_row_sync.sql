@@ -3,8 +3,9 @@
 -- 20260929000002. "Automatically expose new tables" is off in this project, so
 -- every grant below is explicit. Only the owning account reads or writes its
 -- rows; the backend never checks whether a score is plausible.
--- Delete is granted so the smoke script can clean up its rows (and a player can
--- delete their own rows through the API); the app never sends a delete.
+-- Players get select, insert, and update only: a delete through the API would
+-- bypass the never-goes-down merge rules. Their rows go only with the account
+-- (the cascade below).
 
 create table public.codex_entries (
 	account_id uuid not null references public.accounts (id) on delete cascade,
@@ -72,7 +73,7 @@ create policy dailies_own on public.dailies
 	using (account_id = (select auth.uid()))
 	with check (account_id = (select auth.uid()));
 
-grant select, insert, update, delete on public.codex_entries to authenticated;
-grant select, insert, update, delete on public.blitz_bests to authenticated;
-grant select, insert, update, delete on public.blitz_runs to authenticated;
-grant select, insert, update, delete on public.dailies to authenticated;
+grant select, insert, update on public.codex_entries to authenticated;
+grant select, insert, update on public.blitz_bests to authenticated;
+grant select, insert, update on public.blitz_runs to authenticated;
+grant select, insert, update on public.dailies to authenticated;

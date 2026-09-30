@@ -2,7 +2,9 @@
 -- Raises on the first failed assertion; prints a notice on success.
 -- It inserts one auth.users row (whose account row the seed trigger creates)
 -- and deletes it at the end; the cascade must remove the rows of all four
--- tables. The SQL editor runs as a role that bypasses row-level security.
+-- tables. It also asserts that the players' role has no delete grant on the
+-- four tables and does have select, insert, and update. The SQL editor runs as
+-- a role that bypasses row-level security.
 
 do $$
 declare
@@ -18,6 +20,23 @@ begin
 		values (user_id, '2026-09-29T10:00:00.123Z', 'mixed', 'default', 'sprint', 'lives', 3, '[]');
 	insert into public.dailies (account_id, category, day, status, guesses)
 		values (user_id, 'mixed', '2026-09-29', 'playing', '[]');
+
+	assert not has_table_privilege('authenticated', 'public.codex_entries', 'delete'), 'no delete on Codex entries';
+	assert not has_table_privilege('authenticated', 'public.blitz_bests', 'delete'), 'no delete on Bests';
+	assert not has_table_privilege('authenticated', 'public.blitz_runs', 'delete'), 'no delete on runs';
+	assert not has_table_privilege('authenticated', 'public.dailies', 'delete'), 'no delete on Dailies';
+	assert has_table_privilege('authenticated', 'public.codex_entries', 'select'), 'Codex select grant';
+	assert has_table_privilege('authenticated', 'public.codex_entries', 'insert'), 'Codex insert grant';
+	assert has_table_privilege('authenticated', 'public.codex_entries', 'update'), 'Codex update grant';
+	assert has_table_privilege('authenticated', 'public.blitz_bests', 'select'), 'Bests select grant';
+	assert has_table_privilege('authenticated', 'public.blitz_bests', 'insert'), 'Bests insert grant';
+	assert has_table_privilege('authenticated', 'public.blitz_bests', 'update'), 'Bests update grant';
+	assert has_table_privilege('authenticated', 'public.blitz_runs', 'select'), 'run select grant';
+	assert has_table_privilege('authenticated', 'public.blitz_runs', 'insert'), 'run insert grant';
+	assert has_table_privilege('authenticated', 'public.blitz_runs', 'update'), 'run update grant';
+	assert has_table_privilege('authenticated', 'public.dailies', 'select'), 'Daily select grant';
+	assert has_table_privilege('authenticated', 'public.dailies', 'insert'), 'Daily insert grant';
+	assert has_table_privilege('authenticated', 'public.dailies', 'update'), 'Daily update grant';
 
 	begin
 		insert into public.codex_entries (account_id, entry_id, state) values (user_id, 'dns', 'wrong');

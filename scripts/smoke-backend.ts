@@ -1,8 +1,10 @@
 // Hand-run check of the real Supabase project (Spec 4). It cannot run an OAuth
 // sign-in, so it takes a signed-in browser's access token.
 //
-// The row sync checks write and remove clearly fake rows in the signed-in
-// account (the Best row is saved and restored).
+// The row sync checks write clearly tagged fake rows in the signed-in account.
+// The players' tables grant no delete, so the script cannot remove them: run
+// supabase/tests/row-sync-cleanup.sql afterwards. Every tagged row scores zero,
+// which creates no leaderboard row, so none can rank before that cleanup.
 //
 //   SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_ACCESS_TOKEN=... pnpm smoke:backend
 //
@@ -207,16 +209,18 @@ const changeId = await rest("PATCH", `accounts?id=eq.${id}`, {
 });
 report("update of id is refused", refusedByGrant(changeId), changeId);
 
-// Row sync tables (ticket #136). Each check writes one clearly fake row
-// (Codex entry "smoke-test", a run and a Daily dated 2000-01-01) and deletes
-// it. The Best table has no fake key, so its row is saved and restored.
+// Row sync tables (ticket #136). The tables grant no delete, so each check
+// upserts one tagged row that row-sync-cleanup.sql removes: Codex entry
+// "smoke-test", a run ended at 2000-01-01T00:00:00Z, a Daily dated 2000-01-01,
+// and a Best with score 0 and time 1234.5 in a Best key the account has not
+// used or tagged before. A rerun upserts the same rows. The category, orientation,
+// and mode lists below mirror the check constraints of the tables.
 async function checkSyncTable(options: {
 	table: string;
 	filter: string;
 	valid: Record<string, unknown>;
 	invalid: Record<string, unknown>;
 	readBack: (row: Record<string, unknown>) => boolean;
-	restore?: Record<string, unknown> | null;
 }) {
 	const { table, filter, valid, invalid, readBack } = options;
 	const own = { account_id: id };
@@ -229,57 +233,34 @@ async function checkSyncTable(options: {
 				anonRead.body.length === 0),
 		anonRead,
 	);
-	const saved = await rest("GET", `${table}?${filter}&select=*`, { token });
-	const savedRow =
-		Array.isArray(saved.body) && saved.body.length > 0
-			? (saved.body[0] as Record<string, unknown>)
+	const upsert = await rest("POST", `${table}`, {
+		token,
+		body: { ...own, ...valid },
+		prefer: "resolution=merge-duplicates,return=representation",
+	});
+	report(`own upsert into ${table} succeeds`, upsert.status < 300, upsert);
+	const back = await rest("GET", `${table}?${filter}&select=*`, { token });
+	const row =
+		Array.isArray(back.body) && back.body.length > 0
+			? (back.body[0] as Record<string, unknown>)
 			: null;
-	try {
-		const upsert = await rest("POST", `${table}`, {
-			token,
-			body: { ...own, ...valid },
-			prefer: "resolution=merge-duplicates,return=representation",
-		});
-		report(`own upsert into ${table} succeeds`, upsert.status < 300, upsert);
-		const back = await rest("GET", `${table}?${filter}&select=*`, { token });
-		const row =
-			Array.isArray(back.body) && back.body.length > 0
-				? (back.body[0] as Record<string, unknown>)
-				: null;
-		report(
-			`own row of ${table} reads back`,
-			row !== null && readBack(row),
-			back,
-		);
-		const bad = await rest("POST", table, {
-			token,
-			body: { ...own, ...invalid },
-		});
-		report(`invalid row into ${table} is refused`, refusedByCheck(bad), bad);
-		const foreign = await rest("POST", table, {
-			token,
-			body: { ...valid, account_id: randomId },
-		});
-		report(
-			`row of another account into ${table} is refused`,
-			refusedByGrant(foreign),
-			foreign,
-		);
-	} finally {
-		const cleanup = savedRow
-			? await rest("POST", table, {
-					token,
-					body: savedRow,
-					prefer: "resolution=merge-duplicates",
-				})
-			: await rest("DELETE", `${table}?${filter}`, { token });
-		if (cleanup.status >= 300) {
-			console.warn(
-				`WARNING: could not clean up the ${table} test row.`,
-				cleanup,
-			);
-		}
-	}
+	report(`own row of ${table} reads back`, row !== null && readBack(row), back);
+	const bad = await rest("POST", table, {
+		token,
+		body: { ...own, ...invalid },
+	});
+	report(`invalid row into ${table} is refused`, refusedByCheck(bad), bad);
+	const foreign = await rest("POST", table, {
+		token,
+		body: { ...valid, account_id: randomId },
+	});
+	report(
+		`row of another account into ${table} is refused`,
+		refusedByGrant(foreign),
+		foreign,
+	);
+	const removal = await rest("DELETE", `${table}?${filter}`, { token });
+	report(`delete from ${table} is refused`, refusedByGrant(removal), removal);
 }
 
 await checkSyncTable({
@@ -289,24 +270,52 @@ await checkSyncTable({
 	invalid: { entry_id: "smoke-test", state: "wrong" },
 	readBack: (row) => row.state === "identified",
 });
-await checkSyncTable({
-	table: "blitz_bests",
-	filter: "category=eq.mixed&orientation=eq.default&mode=eq.sprint",
-	valid: {
-		category: "mixed",
-		orientation: "default",
-		mode: "sprint",
-		score: 7,
-		time_to_score_ms: 1234.5,
+
+const usedBests = await rest(
+	"GET",
+	"blitz_bests?select=category,orientation,mode",
+	{
+		token,
 	},
-	invalid: {
-		category: "mixed",
-		orientation: "default",
-		mode: "sprint",
-		score: -1,
-	},
-	readBack: (row) => row.score === 7 && row.time_to_score_ms === 1234.5,
-});
+);
+const used = new Set(
+	(Array.isArray(usedBests.body)
+		? (usedBests.body as Record<string, string | number>[])
+		: []
+	)
+		// A tagged row from an earlier run is free to write again.
+		.filter((best) => !(best.score === 0 && best.time_to_score_ms === 1234.5))
+		.map((best) => `${best.category}|${best.orientation}|${best.mode}`),
+);
+const freeBest = ["mixed", "protocols", "applications"]
+	.flatMap((category) =>
+		["default", "inverted"].flatMap((orientation) =>
+			["sprint", "marathon", "survival"].map(
+				(mode) => ({ category, orientation, mode }) as const,
+			),
+		),
+	)
+	.find(
+		({ category, orientation, mode }) =>
+			!used.has(`${category}|${orientation}|${mode}`),
+	);
+if (usedBests.status !== 200) {
+	report("read of the own Bests succeeds", false, usedBests);
+} else if (freeBest) {
+	const key = `category=eq.${freeBest.category}&orientation=eq.${freeBest.orientation}&mode=eq.${freeBest.mode}`;
+	await checkSyncTable({
+		table: "blitz_bests",
+		filter: key,
+		valid: { ...freeBest, score: 0, time_to_score_ms: 1234.5 },
+		invalid: { ...freeBest, score: -1 },
+		readBack: (row) => row.score === 0 && row.time_to_score_ms === 1234.5,
+	});
+} else {
+	console.log(
+		"SKIP blitz_bests checks: every Best key has a real row, so a tagged row cannot be written safely.",
+	);
+}
+
 await checkSyncTable({
 	table: "blitz_runs",
 	filter: "ended_at=eq.2000-01-01T00:00:00Z",
@@ -316,11 +325,9 @@ await checkSyncTable({
 		orientation: "default",
 		mode: "sprint",
 		ended: "lives",
-		score: 2,
-		time_to_score_ms: 10.25,
-		rounds: [
-			{ id: "http", name: "HTTP", port: 80, outcome: "correct", wrong: null },
-		],
+		score: 0,
+		time_to_score_ms: 0,
+		rounds: [],
 	},
 	invalid: {
 		ended_at: "2000-01-01T00:00:00.000Z",
@@ -328,10 +335,10 @@ await checkSyncTable({
 		orientation: "default",
 		mode: "sprint",
 		ended: "quit",
-		score: 2,
+		score: 0,
 		rounds: [],
 	},
-	readBack: (row) => row.score === 2 && Array.isArray(row.rounds),
+	readBack: (row) => row.score === 0 && Array.isArray(row.rounds),
 });
 await checkSyncTable({
 	table: "dailies",
@@ -352,4 +359,7 @@ await checkSyncTable({
 });
 
 console.log(failed === 0 ? "All checks passed." : `${failed} check(s) failed.`);
+console.log(
+	"Now close every Portdle tab signed in as you, then run supabase/tests/row-sync-cleanup.sql in the SQL editor to remove the tagged rows. (An open tab pulls them and can push them back.)",
+);
 process.exit(failed === 0 ? 0 : 1);
