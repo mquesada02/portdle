@@ -13,6 +13,7 @@ begin
 	assert public.normalize_display_name(repeat('a', 40)) = repeat('a', 30), '40 characters are cut to 30';
 	assert public.normalize_display_name('😀😀') = 'Player', 'emoji only gives Player';
 	assert public.normalize_display_name('   ') = 'Player', 'spaces only gives Player';
+	assert public.normalize_display_name(E'\u0301\u0302') = 'Player', 'marks only gives Player';
 	assert public.normalize_display_name('a😀b<c>d') = 'abcd', 'disallowed characters are stripped';
 	assert public.normalize_display_name('Zoë-李 O''Neil.') = 'Zoë-李 O''Neil.', 'allowed characters stay';
 

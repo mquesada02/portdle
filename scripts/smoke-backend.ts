@@ -7,6 +7,8 @@
 // deployed site (key `sb-<project>-auth-token`, field `access_token`). It
 // expires in about an hour, so copy it fresh.
 
+import { validateDisplayName } from "../src/engine/display-name.ts";
+
 const url = process.env.SUPABASE_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY;
 const token = process.env.SUPABASE_ACCESS_TOKEN;
@@ -72,8 +74,6 @@ function refusedByCheck(r: Reply): boolean {
 	return r.status === 400 && r.code === "23514";
 }
 
-// Approximates the database rule (`[[:alnum:]]`); they differ for combining marks.
-const NAME_RULE = /^[\p{L}\p{N} '.-]{1,30}$/u;
 const randomId = crypto.randomUUID();
 
 const anon = await rest("GET", "accounts?select=id");
@@ -111,7 +111,8 @@ console.log(
 );
 report(
 	"display name follows the rule and the confirmed flag is a boolean",
-	NAME_RULE.test(original) && typeof row.name_confirmed === "boolean",
+	validateDisplayName(original) === null &&
+		typeof row.name_confirmed === "boolean",
 	row,
 );
 
@@ -147,6 +148,34 @@ try {
 	if (restored.status !== 200) {
 		console.warn(
 			`WARNING: could not restore the display name to "${original}".`,
+			restored,
+		);
+	}
+}
+
+const originalConfirmed = row.name_confirmed === true;
+try {
+	const confirmed = await rest("PATCH", `accounts?id=eq.${id}`, {
+		token,
+		body: { name_confirmed: !originalConfirmed },
+		prefer: "return=representation",
+	});
+	const confirmedRows = Array.isArray(confirmed.body) ? confirmed.body : [];
+	report(
+		"update of the confirmed flag succeeds and reads back",
+		confirmed.status === 200 &&
+			(confirmedRows[0] as { name_confirmed?: boolean } | undefined)
+				?.name_confirmed === !originalConfirmed,
+		confirmed,
+	);
+} finally {
+	const restored = await rest("PATCH", `accounts?id=eq.${id}`, {
+		token,
+		body: { name_confirmed: originalConfirmed },
+	});
+	if (restored.status >= 300) {
+		console.warn(
+			`WARNING: could not restore the confirmed flag to ${originalConfirmed}.`,
 			restored,
 		);
 	}
