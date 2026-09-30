@@ -134,7 +134,7 @@ Entering an Account with Google or GitHub.
 One provider's sign-in attached to an Account. The same verified email under Google and GitHub gives two Linked identities of one Account; different emails give two Accounts.
 
 **Sync**:
-The quiet exchange of changes between a device's local copy and its Account. It pulls on app open and on return to the tab (at most once every 30 seconds), and it never disturbs the screen.
+The quiet exchange of changes between a device's local copy and its Account. It pulls on app open and on return to the tab, and it never disturbs the screen.
 _Avoid_: Save, backup
 
 **Preferences**:

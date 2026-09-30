@@ -10,7 +10,7 @@ An owner HAR capture of the live site showed two things. App open reads the acco
 
 1. The sync module owns the one account read at load and publishes what it reads; the account menu takes its sign-in state from that instead of calling `Remote.getAccount` itself.
 2. A pull triggered by the tab regaining focus or becoming visible is skipped when the last successful pull finished less than 30 seconds ago and no local change is waiting to be pushed.
-3. Spec 4 and `CONTEXT.md` record both rules as an owner decision (2026-09-30).
+3. Spec 4 records both rules as an owner decision (2026-09-30).
 
 ## Behavior
 
@@ -39,7 +39,7 @@ An owner HAR capture of the live site showed two things. App open reads the acco
 - Spec 4, Sync module bullet: add that the clock has `now` and that `onAccount` reports every read. Spec 4, Display name on other devices and the author call that repeats it: the load read is the pull's own read, shared with the account menu.
 - Spec 4, Failures are silent and the Sync module test list: the retry on focus is subject to the throttle; add the throttle tests.
 - Spec 4, Further Notes: a dated owner decision (2026-09-30) for both rules, after review of a HAR capture of the live site.
-- `CONTEXT.md`, Sync entry: it pulls on app open and on return to the tab, at most once every 30 seconds (a small addition beyond the ticket, kept so the glossary matches Spec 4).
+- `CONTEXT.md`, Sync entry: it pulls on app open and on return to the tab, and it never disturbs the screen. The 30-second rule stays in Spec 4 only (owner decision, 2026-09-30).
 
 ## Testing Decisions
 
@@ -70,7 +70,7 @@ Changing push timing, adding a throttle to other triggers, and any UI.
 
 - The Leaderboards tab open and the account menu's rename and name confirm keep their unthrottled `refresh`; the ticket throttles only focus and visibility.
 - Beyond the ticket's time-only rule, a focus or visibility pull is not skipped while a row waits to be pushed, because Spec 4 makes the next focus the retry for a failed push. A pull counts as successful once its merge is applied, even if its push then fails. Owner: keep, or throttle by time only.
-- The glossary edit in `CONTEXT.md` is beyond the ticket's list; it adds that the pull runs on app open and on return to the tab, at most once every 30 seconds.
+- The glossary edit in `CONTEXT.md` is beyond the ticket's list; it adds that the pull runs on app open and on return to the tab. It does not state the 30-second rule (owner decision, 2026-09-30).
 - `Sync.onAccount` now reports every read (signed out and failed included) and replays the latest; this is how the load read is shared, not a new feature.
 - Beyond the ticket, a focus or visibility event during an in-flight pull (no waiting row) is skipped, so the paired `visibilitychange` and `focus` events of a tab return make one pull; a clock moved back does not skip.
 - The throttle is exactly 30 seconds, inclusive on the pull side (30 s pulls), as "less than 30 seconds" skips.
