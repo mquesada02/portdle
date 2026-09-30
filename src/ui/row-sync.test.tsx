@@ -49,6 +49,8 @@ test("a local write reaches the account 1.5 seconds later", async () => {
 	const persist = mountApp(remote);
 	await waitFor(() => expect(remote.pullCalls).toBe(1));
 	await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));
+	// The first sync also imported the stored How-to seen flag.
+	remote.pushCalls.length = 0;
 	vi.useFakeTimers();
 	persist.writeDaily("mixed", "2026-09-09", { status: "playing", guesses: [] });
 	vi.advanceTimersByTime(1499);
@@ -119,6 +121,8 @@ test("signing out stops syncing and keeps local data", async () => {
 	const remote = createFakeRemote(CONFIRMED);
 	const persist = mountApp(remote);
 	await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));
+	// The first sync also imported the stored How-to seen flag.
+	remote.pushCalls.length = 0;
 	await user.click(screen.getByRole("button", { name: "Account" }));
 	await user.click(await screen.findByRole("button", { name: "Sign out" }));
 	await screen.findByRole("button", { name: "Sign in with Google" });
@@ -141,4 +145,59 @@ test("a display name changed on another device shows in the menu after the next 
 	window.dispatchEvent(new Event("focus"));
 	expect(await screen.findByText("Grace H.")).toBeTruthy();
 	expect(screen.queryByText("Ada L.")).toBeNull();
+});
+
+test("a pulled theme shows the next time the shell mounts, not on the mounted shell", async () => {
+	document.documentElement.classList.remove("dark");
+	const remote = createFakeRemote(CONFIRMED);
+	remote.rows.preferences = { theme: "dark" };
+	const release = remote.holdPull();
+	const persist = mountApp(remote);
+	await screen.findByRole("button", { name: "Account" });
+	release();
+	await waitFor(() => expect(persist.readTheme()).toBe("dark"));
+	expect(document.documentElement.classList.contains("dark")).toBe(false);
+	cleanup();
+	render(
+		<App
+			persist={persist}
+			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
+			utcToday="2026-09-09"
+		/>,
+	);
+	await screen.findByRole("button", { name: "Toggle color theme" });
+	expect(document.documentElement.classList.contains("dark")).toBe(true);
+	document.documentElement.classList.remove("dark");
+});
+
+test("a pulled Codex sort shows the next time the Codex screen mounts, not on the mounted one", async () => {
+	stubMatchMedia();
+	const remote = createFakeRemote(CONFIRMED);
+	remote.rows.preferences = { codexSort: "port" };
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	const history = createMemoryHistory({ initialEntries: ["/portdle/codex"] });
+	const release = remote.holdPull();
+	render(
+		<App
+			persist={persist}
+			remote={remote}
+			history={history}
+			utcToday="2026-09-09"
+		/>,
+	);
+	const name = await screen.findByRole("radio", { name: "Name" });
+	release();
+	await waitFor(() => expect(persist.readCodexSort()).toBe("port"));
+	expect((name as HTMLInputElement).checked).toBe(true);
+	cleanup();
+	render(
+		<App
+			persist={persist}
+			history={createMemoryHistory({ initialEntries: ["/portdle/codex"] })}
+			utcToday="2026-09-09"
+		/>,
+	);
+	const port = await screen.findByRole("radio", { name: "Port" });
+	expect((port as HTMLInputElement).checked).toBe(true);
 });

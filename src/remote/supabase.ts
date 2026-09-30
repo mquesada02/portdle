@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
 	AccountGoneError,
 	type AccountState,
+	LEADERBOARD_TOP,
+	type LeaderboardPage,
+	type LeaderboardQuery,
+	type LeaderboardRow,
+	type LeaderboardWindow,
 	NEWEST_RUNS,
 	type Provider,
 	type Remote,
@@ -12,6 +17,7 @@ import {
 	type CodexRow,
 	type DailyRow,
 	fromRows,
+	type PreferencesRow,
 	type RunRow,
 	toRows,
 } from "./rows";
@@ -90,11 +96,26 @@ function isRetryableAuthError(error: unknown): boolean {
 	);
 }
 
+const LEADERBOARD_VIEWS: Record<LeaderboardWindow, string> = {
+	allTime: "leaderboard_all_time",
+	weekly: "leaderboard_weekly",
+	today: "leaderboard_today",
+};
+
+type LeaderboardDbRow = {
+	account_id: string;
+	display_name: string;
+	score: number;
+	time_to_score_ms: number | null;
+	rank: number;
+};
+
 const CONFLICT_COLUMNS = {
 	codex_entries: "account_id,entry_id",
 	blitz_bests: "account_id,category,orientation,mode",
 	blitz_runs: "account_id,ended_at",
 	dailies: "account_id,category,day",
+	preferences: "account_id",
 } as const;
 
 // Reads a whole table in pages, ordered by primary key so no page skips or
@@ -295,20 +316,22 @@ export function createSupabaseRemote(
 		changeDisplayName: (name) => updateOwnAccount({ display_name: name }),
 		async pull(): Promise<SyncedRows> {
 			const supabase = await loadClient();
-			const [codex, bests, dailies, runsResult] = await Promise.all([
-				readAll<CodexRow>(supabase, "codex_entries", ["entry_id"]),
-				readAll<BestRow>(supabase, "blitz_bests", [
-					"category",
-					"orientation",
-					"mode",
-				]),
-				readAll<DailyRow>(supabase, "dailies", ["category", "day"]),
-				supabase
-					.from("blitz_runs")
-					.select("*")
-					.order("ended_at", { ascending: false })
-					.limit(NEWEST_RUNS),
-			]);
+			const [codex, bests, dailies, preferences, runsResult] =
+				await Promise.all([
+					readAll<CodexRow>(supabase, "codex_entries", ["entry_id"]),
+					readAll<BestRow>(supabase, "blitz_bests", [
+						"category",
+						"orientation",
+						"mode",
+					]),
+					readAll<DailyRow>(supabase, "dailies", ["category", "day"]),
+					readAll<PreferencesRow>(supabase, "preferences", ["account_id"]),
+					supabase
+						.from("blitz_runs")
+						.select("*")
+						.order("ended_at", { ascending: false })
+						.limit(NEWEST_RUNS),
+				]);
 			if (runsResult.error) {
 				throw runsResult.error;
 			}
@@ -316,6 +339,7 @@ export function createSupabaseRemote(
 				codex,
 				bests,
 				dailies,
+				preferences: preferences[0] ?? null,
 				runs: (runsResult.data ?? []) as RunRow[],
 			});
 		},
@@ -341,6 +365,36 @@ export function createSupabaseRemote(
 					}
 				}
 			}
+		},
+		async readLeaderboard(query: LeaderboardQuery): Promise<LeaderboardPage> {
+			const supabase = await loadClient();
+			// A session that cannot be read or refreshed reads as a visitor.
+			const { data: sessionData } = await supabase.auth.getSession();
+			const viewerId = sessionData.session?.user.id ?? null;
+			let request = supabase
+				.from(LEADERBOARD_VIEWS[query.window])
+				.select("account_id, display_name, score, time_to_score_ms, rank")
+				.eq("category", query.category)
+				.eq("orientation", query.orientation)
+				.eq("mode", query.mode);
+			request =
+				viewerId === null
+					? request.lte("rank", LEADERBOARD_TOP)
+					: request.or(`rank.lte.${LEADERBOARD_TOP},account_id.eq.${viewerId}`);
+			const { data, error } = await request.order("rank");
+			if (error) {
+				throw error;
+			}
+			const rows = ((data ?? []) as LeaderboardDbRow[]).map(
+				(row): LeaderboardRow => ({
+					accountId: row.account_id,
+					displayName: row.display_name,
+					score: row.score,
+					timeToScoreMs: row.time_to_score_ms,
+					rank: row.rank,
+				}),
+			);
+			return { rows, viewerId };
 		},
 		redirectError: () => pendingError,
 		clearRedirectError() {

@@ -666,3 +666,21 @@ test("a throwing listener does not fail the write", () => {
 	expect(persist.writeTheme("dark")).toEqual({ ok: true });
 	expect(persist.readTheme()).toBe("dark");
 });
+
+test("readPreferences returns only the stored valid preferences", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	expect(persist.readPreferences()).toEqual({});
+	store.setItem("portdle:v1:theme", JSON.stringify("purple"));
+	store.setItem("portdle:v1:howToSeen", JSON.stringify(false));
+	store.setItem("portdle:v1:codexSort", JSON.stringify("size"));
+	expect(persist.readPreferences()).toEqual({});
+	persist.writeTheme("dark");
+	persist.writeHowToSeen();
+	persist.writeCodexSort("name");
+	expect(persist.readPreferences()).toEqual({
+		theme: "dark",
+		howToSeen: true,
+		codexSort: "name",
+	});
+});

@@ -2,6 +2,11 @@
 // sign-in, so it takes a signed-in browser's access token.
 //
 // The row sync checks write clearly tagged fake rows in the signed-in account.
+// The Preferences checks change the account's preferences and restore them:
+// a restore stamps the restored columns again, and a row the script created
+// stays, holding only nulls. Both are inert, so no cleanup script covers them.
+// Close every Portdle tab signed in as you before the run, or its pushes can be
+// overwritten by the restore.
 // The players' tables grant no delete, so the script cannot remove them: run
 // supabase/tests/row-sync-cleanup.sql afterwards. Every tagged row scores zero,
 // which creates no leaderboard row, so none can rank before that cleanup.
@@ -78,6 +83,30 @@ function refusedByGrant(r: Reply): boolean {
 function refusedByCheck(r: Reply): boolean {
 	return r.status === 400 && r.code === "23514";
 }
+// A write to a view is refused when it is not a 2xx and the body names a
+// permission error or the "not automatically updatable" error (55000, which
+// PostgREST returns as a 500 for a view with window functions). Any other 5xx
+// is a failure of the check itself.
+function refusedByView(r: Reply): boolean {
+	return (
+		refusedByGrant(r) ||
+		(r.status === 500 &&
+			r.code === "55000" &&
+			typeof r.body === "object" &&
+			JSON.stringify(r.body).includes("not automatically updatable"))
+	);
+}
+
+// The reminder prints on every exit, failed checks and thrown errors included,
+// once a check has written tagged rows.
+let wroteTaggedRows = false;
+process.on("exit", () => {
+	if (wroteTaggedRows) {
+		console.log(
+			"Now close every Portdle tab signed in as you, then run supabase/tests/row-sync-cleanup.sql in the SQL editor to remove the tagged rows. (An open tab pulls them and can push them back.)",
+		);
+	}
+});
 
 const randomId = crypto.randomUUID();
 
@@ -233,6 +262,7 @@ async function checkSyncTable(options: {
 				anonRead.body.length === 0),
 		anonRead,
 	);
+	wroteTaggedRows = true;
 	const upsert = await rest("POST", `${table}`, {
 		token,
 		body: { ...own, ...valid },
@@ -358,8 +388,173 @@ await checkSyncTable({
 	readBack: (row) => row.status === "playing" && Array.isArray(row.guesses),
 });
 
-console.log(failed === 0 ? "All checks passed." : `${failed} check(s) failed.`);
-console.log(
-	"Now close every Portdle tab signed in as you, then run supabase/tests/row-sync-cleanup.sql in the SQL editor to remove the tagged rows. (An open tab pulls them and can push them back.)",
+// Preferences table (ticket #137). Players have no delete here either, so the
+// checks change the account's own preferences row and put its values back at
+// the end. A restore stamps the restored columns again (the server stamps every
+// change), and a row this run created stays, holding only nulls; both are
+// inert, so no cleanup script covers Preferences.
+const prefsAnon = await rest("GET", "preferences?select=account_id");
+report(
+	"anonymous cannot read preferences",
+	refusedByGrant(prefsAnon) ||
+		(prefsAnon.status === 200 &&
+			Array.isArray(prefsAnon.body) &&
+			prefsAnon.body.length === 0),
+	prefsAnon,
 );
+function firstRow(reply: Reply): Record<string, unknown> | null {
+	return Array.isArray(reply.body) && reply.body.length > 0
+		? (reply.body[0] as Record<string, unknown>)
+		: null;
+}
+const prefsBefore = await rest("GET", "preferences?select=*", { token });
+const before = firstRow(prefsBefore);
+report(
+	"read of the own preferences succeeds",
+	prefsBefore.status === 200,
+	prefsBefore,
+);
+function upsertPreferences(body: Record<string, unknown>): Promise<Reply> {
+	return rest("POST", "preferences", {
+		token,
+		body: { account_id: id, ...body },
+		prefer: "resolution=merge-duplicates,return=representation",
+	});
+}
+// Without a successful first read the script cannot tell an absent row from
+// a failed read, so it writes nothing and cannot restore wrongly.
+if (prefsBefore.status === 200) {
+	try {
+		const themeOnly = firstRow(await upsertPreferences({ theme: "dark" }));
+		report(
+			"upsert of one column reads back with a server-set timestamp",
+			themeOnly?.theme === "dark" &&
+				typeof themeOnly.theme_updated_at === "string",
+			themeOnly,
+		);
+		const sortOnly = firstRow(await upsertPreferences({ codex_sort: "port" }));
+		report(
+			"upsert of another column stamps it and leaves the theme's timestamp",
+			sortOnly?.codex_sort === "port" &&
+				typeof sortOnly.codex_sort_updated_at === "string" &&
+				sortOnly.theme === "dark" &&
+				sortOnly.theme_updated_at === themeOnly?.theme_updated_at,
+			sortOnly,
+		);
+		const forged = await upsertPreferences({
+			theme: "light",
+			theme_updated_at: "2000-01-01T00:00:00Z",
+		});
+		report(
+			"a client-sent timestamp is refused",
+			refusedByGrant(forged),
+			forged,
+		);
+		for (const [label, body] of [
+			["an invalid theme", { theme: "purple" }],
+			["an invalid Codex sort", { codex_sort: "size" }],
+			["a false How-to seen flag", { how_to_seen: false }],
+		] as const) {
+			const reply = await upsertPreferences(body);
+			report(`${label} is refused`, refusedByCheck(reply), reply);
+		}
+		const foreignPrefs = await rest("POST", "preferences", {
+			token,
+			body: { account_id: randomId, theme: "dark" },
+		});
+		report(
+			"a preferences row of another account is refused",
+			refusedByGrant(foreignPrefs),
+			foreignPrefs,
+		);
+		const prefsRemoval = await rest(
+			"DELETE",
+			`preferences?account_id=eq.${id}`,
+			{
+				token,
+			},
+		);
+		report(
+			"delete from preferences is refused",
+			refusedByGrant(prefsRemoval),
+			prefsRemoval,
+		);
+	} finally {
+		try {
+			const restored = await upsertPreferences({
+				theme: before?.theme ?? null,
+				how_to_seen: before?.how_to_seen ?? null,
+				codex_sort: before?.codex_sort ?? null,
+			});
+			if (restored.status >= 300) {
+				console.warn("WARNING: could not restore the preferences.", restored);
+			}
+		} catch (error) {
+			console.warn("WARNING: could not restore the preferences.", error);
+		}
+	}
+} else {
+	console.log(
+		"SKIP the preferences write checks: the own preferences could not be read.",
+	);
+}
+
+// Leaderboard views (ticket #139). Read-only: a visitor and the signed-in
+// account both read every window, only the exposed columns come back, and a
+// write to a view or a read of the tables behind it is refused. The ranking
+// rules are checked by supabase/tests/leaderboards.sql.
+const LEADERBOARD_COLUMNS = [
+	"account_id",
+	"category",
+	"display_name",
+	"mode",
+	"orientation",
+	"rank",
+	"score",
+	"time_to_score_ms",
+];
+for (const view of [
+	"leaderboard_all_time",
+	"leaderboard_weekly",
+	"leaderboard_today",
+]) {
+	for (const [who, viewer] of [
+		["anonymous", undefined],
+		["signed-in", token],
+	] as const) {
+		const read = await rest("GET", `${view}?select=*&limit=1`, {
+			token: viewer,
+		});
+		const first =
+			Array.isArray(read.body) && read.body.length > 0
+				? (read.body[0] as Record<string, unknown>)
+				: null;
+		report(
+			`${who} read of ${view} succeeds and exposes only the leaderboard columns`,
+			read.status === 200 &&
+				Array.isArray(read.body) &&
+				(first === null ||
+					Object.keys(first).sort().join() === LEADERBOARD_COLUMNS.join()),
+			read,
+		);
+	}
+	const write = await rest("POST", view, {
+		token,
+		body: { account_id: id, score: 1 },
+	});
+	report(`write to ${view} is refused`, refusedByView(write), write);
+}
+for (const table of ["blitz_runs", "blitz_bests"]) {
+	const anonTable = await rest("GET", `${table}?select=score&limit=1`);
+	report(
+		`anonymous cannot read ${table}`,
+		refusedByGrant(anonTable) ||
+			(anonTable.status === 200 &&
+				Array.isArray(anonTable.body) &&
+				anonTable.body.length === 0),
+		anonTable,
+	);
+}
+
+console.log(failed === 0 ? "All checks passed." : `${failed} check(s) failed.`);
 process.exit(failed === 0 ? 0 : 1);
