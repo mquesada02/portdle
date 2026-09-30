@@ -5,6 +5,7 @@ import type {
 	BlitzBestsKey,
 	BlitzMode,
 	BlitzRun,
+	CodexSort,
 	CodexState,
 	DailyCategory,
 	DailyPersist,
@@ -14,6 +15,7 @@ import type {
 	WrongAnswer,
 } from "../engine/types";
 import { isValidTimestamp, isValidUtcDate } from "../engine/utc";
+import type { Preferences, Theme } from "../persist/storage";
 import type { SyncedRows } from "./remote";
 
 // Database row shapes. The two jsonb columns come back with object keys in
@@ -36,6 +38,11 @@ export type RunRow = {
 	score: number;
 	time_to_score_ms: number | null;
 	rounds: Round[];
+};
+export type PreferencesRow = {
+	theme: Theme | null;
+	how_to_seen: true | null;
+	codex_sort: CodexSort | null;
 };
 export type DailyRow = {
 	category: DailyCategory;
@@ -81,6 +88,7 @@ export function fromRows(rows: {
 	bests: BestRow[];
 	runs: RunRow[];
 	dailies: DailyRow[];
+	preferences: PreferencesRow | null;
 }): SyncedRows {
 	const codex: SyncedRows["codex"] = {};
 	for (const row of rows.codex) {
@@ -116,7 +124,17 @@ export function fromRows(rows: {
 			guesses: row.guesses.map(guess),
 		};
 	}
-	return { codex, bests, runs, dailies };
+	const preferences: Preferences = {};
+	if (rows.preferences?.theme != null) {
+		preferences.theme = rows.preferences.theme;
+	}
+	if (rows.preferences?.how_to_seen != null) {
+		preferences.howToSeen = true;
+	}
+	if (rows.preferences?.codex_sort != null) {
+		preferences.codexSort = rows.preferences.codex_sort;
+	}
+	return { codex, bests, runs, dailies, preferences };
 }
 
 // Records with a value the database refuses (a run with an invalid `endedAt`,
@@ -130,6 +148,7 @@ export function toRows(
 	blitz_bests: Array<BestRow & { account_id: string }>;
 	blitz_runs: Array<RunRow & { account_id: string }>;
 	dailies: Array<DailyRow & { account_id: string }>;
+	preferences: Array<Partial<PreferencesRow> & { account_id: string }>;
 } {
 	return {
 		codex_entries: Object.entries(rows.codex).map(([entry_id, state]) => ({
@@ -170,6 +189,25 @@ export function toRows(
 				time_to_score_ms: run.timeToScoreMs ?? null,
 				rounds: run.rounds,
 			})),
+		// One row of only the changed columns, so a column left out keeps its
+		// value and its timestamp.
+		preferences:
+			Object.keys(rows.preferences).length === 0
+				? []
+				: [
+						{
+							account_id: accountId,
+							...(rows.preferences.theme !== undefined && {
+								theme: rows.preferences.theme,
+							}),
+							...(rows.preferences.howToSeen !== undefined && {
+								how_to_seen: rows.preferences.howToSeen,
+							}),
+							...(rows.preferences.codexSort !== undefined && {
+								codex_sort: rows.preferences.codexSort,
+							}),
+						},
+					],
 		dailies: Object.entries(rows.dailies).flatMap(([key, daily]) => {
 			const [category, day] = parseDailyKey(key);
 			if (!isValidUtcDate(day)) {

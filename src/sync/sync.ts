@@ -7,12 +7,19 @@ import {
 	mergeRuns,
 } from "../engine/merge";
 import {
+	type CodexSort,
 	DAILY_CATEGORIES,
 	type DailyCategory,
 	type DailyPersist,
 } from "../engine/types";
 import { isValidTimestamp, isValidUtcDate } from "../engine/utc";
-import type { Persist, PersistChange, SyncChanges } from "../persist/storage";
+import type {
+	Persist,
+	PersistChange,
+	Preferences,
+	SyncChanges,
+	Theme,
+} from "../persist/storage";
 import {
 	AccountGoneError,
 	type AccountState,
@@ -42,8 +49,14 @@ export type Sync = {
 	onAccount(listener: (account: AccountState) => void): () => void;
 };
 
-type Kind = "codex" | "bests" | "runs" | "dailies";
-const KINDS: Kind[] = ["codex", "bests", "runs", "dailies"];
+type Kind = "codex" | "bests" | "runs" | "dailies" | "preferences";
+const KINDS: Kind[] = ["codex", "bests", "runs", "dailies", "preferences"];
+
+const PREFERENCE_KEYS: Array<keyof Preferences> = [
+	"theme",
+	"howToSeen",
+	"codexSort",
+];
 
 // Object keys sorted, so a record that a database returned with its keys
 // reordered still compares equal to the local copy.
@@ -63,6 +76,7 @@ function emptySnapshot(): Record<Kind, Map<string, string>> {
 		bests: new Map(),
 		runs: new Map(),
 		dailies: new Map(),
+		preferences: new Map(),
 	};
 }
 
@@ -123,6 +137,14 @@ export function createSync(options: {
 					rows.set(run.endedAt, run);
 				}
 			}
+		} else if (kind === "preferences") {
+			const stored = persist.readPreferences();
+			for (const key of only ?? PREFERENCE_KEYS) {
+				const value = stored[key as keyof Preferences];
+				if (value !== undefined) {
+					rows.set(key, value);
+				}
+			}
 		} else {
 			const keys =
 				only ??
@@ -154,16 +176,34 @@ export function createSync(options: {
 		if (changed.length === 0) {
 			return false;
 		}
-		const changes = persist.readSyncChanges();
-		const merged = new Set([...changes[kind], ...changed]);
-		if (merged.size !== changes[kind].length) {
-			persist.writeSyncChanges({ ...changes, [kind]: [...merged] });
-		}
+		addPending(kind, changed);
 		return true;
 	}
 
+	function addPending(kind: Kind, keys: string[]) {
+		const changes = persist.readSyncChanges();
+		const merged = new Set([...changes[kind], ...keys]);
+		if (merged.size !== changes[kind].length) {
+			persist.writeSyncChanges({ ...changes, [kind]: [...merged] });
+		}
+	}
+
 	function onWrite(change: PersistChange) {
-		if (writing || activeAccount === null) {
+		if (writing) {
+			return;
+		}
+		if (PREFERENCE_KEYS.some((key) => key === change.kind)) {
+			// Without an active account there is no snapshot to compare with, so
+			// the change is remembered and the next pull keeps it. It schedules
+			// no push: the next refresh sends it.
+			if (activeAccount === null) {
+				addPending("preferences", [change.kind]);
+			} else if (mark("preferences", localRows("preferences", [change.kind]))) {
+				schedulePush();
+			}
+			return;
+		}
+		if (activeAccount === null) {
 			return;
 		}
 		let kind: Kind;
@@ -206,8 +246,13 @@ export function createSync(options: {
 		}, PUSH_DELAY_MS);
 	}
 
-	function applyPull(rows: SyncedRows) {
+	// A device that never synced counts every stored preference as a local
+	// change, so it can replace the account's value once.
+	function applyPull(rows: SyncedRows, firstSync: boolean) {
 		const changedCategories = new Set<DailyCategory>();
+		if (firstSync) {
+			addPending("preferences", Object.keys(persist.readPreferences()));
+		}
 		writing = true;
 		try {
 			const codex = persist.readCodex();
@@ -240,6 +285,15 @@ export function createSync(options: {
 			for (const category of changedCategories) {
 				rebuildStats(category);
 			}
+			// A preference with a change not yet pushed keeps its local value.
+			const pending = new Set(persist.readSyncChanges().preferences);
+			const local = persist.readPreferences();
+			for (const key of PREFERENCE_KEYS) {
+				const value = rows.preferences[key];
+				if (value !== undefined && !pending.has(key) && value !== local[key]) {
+					writePreference(key, value);
+				}
+			}
 		} finally {
 			writing = false;
 		}
@@ -255,6 +309,22 @@ export function createSync(options: {
 		}
 		for (const [key, daily] of Object.entries(rows.dailies)) {
 			snapshot.dailies.set(key, canonical(daily));
+		}
+		for (const [key, value] of Object.entries(rows.preferences)) {
+			snapshot.preferences.set(key, canonical(value));
+		}
+	}
+
+	function writePreference(
+		key: keyof Preferences,
+		value: NonNullable<Preferences[keyof Preferences]>,
+	) {
+		if (key === "theme") {
+			persist.writeTheme(value as Theme);
+		} else if (key === "howToSeen") {
+			persist.writeHowToSeen();
+		} else {
+			persist.writeCodexSort(value as CodexSort);
 		}
 	}
 
@@ -288,7 +358,13 @@ export function createSync(options: {
 		if (KINDS.every((kind) => changes[kind].length === 0)) {
 			return;
 		}
-		const rows: SyncedRows = { codex: {}, bests: {}, runs: [], dailies: {} };
+		const rows: SyncedRows = {
+			codex: {},
+			bests: {},
+			runs: [],
+			dailies: {},
+			preferences: {},
+		};
 		const sent = emptySnapshot();
 		for (const kind of KINDS) {
 			if (changes[kind].length === 0) {
@@ -311,8 +387,10 @@ export function createSync(options: {
 					rows.bests[key as keyof SyncedRows["bests"]] = value as never;
 				} else if (kind === "runs") {
 					rows.runs.push(value as SyncedRows["runs"][number]);
-				} else {
+				} else if (kind === "dailies") {
 					rows.dailies[key] = value as DailyPersist;
+				} else {
+					rows.preferences[key as keyof Preferences] = value as never;
 				}
 			}
 		}
@@ -403,14 +481,17 @@ export function createSync(options: {
 		if (epoch !== pullEpoch) {
 			return;
 		}
-		applyPull(rows);
+		applyPull(rows, persist.readSyncAccount() === null);
 		pulled = true;
 		for (const listener of accountListeners) {
 			listener(account);
 		}
 		persist.writeSyncAccount(account.accountId);
+		// Preferences are marked only by writes and the first-sync import.
 		for (const kind of KINDS) {
-			mark(kind, localRows(kind));
+			if (kind !== "preferences") {
+				mark(kind, localRows(kind));
+			}
 		}
 		await pushPending(pullEpoch);
 	}

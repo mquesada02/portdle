@@ -85,7 +85,13 @@ test("a local write is pushed after 1.5 seconds, once, and only what changed", a
 	d.clock.advance(1);
 	await settle();
 	expect(remote.pushCalls).toEqual([
-		{ codex: { http: "correct" }, bests: {}, runs: [], dailies: {} },
+		{
+			codex: { http: "correct" },
+			bests: {},
+			runs: [],
+			dailies: {},
+			preferences: {},
+		},
 	]);
 	d.persist.writeDaily("mixed", "2026-09-29", win(80));
 	d.clock.advance(PUSH_DELAY_MS);
@@ -95,6 +101,7 @@ test("a local write is pushed after 1.5 seconds, once, and only what changed", a
 		bests: {},
 		runs: [],
 		dailies: { "mixed|2026-09-29": win(80) },
+		preferences: {},
 	});
 	expect(d.persist.readSyncChanges().codex).toEqual([]);
 });
@@ -115,6 +122,7 @@ test("Bests and runs are pushed through the same path", async () => {
 			bests: { "mixed|default|sprint": { score: 3, timeToScoreMs: 5.5 } },
 			runs: [run("2026-09-29T10:00:00.000Z", 3)],
 			dailies: {},
+			preferences: {},
 		},
 	]);
 });
@@ -143,7 +151,6 @@ test("the Codex fresh-flag clear and unsynced writes push nothing", async () => 
 	await d.sync.refresh();
 	remote.pushCalls.length = 0;
 	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
-	d.persist.writeTheme("dark");
 	d.persist.writeStats("mixed", emptyStats());
 	d.persist.writeLastSeenUtc(TODAY);
 	d.clock.advance(PUSH_DELAY_MS);
@@ -187,6 +194,7 @@ test("a pull merges every kind, keeps local fresh flags, and pushes only what th
 			bests: { "protocols|default|sprint": { score: 2 } },
 			runs: [run("2026-09-29T10:00:00.000Z", 5)],
 			dailies: { "mixed|2026-09-27": win(80) },
+			preferences: {},
 		},
 	]);
 	expect(d.persist.readSyncAccount()).toBe("acc-1");
@@ -219,23 +227,6 @@ test("rows returned with reordered object keys mark and push nothing", async () 
 	await d.sync.refresh();
 	await d.sync.refresh();
 	expect(remote.pushCalls).toHaveLength(0);
-});
-
-test("the bookkeeping keeps the preferences list", async () => {
-	const remote = createFakeRemote(ACCOUNT);
-	const d = device(remote);
-	d.persist.writeSyncChanges({
-		codex: [],
-		bests: [],
-		runs: [],
-		dailies: [],
-		preferences: ["theme"],
-	});
-	await d.sync.refresh();
-	d.persist.writeCodex({ http: { state: "correct", fresh: true } });
-	d.clock.advance(PUSH_DELAY_MS);
-	await settle();
-	expect(d.persist.readSyncChanges().preferences).toEqual(["theme"]);
 });
 
 test("nothing is pulled or pushed while the name confirm is pending, then a full sync runs", async () => {
@@ -625,4 +616,184 @@ test("every successful pull reports the sign-in state it read again", async () =
 	remote.failPull = true;
 	await d.sync.refresh();
 	expect(seen).toHaveLength(2);
+});
+
+test("a preference write is pushed after 1.5 seconds, and only that preference", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	d.persist.writeCodexSort("port");
+	await d.sync.refresh();
+	remote.pushCalls.length = 0;
+	d.persist.writeTheme("dark");
+	d.clock.advance(PUSH_DELAY_MS - 1);
+	await settle();
+	expect(remote.pushCalls).toHaveLength(0);
+	d.clock.advance(1);
+	await settle();
+	expect(remote.pushCalls).toEqual([
+		{
+			codex: {},
+			bests: {},
+			runs: [],
+			dailies: {},
+			preferences: { theme: "dark" },
+		},
+	]);
+	expect(d.persist.readSyncChanges().preferences).toEqual([]);
+});
+
+test("an unchanged old theme on a device that already synced does not overwrite a newer one", async () => {
+	const rows = emptyRows();
+	rows.preferences = { theme: "dark" };
+	const remote = createFakeRemote(ACCOUNT, rows);
+	const d = device(remote);
+	d.persist.writeTheme("light");
+	d.persist.writeSyncChanges({
+		...d.persist.readSyncChanges(),
+		preferences: [],
+	});
+	d.persist.writeSyncAccount("acc-1");
+	await d.sync.refresh();
+	expect(d.persist.readTheme()).toBe("dark");
+	d.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	expect(rows.preferences).toEqual({ theme: "dark" });
+	expect(remote.pushCalls).toHaveLength(0);
+});
+
+test("a preference changed while signed out survives the next sign-in's pull and is pushed", async () => {
+	const rows = emptyRows();
+	rows.preferences = { theme: "dark", codexSort: "port" };
+	const remote = createFakeRemote({ status: "signedOut" }, rows);
+	const d = device(remote);
+	d.persist.writeSyncAccount("acc-1");
+	await d.sync.refresh();
+	d.persist.writeTheme("light");
+	expect(d.clock.pending()).toBe(0);
+	remote.state = ACCOUNT;
+	await d.sync.refresh();
+	expect(d.persist.readTheme()).toBe("light");
+	expect(d.persist.readCodexSort()).toBe("port");
+	expect(rows.preferences).toEqual({ theme: "light", codexSort: "port" });
+	expect(remote.pushCalls[0]?.preferences).toEqual({ theme: "light" });
+});
+
+test("a preference without a pending change takes the account's value", async () => {
+	const rows = emptyRows();
+	rows.preferences = { theme: "dark", howToSeen: true, codexSort: "port" };
+	const remote = createFakeRemote(ACCOUNT, rows);
+	const d = device(remote);
+	d.persist.writeSyncAccount("acc-1");
+	await d.sync.refresh();
+	expect(d.persist.readPreferences()).toEqual({
+		theme: "dark",
+		howToSeen: true,
+		codexSort: "port",
+	});
+	expect(remote.pushCalls).toHaveLength(0);
+	expect(d.persist.readSyncChanges().preferences).toEqual([]);
+});
+
+test("a device that never synced pushes its stored preferences and nothing for an unstored one", async () => {
+	const rows = emptyRows();
+	rows.preferences = { theme: "dark", codexSort: "port" };
+	const remote = createFakeRemote(ACCOUNT, rows);
+	const d = device(remote);
+	d.persist.writeTheme("light");
+	d.persist.writeHowToSeen();
+	await d.sync.refresh();
+	expect(remote.pushCalls[0]?.preferences).toEqual({
+		theme: "light",
+		howToSeen: true,
+	});
+	expect(rows.preferences).toEqual({
+		theme: "light",
+		howToSeen: true,
+		codexSort: "port",
+	});
+	expect(d.persist.readCodexSort()).toBe("port");
+});
+
+test("a stored preference the account lacks is not pushed by a device that already synced", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	d.persist.writeTheme("light");
+	d.persist.writeSyncChanges({
+		...d.persist.readSyncChanges(),
+		preferences: [],
+	});
+	d.persist.writeSyncAccount("acc-1");
+	await d.sync.refresh();
+	expect(d.persist.readTheme()).toBe("light");
+	expect(remote.pushCalls).toHaveLength(0);
+});
+
+test("a write before the first pull marks only that preference", async () => {
+	const rows = emptyRows();
+	const remote = createFakeRemote(ACCOUNT, rows);
+	const d = device(remote);
+	d.persist.writeHowToSeen();
+	d.persist.writeSyncAccount("acc-1");
+	d.persist.writeSyncChanges({
+		...d.persist.readSyncChanges(),
+		preferences: [],
+	});
+	const release = remote.holdPull();
+	const refreshing = d.sync.refresh();
+	await settle();
+	d.persist.writeTheme("dark");
+	expect(d.persist.readSyncChanges().preferences).toEqual(["theme"]);
+	release();
+	await refreshing;
+	expect(rows.preferences).toEqual({ theme: "dark" });
+});
+
+test("two devices converge on preferences, each preference on its own", async () => {
+	const rows = emptyRows();
+	const a = device(createFakeRemote(ACCOUNT, rows));
+	const b = device(createFakeRemote(ACCOUNT, rows));
+	await a.sync.refresh();
+	await b.sync.refresh();
+	a.persist.writeTheme("dark");
+	b.persist.writeCodexSort("port");
+	a.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	b.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	await a.sync.refresh();
+	await b.sync.refresh();
+	for (const side of [a, b]) {
+		expect(side.persist.readTheme()).toBe("dark");
+		expect(side.persist.readCodexSort()).toBe("port");
+	}
+	expect(rows.preferences).toEqual({ theme: "dark", codexSort: "port" });
+});
+
+test("a failed preference push stays pending and the next refresh retries it", async () => {
+	const rows = emptyRows();
+	const remote = createFakeRemote(ACCOUNT, rows);
+	const d = device(remote);
+	await d.sync.refresh();
+	remote.failPush = true;
+	d.persist.writeTheme("dark");
+	d.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	expect(rows.preferences).toEqual({});
+	expect(d.persist.readSyncChanges().preferences).toEqual(["theme"]);
+	remote.failPush = false;
+	await d.sync.refresh();
+	expect(rows.preferences).toEqual({ theme: "dark" });
+	expect(d.persist.readSyncChanges().preferences).toEqual([]);
+});
+
+test("account gone on a preference push signs the device out and keeps the preference", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	const d = device(remote);
+	await d.sync.refresh();
+	remote.gone = true;
+	d.persist.writeTheme("dark");
+	d.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	expect(remote.signOutCalls).toBe(1);
+	expect(d.persist.readTheme()).toBe("dark");
 });

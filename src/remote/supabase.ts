@@ -12,6 +12,7 @@ import {
 	type CodexRow,
 	type DailyRow,
 	fromRows,
+	type PreferencesRow,
 	type RunRow,
 	toRows,
 } from "./rows";
@@ -95,6 +96,7 @@ const CONFLICT_COLUMNS = {
 	blitz_bests: "account_id,category,orientation,mode",
 	blitz_runs: "account_id,ended_at",
 	dailies: "account_id,category,day",
+	preferences: "account_id",
 } as const;
 
 // Reads a whole table in pages, ordered by primary key so no page skips or
@@ -269,20 +271,22 @@ export function createSupabaseRemote(
 		changeDisplayName: (name) => updateOwnAccount({ display_name: name }),
 		async pull(): Promise<SyncedRows> {
 			const supabase = await loadClient();
-			const [codex, bests, dailies, runsResult] = await Promise.all([
-				readAll<CodexRow>(supabase, "codex_entries", ["entry_id"]),
-				readAll<BestRow>(supabase, "blitz_bests", [
-					"category",
-					"orientation",
-					"mode",
-				]),
-				readAll<DailyRow>(supabase, "dailies", ["category", "day"]),
-				supabase
-					.from("blitz_runs")
-					.select("*")
-					.order("ended_at", { ascending: false })
-					.limit(NEWEST_RUNS),
-			]);
+			const [codex, bests, dailies, preferences, runsResult] =
+				await Promise.all([
+					readAll<CodexRow>(supabase, "codex_entries", ["entry_id"]),
+					readAll<BestRow>(supabase, "blitz_bests", [
+						"category",
+						"orientation",
+						"mode",
+					]),
+					readAll<DailyRow>(supabase, "dailies", ["category", "day"]),
+					readAll<PreferencesRow>(supabase, "preferences", ["account_id"]),
+					supabase
+						.from("blitz_runs")
+						.select("*")
+						.order("ended_at", { ascending: false })
+						.limit(NEWEST_RUNS),
+				]);
 			if (runsResult.error) {
 				throw runsResult.error;
 			}
@@ -290,6 +294,7 @@ export function createSupabaseRemote(
 				codex,
 				bests,
 				dailies,
+				preferences: preferences[0] ?? null,
 				runs: (runsResult.data ?? []) as RunRow[],
 			});
 		},

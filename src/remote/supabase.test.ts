@@ -510,6 +510,14 @@ test("pull maps the tables, orders by primary key, pages past 1000 rows, and lim
 					},
 				],
 				dailies,
+				preferences: [
+					{
+						account_id: "u1",
+						theme: "dark",
+						how_to_seen: null,
+						codex_sort: "port",
+					},
+				],
 				blitz_runs: [
 					{
 						ended_at: "2026-09-29T10:00:00+00:00",
@@ -539,6 +547,7 @@ test("pull maps the tables, orders by primary key, pages past 1000 rows, and lim
 	expect(rows.codex).toEqual({ http: "correct" });
 	expect(rows.bests).toEqual({ "mixed|default|sprint": { score: 4 } });
 	expect(Object.keys(rows.dailies)).toHaveLength(1500);
+	expect(rows.preferences).toEqual({ theme: "dark", codexSort: "port" });
 	expect(JSON.stringify(rows.runs[0])).toBe(
 		JSON.stringify({
 			category: "mixed",
@@ -595,6 +604,7 @@ test("push upserts each table with its conflict columns, the account id, chunks 
 			},
 		],
 		dailies,
+		preferences: {},
 	});
 	const upserts = calls.flatMap((c) =>
 		c.steps
@@ -621,6 +631,7 @@ test("push upserts each table with its conflict columns, the account id, chunks 
 		on: { onConflict: "account_id,category,orientation,mode" },
 	});
 	expect(upserts.some((u) => u.table === "blitz_runs")).toBe(false);
+	expect(upserts.some((u) => u.table === "preferences")).toBe(false);
 	const dailyUpserts = upserts.filter((u) => u.table === "dailies");
 	expect(dailyUpserts.map((u) => u.records.length)).toEqual([500, 100]);
 	expect(dailyUpserts[0]?.on).toEqual({
@@ -642,6 +653,7 @@ test("push maps a foreign-key violation to AccountGoneError and rethrows other e
 			bests: {},
 			runs: [],
 			dailies: {},
+			preferences: {},
 		}),
 	).rejects.toBeInstanceOf(AccountGoneError);
 	const other = new Error("boom");
@@ -652,6 +664,34 @@ test("push maps a foreign-key violation to AccountGoneError and rethrows other e
 			bests: {},
 			runs: [],
 			dailies: {},
+			preferences: {},
 		}),
 	).rejects.toBe(other);
+});
+
+test("pull maps a missing Preferences row to no preferences", async () => {
+	const { remote } = makeRemote({ client: dataClient({}, []) });
+	expect((await remote.pull()).preferences).toEqual({});
+});
+
+test("push upserts one Preferences row with only the changed columns", async () => {
+	const calls: Call[] = [];
+	const { remote } = makeRemote({ client: dataClient({}, calls) });
+	await remote.push("u1", {
+		codex: {},
+		bests: {},
+		runs: [],
+		dailies: {},
+		preferences: { howToSeen: true, codexSort: "port" },
+	});
+	const upserts = calls
+		.filter((c) => c.table === "preferences")
+		.flatMap((c) => c.steps.filter((s) => s[0] === "upsert"));
+	expect(upserts).toEqual([
+		[
+			"upsert",
+			[{ account_id: "u1", how_to_seen: true, codex_sort: "port" }],
+			{ onConflict: "account_id" },
+		],
+	]);
 });
