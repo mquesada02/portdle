@@ -2,6 +2,9 @@
 // sign-in, so it takes a signed-in browser's access token.
 //
 // The row sync checks write clearly tagged fake rows in the signed-in account.
+// The Preferences checks change the account's preferences and restore them:
+// a restore stamps the restored columns again, and a row the script created
+// stays, holding only nulls. Both are inert, so no cleanup script covers them.
 // The players' tables grant no delete, so the script cannot remove them: run
 // supabase/tests/row-sync-cleanup.sql afterwards. Every tagged row scores zero,
 // which creates no leaderboard row, so none can rank before that cleanup.
@@ -357,6 +360,117 @@ await checkSyncTable({
 	},
 	readBack: (row) => row.status === "playing" && Array.isArray(row.guesses),
 });
+
+// Preferences table (ticket #137). Players have no delete here either, so the
+// checks change the account's own preferences row and put its values back at
+// the end. A restore stamps the restored columns again (the server stamps every
+// change), and a row this run created stays, holding only nulls; both are
+// inert, so no cleanup script covers Preferences.
+const prefsAnon = await rest("GET", "preferences?select=account_id");
+report(
+	"anonymous cannot read preferences",
+	refusedByGrant(prefsAnon) ||
+		(prefsAnon.status === 200 &&
+			Array.isArray(prefsAnon.body) &&
+			prefsAnon.body.length === 0),
+	prefsAnon,
+);
+function firstRow(reply: Reply): Record<string, unknown> | null {
+	return Array.isArray(reply.body) && reply.body.length > 0
+		? (reply.body[0] as Record<string, unknown>)
+		: null;
+}
+const prefsBefore = await rest("GET", "preferences?select=*", { token });
+const before = firstRow(prefsBefore);
+report(
+	"read of the own preferences succeeds",
+	prefsBefore.status === 200,
+	prefsBefore,
+);
+function upsertPreferences(body: Record<string, unknown>): Promise<Reply> {
+	return rest("POST", "preferences", {
+		token,
+		body: { account_id: id, ...body },
+		prefer: "resolution=merge-duplicates,return=representation",
+	});
+}
+// Without a successful first read the script cannot tell an absent row from
+// a failed read, so it writes nothing and cannot restore wrongly.
+if (prefsBefore.status === 200) {
+	try {
+		const themeOnly = firstRow(await upsertPreferences({ theme: "dark" }));
+		report(
+			"upsert of one column reads back with a server-set timestamp",
+			themeOnly?.theme === "dark" &&
+				typeof themeOnly.theme_updated_at === "string",
+			themeOnly,
+		);
+		const sortOnly = firstRow(await upsertPreferences({ codex_sort: "port" }));
+		report(
+			"upsert of another column stamps it and leaves the theme's timestamp",
+			sortOnly?.codex_sort === "port" &&
+				typeof sortOnly.codex_sort_updated_at === "string" &&
+				sortOnly.theme === "dark" &&
+				sortOnly.theme_updated_at === themeOnly?.theme_updated_at,
+			sortOnly,
+		);
+		const forged = await upsertPreferences({
+			theme: "light",
+			theme_updated_at: "2000-01-01T00:00:00Z",
+		});
+		report(
+			"a client-sent timestamp is refused",
+			refusedByGrant(forged),
+			forged,
+		);
+		for (const [label, body] of [
+			["an invalid theme", { theme: "purple" }],
+			["an invalid Codex sort", { codex_sort: "size" }],
+			["a false How-to seen flag", { how_to_seen: false }],
+		] as const) {
+			const reply = await upsertPreferences(body);
+			report(`${label} is refused`, refusedByCheck(reply), reply);
+		}
+		const foreignPrefs = await rest("POST", "preferences", {
+			token,
+			body: { account_id: randomId, theme: "dark" },
+		});
+		report(
+			"a preferences row of another account is refused",
+			refusedByGrant(foreignPrefs),
+			foreignPrefs,
+		);
+		const prefsRemoval = await rest(
+			"DELETE",
+			`preferences?account_id=eq.${id}`,
+			{
+				token,
+			},
+		);
+		report(
+			"delete from preferences is refused",
+			refusedByGrant(prefsRemoval),
+			prefsRemoval,
+		);
+	} finally {
+		try {
+			const restored = await upsertPreferences({
+				theme: before?.theme ?? null,
+				how_to_seen: before?.how_to_seen ?? null,
+				codex_sort: before?.codex_sort ?? null,
+			});
+			if (restored.status >= 300) {
+				console.warn("WARNING: could not restore the preferences.", restored);
+			}
+		} catch (error) {
+			console.warn("WARNING: could not restore the preferences.", error);
+		}
+	}
+} else {
+	console.log(
+		"SKIP the preferences write checks: the own preferences could not be read.",
+	);
+}
 
 console.log(failed === 0 ? "All checks passed." : `${failed} check(s) failed.`);
 console.log(
