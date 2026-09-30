@@ -72,6 +72,9 @@ export type Remote = {
 	getAccount(): Promise<AccountState>;
 	signIn(provider: Provider): Promise<void>;
 	signOut(): Promise<void>;
+	// Removes the account on the backend, then drops this device's stored
+	// sign-in. Rejects with AccountGoneError when the account is already gone.
+	deleteAccount(): Promise<void>;
 	confirmDisplayName(name: string): Promise<void>;
 	changeDisplayName(name: string): Promise<void>;
 	pull(): Promise<SyncedRows>;

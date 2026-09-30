@@ -285,6 +285,32 @@ export function createSupabaseRemote(
 				throw error;
 			}
 		},
+		async deleteAccount(): Promise<void> {
+			const supabase = await loadClient();
+			const { data, error } = await supabase.auth.getSession();
+			if (error) {
+				throw errorCode(error) === "user_not_found"
+					? new AccountGoneError()
+					: error;
+			}
+			if (!data.session) {
+				throw new Error("Not signed in");
+			}
+			const { error: rpcError } = await supabase.rpc("delete_account");
+			if (rpcError) {
+				throw rpcError;
+			}
+			// The account is gone: a failed local sign-out must not fail the call.
+			const { error: signOutError } = await supabase.auth
+				.signOut({ scope: "local" })
+				.catch((error: unknown) => ({ error }));
+			if (signOutError) {
+				// The stored sign-in is what the next app load reads. A leftover
+				// in-memory session of the client reports the user gone, which ends
+				// signed out through the Account gone path.
+				storage.removeItem(authStorageKey(url));
+			}
+		},
 		confirmDisplayName: (name) =>
 			updateOwnAccount({ display_name: name, name_confirmed: true }),
 		changeDisplayName: (name) => updateOwnAccount({ display_name: name }),

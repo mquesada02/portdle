@@ -89,10 +89,12 @@ type FakeClient = {
 		signOut: (o: unknown) => Promise<{ error: Error | null }>;
 	};
 	from: (table: string) => unknown;
+	rpc: (name: string) => Promise<{ error: Error | null }>;
 };
 
 function fakeClient(overrides: Partial<FakeClient["auth"]> = {}): FakeClient {
 	return {
+		rpc: async () => ({ error: null }),
 		auth: {
 			getSession: async () => ({
 				data: { session: { user: { id: "u1" } } },
@@ -667,6 +669,90 @@ test("push maps a foreign-key violation to AccountGoneError and rethrows other e
 			preferences: {},
 		}),
 	).rejects.toBe(other);
+});
+
+test("deleteAccount reads the session, calls the RPC, then drops the stored sign-in", async () => {
+	const order: string[] = [];
+	const client = fakeClient({
+		signOut: async (o) => {
+			order.push(`signOut ${JSON.stringify(o)}`);
+			return { error: null };
+		},
+	});
+	client.rpc = async (name) => {
+		order.push(`rpc ${name}`);
+		return { error: null };
+	};
+	const { remote, removed } = makeRemote({ stored: true, client });
+	await remote.deleteAccount();
+	expect(order).toEqual(["rpc delete_account", 'signOut {"scope":"local"}']);
+	expect(removed).toEqual([]);
+});
+
+test("deleteAccount keeps the stored sign-in when the RPC is refused, and rejects", async () => {
+	const client = fakeClient({
+		signOut: async () => {
+			throw new Error("must not sign out");
+		},
+	});
+	const refused = new Error("refused");
+	client.rpc = async () => ({ error: refused });
+	const { remote, removed } = makeRemote({ stored: true, client });
+	await expect(remote.deleteAccount()).rejects.toBe(refused);
+	expect(removed).toEqual([]);
+});
+
+test("deleteAccount rejects with nothing changed when the library cannot load, there is no session, or the read fails", async () => {
+	const offline = makeRemote({ stored: true, loadFails: true });
+	await expect(offline.remote.deleteAccount()).rejects.toThrow("offline");
+	const noSession = fakeClient({
+		getSession: async () => ({ data: { session: null }, error: null }),
+	});
+	const rpc = vi.fn(async () => ({ error: null }));
+	noSession.rpc = rpc;
+	const signedOut = makeRemote({ stored: true, client: noSession });
+	await expect(signedOut.remote.deleteAccount()).rejects.toThrow(
+		"Not signed in",
+	);
+	const retryable = new AuthError("AuthRetryableFetchError", 0);
+	const failing = fakeClient({
+		getSession: async () => ({ data: { session: null }, error: retryable }),
+	});
+	failing.rpc = rpc;
+	const network = makeRemote({ stored: true, client: failing });
+	await expect(network.remote.deleteAccount()).rejects.toBe(retryable);
+	expect(rpc).not.toHaveBeenCalled();
+	expect(signedOut.removed).toEqual([]);
+	expect(network.removed).toEqual([]);
+});
+
+test("deleteAccount rejects with AccountGoneError when the user is not found", async () => {
+	const { remote } = makeRemote({
+		stored: true,
+		client: fakeClient({
+			getSession: async () => ({
+				data: { session: null },
+				error: new AuthError("AuthApiError", 403, "user_not_found"),
+			}),
+		}),
+	});
+	await expect(remote.deleteAccount()).rejects.toBeInstanceOf(AccountGoneError);
+});
+
+test("deleteAccount still resolves and removes the stored key when the local sign-out throws or returns an error", async () => {
+	for (const signOut of [
+		async () => {
+			throw new Error("boom");
+		},
+		async () => ({ error: new Error("network") }),
+	]) {
+		const { remote, removed } = makeRemote({
+			stored: true,
+			client: fakeClient({ signOut }),
+		});
+		await remote.deleteAccount();
+		expect(removed).toEqual([KEY]);
+	}
 });
 
 test("pull maps a missing Preferences row to no preferences", async () => {

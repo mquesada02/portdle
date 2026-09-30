@@ -73,5 +73,18 @@ export function App({
 			}),
 		[persist, remote, sync, remount, history, clockToday],
 	);
+	// The router moves to the Daily before the remount, so the remount opens
+	// the Daily, not the screen the player deleted from, and no screen mounts
+	// on the cleared store as the old location.
+	useEffect(
+		() =>
+			sync?.onAccountDeleted(() => {
+				void router
+					.navigate({ to: "/", replace: true, viewTransition: false })
+					.catch(() => {})
+					.finally(remount);
+			}),
+		[sync, router, remount],
+	);
 	return <RouterProvider key={generation} router={router} />;
 }

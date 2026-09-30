@@ -11,6 +11,7 @@ import type { Persist } from "../persist/storage";
 import { AccountGoneError, type Provider, type Remote } from "../remote/remote";
 import { deviceChoicePending } from "../sync/device-progress";
 import type { Sync } from "../sync/sync";
+import { DeleteAccount } from "./delete-account";
 import { DEVICE_CHOICE_FAILURE } from "./device-choice-copy";
 import { DeviceProgressChoice } from "./device-progress-choice";
 import {
@@ -68,6 +69,7 @@ export function AccountMenu({
 	const [choiceBusy, setChoiceBusy] = useState(false);
 	const [choiceFailure, setChoiceFailure] = useState<string | null>(null);
 	const [editing, setEditing] = useState<string | null>(null);
+	const [deleteOpen, setDeleteOpen] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLButtonElement>(null);
 	const pencilRef = useRef<HTMLButtonElement>(null);
@@ -106,6 +108,7 @@ export function AccountMenu({
 				if (reason instanceof AccountGoneError) {
 					void sync?.accountGone();
 					setView({ kind: "signedOut" });
+					setDeleteOpen(false);
 					return;
 				}
 				if (redirectError !== null) {
@@ -126,6 +129,7 @@ export function AccountMenu({
 				setView({ kind: "signedOut" });
 				setEditing(null);
 				setError(null);
+				setDeleteOpen(false);
 			}),
 		[sync],
 	);
@@ -438,6 +442,21 @@ export function AccountMenu({
 									</form>
 								)}
 								{signOutButton}
+								{sync && (
+									<button
+										type="button"
+										disabled={busy}
+										onClick={() => {
+											setOpen(false);
+											setEditing(null);
+											setError(null);
+											setDeleteOpen(true);
+										}}
+										className={MENU_BUTTON}
+									>
+										Delete account
+									</button>
+								)}
 							</>
 						)}
 						{view.kind === "loadFailed" && signOutButton}
@@ -452,6 +471,15 @@ export function AccountMenu({
 					</div>
 				)}
 			</div>
+			{deleteOpen && sync && (
+				<DeleteAccount
+					onConfirm={() => sync.deleteAccount()}
+					onCancel={() => {
+						setDeleteOpen(false);
+						buttonRef.current?.focus();
+					}}
+				/>
+			)}
 			{view.kind === "signedIn" && view.choicePending && (
 				<DeviceProgressChoice
 					busy={choiceBusy}
