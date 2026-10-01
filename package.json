@@ -11,7 +11,7 @@
 	"type": "module",
 	"packageManager": "pnpm@10.32.1",
 	"scripts": {
-		"dev": "vite",
+		"dev": "tsx scripts/dev.ts",
 		"build": "tsc -b && vite build && tsx scripts/copy-index-html-to-404.ts",
 		"preview": "vite preview",
 		"lint": "biome check .",
@@ -20,7 +20,8 @@
 		"test:watch": "vitest",
 		"typecheck": "tsc -b --noEmit",
 		"gen:schedule": "tsx scripts/gen-schedule.ts",
-		"smoke:backend": "tsx scripts/smoke-backend.ts"
+		"smoke:backend": "tsx scripts/smoke-backend.ts",
+		"test:sql": "bash scripts/run-sql-tests.sh"
 	},
 	"dependencies": {
 		"@leeoniya/ufuzzy": "^1.0.19",
@@ -39,6 +40,7 @@
 		"@types/react-dom": "^19.2.7",
 		"@vitejs/plugin-react": "^6.1.1",
 		"jsdom": "^30.0.1",
+		"supabase": "2.119.0",
 		"tailwindcss": "^4.3.3",
 		"tsx": "^4.23.13",
 		"typescript": "^7.0.2",
