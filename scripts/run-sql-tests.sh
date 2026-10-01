@@ -4,6 +4,7 @@
 # DATABASE_URL defaults to the local stack; set it when the stack uses another port.
 # Needs the psql client on PATH.
 set -euo pipefail
+shopt -s nullglob
 
 cd "$(dirname "$0")/.."
 url="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"

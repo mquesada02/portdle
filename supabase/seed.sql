@@ -1,6 +1,8 @@
 -- Local stack only: one email and password test user with a confirmed
 -- display name. Sign in as test@portdle.local with the password
 -- portdle-local-test. The catalog and the Schedule come from the migrations.
+-- The token columns are empty strings, not null: the auth service fails to
+-- read a user whose token columns are null.
 insert into auth.users (
 	instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
 	raw_app_meta_data, raw_user_meta_data, created_at, updated_at,

@@ -1,5 +1,5 @@
 // Reads the values `supabase status -o env` prints as KEY="value" lines.
-function read(text: string, key: string): string {
+function readValue(text: string, key: string): string {
 	const match = text.match(new RegExp(`^${key}="(.*)"$`, "m"));
 	if (!match) {
 		throw new Error(`supabase status did not print ${key}`);
@@ -7,12 +7,11 @@ function read(text: string, key: string): string {
 	return match[1];
 }
 
-export function parseStackEnv(text: string): {
-	apiUrl: string;
-	publishableKey: string;
-} {
+export type StackEnv = { apiUrl: string; publishableKey: string };
+
+export function parseStackEnv(text: string): StackEnv {
 	return {
-		apiUrl: read(text, "API_URL"),
-		publishableKey: read(text, "PUBLISHABLE_KEY"),
+		apiUrl: readValue(text, "API_URL"),
+		publishableKey: readValue(text, "PUBLISHABLE_KEY"),
 	};
 }

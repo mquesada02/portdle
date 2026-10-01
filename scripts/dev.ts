@@ -4,7 +4,7 @@
 // If the stack cannot start, nothing else runs: Docker must be running.
 
 import { execFileSync, spawn } from "node:child_process";
-import { parseStackEnv } from "./stack-env.ts";
+import { parseStackEnv, type StackEnv } from "./stack-env.ts";
 
 function supabase(args: string[]): string {
 	return execFileSync("pnpm", ["exec", "supabase", ...args], {
@@ -13,7 +13,7 @@ function supabase(args: string[]): string {
 	});
 }
 
-let env: { apiUrl: string; publishableKey: string };
+let env: StackEnv;
 try {
 	supabase(["start"]);
 	supabase(["migration", "up", "--local"]);
