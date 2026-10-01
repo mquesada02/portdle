@@ -198,5 +198,13 @@
 	"docker": {
 		"name": "Docker API",
 		"port": 2375
+	},
+	"imap": {
+		"name": "IMAP",
+		"port": 143
+	},
+	"pgadmin": {
+		"name": "pgAdmin",
+		"port": 5050
 	}
 }
