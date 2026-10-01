@@ -1,10 +1,11 @@
 // Reads the values `supabase status -o env` prints as KEY="value" lines.
 function readValue(text: string, key: string): string {
-	const match = text.match(new RegExp(`^${key}="(.*)"$`, "m"));
-	if (!match) {
+	const prefix = `${key}="`;
+	const line = text.split("\n").find((l) => l.startsWith(prefix));
+	if (!line?.endsWith('"')) {
 		throw new Error(`supabase status did not print ${key}`);
 	}
-	return match[1];
+	return line.slice(prefix.length, -1);
 }
 
 export type StackEnv = { apiUrl: string; publishableKey: string };

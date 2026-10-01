@@ -25,7 +25,7 @@ try {
 	env = startStack();
 } catch (error) {
 	console.error(
-		`Could not start the local Supabase stack. Docker must be running.\n${error instanceof Error ? error.message : error}`,
+		`Could not start the local Supabase stack. Docker must be running.\n${error}`,
 	);
 	process.exit(1);
 }
