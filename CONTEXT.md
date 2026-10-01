@@ -1,6 +1,6 @@
 # Portdle
 
-Wordle-like daily game for network ports, plus a timed Blitz mode. Static SPA; signing in is optional and adds sync and leaderboards through a hosted backend.
+Wordle-like daily game for network ports, plus a timed Blitz mode. Static SPA; the catalog and the Dailies come from a hosted backend, and signing in is optional and adds sync and leaderboards.
 
 ## Language
 
@@ -11,18 +11,21 @@ One catalog row: a named service with one port number.
 _Avoid_: Item, record, service row
 
 **Catalog kind**:
-Which JSON file an entry lives in: `protocol` or `application`.
+Which group an entry belongs to: `protocol` or `application`.
 
 **Daily category**:
 A game surface a Daily is played on: `mixed`, `protocols`, or `applications`.
 _Avoid_: Mode, game type, section
 
 **Mixed**:
-The union of both catalog kinds. Not its own catalog file.
+The union of both catalog kinds. Not its own catalog kind.
 
 **Daily**:
 One puzzle per UTC date per Daily category. Three Dailies exist per day.
 _Avoid_: Puzzle of the day, challenge
+
+**Puzzle number**:
+The public number of a UTC day, shared by the three Daily categories. #1 is 2026-09-09.
 
 **Blitz**:
 The timed, lives-based practice mode. Separate from Daily.
@@ -54,10 +57,13 @@ The service name shown for a wrong port when that port exists in the current cat
 _Avoid_: Hint, feedback
 
 **Schedule**:
-Committed JSON saying which entry is the Daily on which UTC day.
+The rows in the backend saying which entry is the Daily on which UTC day.
 
 **Streak**:
-Consecutive UTC days with a won Daily in one category.
+Consecutive UTC days with a won on-day Daily in one category.
+
+**Late play**:
+A Daily whose first try was committed after its day. It counts in the player's played, win percentage, and histogram, not in Streaks or Global stats.
 
 **Best**:
 The highest Blitz score stored for one category, orientation, and Blitz mode, with its optional time to score. At an equal score, the faster time to score replaces the Best.
@@ -83,6 +89,9 @@ _Avoid_: Board, scoreboard, ranking
 The time span a Leaderboard is viewed in: All-time, Weekly (since Monday 00:00 UTC), or Today (since 00:00 UTC today). A Leaderboard is viewed in one window, so there are 18 Leaderboards in each window.
 _Avoid_: Daily (reserved for the puzzle)
 
+**Global stats**:
+The per-Daily totals of on-day results of signed-in players, without names. Not the Stats histogram, which is personal.
+
 **Time to score**:
 The milliseconds from a run's start to the commit of the last correct answer that produced its final score; a run that scores zero records zero. Runs and Bests from before this change have none. Breaks ties between equal scores.
 
@@ -95,7 +104,7 @@ What the player answered on a missed round: the typed port, or the picked entry 
 _Avoid_: Mistake, error, guess (reserve for the act)
 
 **Play surface**:
-A screen where a guess is committed: the Daily board or a Blitz run. The arena, History, and the Codex are not play surfaces.
+A screen where a guess is committed: the Daily board, an Archive board, or a Blitz run. The arena, History, the Archive list, and the Codex are not play surfaces.
 _Avoid_: Game screen, play area
 
 **Encounter**:
@@ -255,8 +264,8 @@ The list of committed rounds: the last three under the input during a run, all o
 _Avoid_: Feed, ticker, history (inside a run)
 
 **History**:
-The record screen: every past Daily by date in one segment, every saved run in the other.
-_Avoid_: Log, archive, past games
+The record screen: every Daily the player finished in one segment, every saved run in the other.
+_Avoid_: Log, past games
 
 **History switcher**:
 The segmented control at the top of History that picks the Daily or Blitz segment.
@@ -269,6 +278,9 @@ The tab beside Play on the Blitz screen that shows Leaderboards. Its own term, n
 One of the two records History shows: Daily or Blitz. Each has its own address.
 _Avoid_: Tab, view, page
 
+**Archive**:
+The screen listing every past Daily, where a missed or unfinished one can be played.
+
 **Codex**:
 The personal collection screen listing every catalog entry as a card with its Codex state.
 _Avoid_: Pokedex, collection, gallery, encyclopedia
@@ -280,3 +292,6 @@ _Avoid_: Tile (reserved for the board), item
 **Sort toggle**:
 The Name | Port control on the Codex that orders cards within each catalog kind.
 _Avoid_: Filter, view switch
+
+**Error panel**:
+The shared panel the Daily, the Archive, the Blitz Play tab, and the Codex show in place of their content while the catalog or the Schedule has not loaded. History never shows it.
