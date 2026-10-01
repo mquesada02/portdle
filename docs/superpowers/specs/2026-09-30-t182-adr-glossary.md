@@ -11,7 +11,7 @@ Spec 5 moves the Daily and the catalog to the backend. Until the docs say so, a 
 Two doc changes, both taken from Spec 5 with no new decisions:
 
 1. A new ADR 0003 records that the Daily, the Archive, Blitz, and the Codex depend on the backend, and names each statement it supersedes.
-2. `CONTEXT.md` gains Spec 5's five terms and changes six existing entries.
+2. `CONTEXT.md` gains Spec 5's five terms and changes six existing entries, plus the Mixed entry (owner decision, 2026-09-30).
 
 ## User Stories
 
@@ -29,7 +29,8 @@ Two doc changes, both taken from Spec 5 with no new decisions:
 12. As a developer, I want Play surface to include the Archive board, so that the glossary matches the new screen.
 13. As a developer, I want Schedule and Catalog kind to stop naming files, so that they match the backend.
 14. As a developer, I want History to say it lists only finished Dailies, and "archive" to leave its Avoid list, so that the word has one meaning.
-15. As a developer, I want the intro line to say the catalog and the Dailies come from the hosted backend, so that the first line of the glossary is true.
+15. As a developer, I want Mixed to stop naming a catalog file, so that it matches Catalog kind.
+16. As a developer, I want the intro line to say the catalog and the Dailies come from the hosted backend, so that the first line of the glossary is true.
 
 ## Implementation Decisions
 
@@ -59,6 +60,7 @@ Two doc changes, both taken from Spec 5 with no new decisions:
   - **Schedule**: "The rows in the backend saying which entry is the Daily on which UTC day."
   - **Catalog kind**: "Which group an entry belongs to: `protocol` or `application`." (No JSON file is named.)
   - **Intro line**: "Wordle-like daily game for network ports, plus a timed Blitz mode. Static SPA; the catalog and the Dailies come from a hosted backend, and signing in is optional and adds sync and leaderboards."
+- **Mixed** (owner decision, 2026-09-30): "The union of both catalog kinds. Not its own catalog kind." Spec 5 does not list it; without the change it would still name a catalog file.
 - **Nothing else changes.** Daily, Share line, Reveal, Stats, Best, Nav, and every other entry keep their text. Switch-over day and server today stay spec terms, not domain terms. No code, no other doc, no edit to ADR 0001 or ADR 0002.
 
 ## Testing Decisions
@@ -88,7 +90,7 @@ Docs only, so no Vitest tests. The seam is a read of the diff against Spec 5:
   - Late play's definition names played, win percentage, and the histogram instead of Spec 5's "personal totals", because the Stats entry also holds streaks.
   - Supersedes item 7 stays conditional ("as far as") as in Spec 5, because neither ADR 0001 nor ADR 0002 states that the catalog and the Schedule come from the bundle or that the game works offline.
   - The ADR format (heading, intro paragraph, Supersedes list) differs from the single paragraph of ADR 0001 and ADR 0002; this is the owner's decision of 2026-09-30.
-  - The Mixed entry ("Not its own catalog file") stays as it is; Spec 5 does not list it.
+  - The Mixed entry changes to "Not its own catalog kind." (owner decision, 2026-09-30); Spec 5 does not list it.
   - The Catalog kind text says "group", my wording for "no longer names a JSON file".
   - The intro line is my wording of Spec 5's gist: "the catalog and the Dailies come from the hosted backend; signing in stays optional".
   - The new terms carry no `_Avoid_` line, because Spec 5 proposes none.
