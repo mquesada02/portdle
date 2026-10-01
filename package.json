@@ -21,7 +21,7 @@
 		"typecheck": "tsc -b --noEmit",
 		"gen:schedule": "tsx scripts/gen-schedule.ts",
 		"smoke:backend": "tsx scripts/smoke-backend.ts",
-		"test:sql": "bash scripts/run-sql-tests.sh"
+		"test:sql": "scripts/run-sql-tests.sh"
 	},
 	"dependencies": {
 		"@leeoniya/ufuzzy": "^1.0.19",
