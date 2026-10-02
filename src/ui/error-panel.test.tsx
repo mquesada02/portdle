@@ -10,8 +10,9 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { dailyOn, UTC_TODAY } from "../test/dailies";
+import { dailyOn, fixtureCatalog, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
 import {
 	memoryStore,
@@ -313,4 +314,78 @@ test("opening History retries a failed catalog read", async () => {
 		}),
 	);
 	await waitFor(() => expect(remote.catalogCalls).toBe(2));
+});
+
+const LATE_ENTRY: CatalogEntry = {
+	id: "late-entry",
+	name: "Late Entry",
+	port: 4242,
+	transport: "tcp",
+	description: "d",
+	answerEligible: true,
+};
+
+// The current Dailies name an entry the loaded catalog does not hold.
+function remoteMissingEntry(): FakeRemote {
+	const remote = createFakeRemote();
+	remote.entryIds = {
+		mixed: LATE_ENTRY.id,
+		protocols: LATE_ENTRY.id,
+		applications: LATE_ENTRY.id,
+	};
+	return remote;
+}
+
+function catalogWithLateEntry() {
+	const { protocols, applications } = fixtureCatalog();
+	return { protocols: [...protocols, LATE_ENTRY], applications };
+}
+
+test("a Daily entry id missing from the loaded catalog: Try again reloads the catalog and the Daily resolves", async () => {
+	const user = userEvent.setup();
+	const remote = remoteMissingEntry();
+	await open("/", remote);
+	await screen.findByText(SERVER_MESSAGE);
+	remote.catalog = catalogWithLateEntry();
+	await user.click(screen.getByRole("button", { name: "Try again" }));
+	expect(
+		await screen.findByRole("heading", { level: 1, name: LATE_ENTRY.name }),
+	).toBeTruthy();
+	expect(remote.catalogCalls).toBe(2);
+	expect(remote.dailiesCalls).toBe(1);
+});
+
+test.each([
+	["online", () => setOnLine(true)],
+	["focus", focusWindow],
+])(
+	"a missing Daily entry id reloads the catalog on %s, once",
+	async (_name, trigger) => {
+		const remote = remoteMissingEntry();
+		await open("/", remote);
+		await screen.findByText(SERVER_MESSAGE);
+		remote.catalog = catalogWithLateEntry();
+		const release = remote.holdCatalog();
+		trigger();
+		trigger();
+		expect(remote.catalogCalls).toBe(2);
+		release();
+		expect(
+			await screen.findByRole("heading", { level: 1, name: LATE_ENTRY.name }),
+		).toBeTruthy();
+	},
+);
+
+test("a catalog reload that still lacks the entry keeps the panel", async () => {
+	const user = userEvent.setup();
+	const remote = remoteMissingEntry();
+	await open("/", remote);
+	await screen.findByText(SERVER_MESSAGE);
+	await user.click(screen.getByRole("button", { name: "Try again" }));
+	await waitFor(() => expect(remote.catalogCalls).toBe(2));
+	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
+	remote.failCatalog = true;
+	await user.click(screen.getByRole("button", { name: "Try again" }));
+	await waitFor(() => expect(remote.catalogCalls).toBe(3));
+	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
 });

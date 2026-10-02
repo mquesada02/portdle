@@ -18,6 +18,9 @@ export type ServerStore = {
 	// Reloads the reads that have failed. A read that is loading or ready is
 	// left alone, so a loaded screen never goes back to loading.
 	retry(): void;
+	// Counts a loaded catalog as failed, for a catalog that lacks an entry the
+	// current Dailies name. A retry then reloads it.
+	rejectCatalog(): void;
 };
 
 // A read that has not settled after this long counts as failed.
@@ -118,6 +121,11 @@ export function createServerStore(remote?: Remote): ServerStore {
 			started = true;
 			readCatalog(remote);
 			readDailies(remote);
+		},
+		rejectCatalog() {
+			if (data.catalog.status === "ready") {
+				set({ catalog: { status: "failed" } });
+			}
 		},
 		retry() {
 			if (!remote) {
