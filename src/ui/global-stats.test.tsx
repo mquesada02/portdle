@@ -84,6 +84,14 @@ function stat(label: string): string | undefined {
 	);
 }
 
+// The text of the rows marked as the player's own result.
+function currentRows(): Array<string | null> {
+	return within(block())
+		.getAllByRole("listitem")
+		.filter((row) => row.getAttribute("aria-current") === "true")
+		.map((row) => row.textContent);
+}
+
 afterEach(() => {
 	cleanup();
 });
@@ -108,9 +116,7 @@ test("signed out: finishing shows the totals with the own bar highlighted", asyn
 		"60%",
 		"Lost25%",
 	]);
-	expect(
-		rows.filter((row) => row.getAttribute("aria-current") === "true"),
-	).toEqual([rows[0]]);
+	expect(currentRows()).toEqual(["113%"]);
 	expect(remote.dailyStatsCalls).toBe(1);
 });
 
@@ -129,10 +135,7 @@ test("a lost result highlights the Lost row", async () => {
 	});
 	await renderDaily({ remote, persist });
 	await within(block()).findByText("8");
-	const current = within(block())
-		.getAllByRole("listitem")
-		.filter((row) => row.getAttribute("aria-current") === "true");
-	expect(current.map((row) => row.textContent)).toEqual(["Lost25%"]);
+	expect(currentRows()).toEqual(["Lost25%"]);
 });
 
 test("an unfinished Daily shows no block and makes no read", async () => {
@@ -152,12 +155,7 @@ test("a reopened finished board shows the block again", async () => {
 	persist.writeDaily("mixed", UTC_TODAY, wonIn(3, false));
 	await renderDaily({ remote, persist });
 	await within(block()).findByText("8");
-	expect(
-		within(block())
-			.getAllByRole("listitem")
-			.filter((row) => row.getAttribute("aria-current") === "true")
-			.map((row) => row.textContent),
-	).toEqual(["338%"]);
+	expect(currentRows()).toEqual(["338%"]);
 	expect(screen.queryByText("Late play, not counted")).toBeNull();
 });
 
@@ -180,12 +178,7 @@ test("a late play shows the note and keeps the own highlight", async () => {
 	await renderDaily({ remote, persist });
 	await within(block()).findByText("8");
 	expect(within(block()).getByText("Late play, not counted")).toBeTruthy();
-	expect(
-		within(block())
-			.getAllByRole("listitem")
-			.filter((row) => row.getAttribute("aria-current") === "true")
-			.map((row) => row.textContent),
-	).toEqual(["425%"]);
+	expect(currentRows()).toEqual(["425%"]);
 });
 
 test("with no players the count shows, the solve rate is a dash, and the own bar stays", async () => {
