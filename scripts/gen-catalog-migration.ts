@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { SCHEDULE_EPOCH } from "../src/engine/schedule-gen.ts";
+import { cycleForDay, SCHEDULE_EPOCH } from "../src/engine/schedule-gen.ts";
 import { SWITCH_OVER_DAY } from "../src/engine/switch-over.ts";
 import {
 	type CatalogEntry,
@@ -80,11 +80,7 @@ function scheduleRows(
 	const rows: string[] = [];
 	for (let index = 0; index <= lastIndex; index += 1) {
 		const day = addUtcDays(SCHEDULE_EPOCH, index);
-		const cycle = schedule.cycles.find(
-			(candidate) =>
-				candidate.startDay <= index &&
-				index < candidate.startDay + candidate.order.length,
-		);
+		const cycle = cycleForDay(schedule, index);
 		if (!cycle) {
 			throw new Error(`${category}: no cycle covers ${day}`);
 		}

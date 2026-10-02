@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { expect, test } from "vitest";
 import { SCHEDULE_EPOCH } from "../src/engine/schedule-gen.ts";
 import { DAILY_CATEGORIES } from "../src/engine/types.ts";
@@ -107,6 +108,22 @@ test("the real migration holds every entry and a row per day", () => {
 			days,
 		);
 	}
+});
+
+test("the SQL category lists match DAILY_CATEGORIES", () => {
+	const dir = join(dirname(migrationPath));
+	const lists = [
+		readFileSync(
+			join(dir, "20261001000008_catalog_schedule_tables.sql"),
+			"utf8",
+		).match(/category in \(([^)]*)\)/),
+		readFileSync(join(dir, "20261001000011_current_dailies.sql"), "utf8").match(
+			/values \(1, ([^)]*)\), \(2, ([^)]*)\), \(3, ([^)]*)\)/,
+		),
+	];
+	const expected = DAILY_CATEGORIES.map((category) => `'${category}'`);
+	expect(lists[0]?.[1]?.split(", ")).toEqual(expected);
+	expect(lists[1]?.slice(1)).toEqual(expected);
 });
 
 test("the committed migration matches the committed files and constant", () => {
