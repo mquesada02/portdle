@@ -98,7 +98,4 @@ export async function loaded() {
 	});
 }
 
-export const SERVER_MESSAGE =
-	"Portdle's server isn't answering. Try again in a moment.";
-export const OFFLINE_MESSAGE =
-	"You're offline. Portdle needs a connection to load puzzles.";
+export { OFFLINE_MESSAGE, SERVER_MESSAGE } from "../ui/server-data";

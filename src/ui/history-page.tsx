@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { HistoryRow } from "../engine/history";
 import {
 	groupBlitzRunsByDate,
@@ -106,6 +106,12 @@ function DailySegmentList({ persist }: { persist: Persist }) {
 		return attachRetryTriggers(retrySchedule);
 	}, [serverStore, retrySchedule]);
 	const data = allReady(catalog, dailies, schedule);
+	// Until every read has succeeded, list what the device saved, with no
+	// names. Read once per status change, not on every render.
+	const saved = useMemo(
+		() => (data.status === "ready" ? [] : savedDailyRows(persist)),
+		[data.status, persist],
+	);
 	let rows: ListRow[];
 	if (data.status === "ready") {
 		const [{ protocols, applications }, { today: utcToday }, fromServer] =
@@ -124,9 +130,7 @@ function DailySegmentList({ persist }: { persist: Persist }) {
 			},
 		});
 	} else {
-		// Until every read has succeeded, list what the device saved, with no
-		// names.
-		rows = savedDailyRows(persist);
+		rows = saved;
 	}
 	const groups = groupByDate(rows);
 	return (

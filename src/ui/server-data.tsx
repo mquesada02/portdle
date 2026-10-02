@@ -16,6 +16,11 @@ function subscribeOnline(listener: () => void): () => void {
 	};
 }
 
+export const SERVER_MESSAGE =
+	"Portdle's server isn't answering. Try again in a moment.";
+export const OFFLINE_MESSAGE =
+	"You're offline. Portdle needs a connection to load puzzles.";
+
 // The shared panel a screen shows in place of its content when the catalog or
 // the current Dailies could not load. The message follows the connection.
 export function ErrorPanel() {
@@ -23,11 +28,7 @@ export function ErrorPanel() {
 	const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine);
 	return (
 		<div role="status" className="py-16 text-center text-sm">
-			<p>
-				{online
-					? "Portdle's server isn't answering. Try again in a moment."
-					: "You're offline. Portdle needs a connection to load puzzles."}
-			</p>
+			<p>{online ? SERVER_MESSAGE : OFFLINE_MESSAGE}</p>
 			<button
 				type="button"
 				className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
