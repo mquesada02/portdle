@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { expect, test } from "vitest";
 import { hmacRandom } from "./hmac-random.ts";
 
@@ -24,4 +25,14 @@ test("another secret or another key gives another stream", () => {
 test("an empty or whitespace-only secret throws", () => {
 	expect(() => hmacRandom("")).toThrow();
 	expect(() => hmacRandom("  \t")).toThrow();
+});
+
+test("the stream is the first 6 bytes of HMAC-SHA256(secret, key:i) over 2^48", () => {
+	const next = hmacRandom("secret")("mixed:3");
+	for (const counter of [0, 1, 2]) {
+		const digest = createHmac("sha256", "secret")
+			.update(`mixed:3:${counter}`)
+			.digest();
+		expect(next()).toBe(digest.readUIntBE(0, 6) / 2 ** 48);
+	}
 });

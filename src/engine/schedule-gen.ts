@@ -713,6 +713,9 @@ export function generateFromRows(input: {
 	for (const category of DAILY_CATEGORIES) {
 		const schedule = schedules[category];
 		const ids = poolIds(category, input.protocols, input.applications);
+		const lengthBefore = new Map(
+			schedule.cycles.map((cycle) => [cycle.startDay, cycle.order.length]),
+		);
 		const changed = applyA2(
 			schedule,
 			category,
@@ -720,7 +723,11 @@ export function generateFromRows(input: {
 			new Set(ids),
 			input.random,
 		);
-		if (changed) {
+		// Later cycles only move when the changed cycle's length changes.
+		if (
+			changed &&
+			changed.order.length !== lengthBefore.get(changed.startDay)
+		) {
 			schedule.cycles = schedule.cycles.filter(
 				(cycle) => cycle.startDay <= changed.startDay,
 			);

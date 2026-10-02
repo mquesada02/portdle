@@ -643,3 +643,26 @@ test("a same-cycle swap is rejected when the displaced entry would collide on th
 	};
 	expect(sameCycleSwapIndex(withLater, 0, 1, "x", "x", "a1")?.index).toBe(2);
 });
+
+test("an A2 change that keeps the cycle length leaves later cycles alone", () => {
+	const rows = fresh(60);
+	const tail = rows.find(
+		(row) => row.category === "protocols" && row.day === day(43),
+	) as StoredRow;
+	const swapped = [
+		...protocols.map((candidate) =>
+			candidate.id === tail.entryId
+				? { ...candidate, retired: true }
+				: candidate,
+		),
+		entry("p98", 1098),
+	];
+	const out = run(rows, 40, { protocols: swapped });
+	expect(out.issues).toEqual([]);
+	expect(out.insert.length).toBeGreaterThan(0);
+	for (const row of [...out.remove, ...out.insert]) {
+		if (row.category === "protocols") {
+			expect(row.day < day(45)).toBe(true);
+		}
+	}
+});
