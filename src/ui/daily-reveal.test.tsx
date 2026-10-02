@@ -159,26 +159,26 @@ async function sharedText(
 	return copied[0] ?? "";
 }
 
-function finishedRecord(late: boolean | undefined) {
+function finishedRecord(extra: { late?: boolean }) {
 	return {
 		status: "won" as const,
 		guesses: [
 			{ port: mixedAnswer.port, result: "correct" as const, identified: null },
 		],
-		...(late === undefined ? {} : { late }),
+		...extra,
 	};
 }
 
 test("the share line of a late play ends with late", async () => {
 	const persist = createPersist(memoryStore());
-	persist.writeDaily("mixed", UTC_TODAY, finishedRecord(true));
+	persist.writeDaily("mixed", UTC_TODAY, finishedRecord({ late: true }));
 	const text = await sharedText(persist);
 	expect(text.split("\n")[0]).toBe("Portdle #1 · Mixed · 1/6 · late");
 });
 
 test("the share line of a record with no late mark has no late suffix", async () => {
 	const persist = createPersist(memoryStore());
-	persist.writeDaily("mixed", UTC_TODAY, finishedRecord(undefined));
+	persist.writeDaily("mixed", UTC_TODAY, finishedRecord({}));
 	const text = await sharedText(persist);
 	expect(text.split("\n")[0]).toBe("Portdle #1 · Mixed · 1/6");
 });
