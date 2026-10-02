@@ -336,6 +336,18 @@ function remoteMissingEntry(): FakeRemote {
 	return remote;
 }
 
+// Opens the Daily on the panel that a missing entry id produces.
+async function openMissingEntry() {
+	const remote = remoteMissingEntry();
+	await open("/", remote);
+	await screen.findByText(SERVER_MESSAGE);
+	return remote;
+}
+
+async function findLateHeading() {
+	return screen.findByRole("heading", { level: 1, name: LATE_ENTRY.name });
+}
+
 function catalogWithLateEntry() {
 	const { protocols, applications } = fixtureCatalog();
 	return { protocols: [...protocols, LATE_ENTRY], applications };
@@ -343,14 +355,10 @@ function catalogWithLateEntry() {
 
 test("a Daily entry id missing from the loaded catalog: Try again reloads the catalog and the Daily resolves", async () => {
 	const user = userEvent.setup();
-	const remote = remoteMissingEntry();
-	await open("/", remote);
-	await screen.findByText(SERVER_MESSAGE);
+	const remote = await openMissingEntry();
 	remote.catalog = catalogWithLateEntry();
 	await user.click(screen.getByRole("button", { name: "Try again" }));
-	expect(
-		await screen.findByRole("heading", { level: 1, name: LATE_ENTRY.name }),
-	).toBeTruthy();
+	expect(await findLateHeading()).toBeTruthy();
 	expect(remote.catalogCalls).toBe(2);
 	expect(remote.dailiesCalls).toBe(1);
 });
@@ -361,29 +369,23 @@ test.each([
 ])(
 	"a missing Daily entry id reloads the catalog on %s, once",
 	async (_name, trigger) => {
-		const remote = remoteMissingEntry();
-		await open("/", remote);
-		await screen.findByText(SERVER_MESSAGE);
+		const remote = await openMissingEntry();
 		remote.catalog = catalogWithLateEntry();
 		const release = remote.holdCatalog();
 		trigger();
 		trigger();
 		expect(remote.catalogCalls).toBe(2);
 		release();
-		expect(
-			await screen.findByRole("heading", { level: 1, name: LATE_ENTRY.name }),
-		).toBeTruthy();
+		expect(await findLateHeading()).toBeTruthy();
 	},
 );
 
 test("a catalog reload that still lacks the entry keeps the panel", async () => {
 	const user = userEvent.setup();
-	const remote = remoteMissingEntry();
-	await open("/", remote);
-	await screen.findByText(SERVER_MESSAGE);
+	const remote = await openMissingEntry();
 	await user.click(screen.getByRole("button", { name: "Try again" }));
 	await waitFor(() => expect(remote.catalogCalls).toBe(2));
-	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
+	await screen.findByText(SERVER_MESSAGE);
 	remote.failCatalog = true;
 	await user.click(screen.getByRole("button", { name: "Try again" }));
 	await waitFor(() => expect(remote.catalogCalls).toBe(3));
