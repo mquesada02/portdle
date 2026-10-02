@@ -34,6 +34,8 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+declare
+	frozen date;
 begin
 	if current_user <> 'schedule_generator' then
 		raise exception 'only the schedule generator role writes the Schedule';
@@ -41,11 +43,12 @@ begin
 	if tg_op = 'INSERT' then
 		return new;
 	end if;
-	if old.day <= public.schedule_frozen_through() then
+	frozen := public.schedule_frozen_through();
+	if old.day <= frozen then
 		raise exception 'a Schedule row on or before the frozen-through day cannot change';
 	end if;
 	if tg_op = 'UPDATE' then
-		if new.day <= public.schedule_frozen_through() then
+		if new.day <= frozen then
 			raise exception 'a Schedule row cannot move to or before the frozen-through day';
 		end if;
 		return new;

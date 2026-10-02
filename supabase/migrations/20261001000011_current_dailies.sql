@@ -12,10 +12,11 @@ language sql
 stable
 set search_path = ''
 as $$
-	select now(), public.server_utc_date(), c.category, s.entry_id
-	from (values (1, 'mixed'), (2, 'protocols'), (3, 'applications')) as c (ord, category)
+	select now(), t.utc_date, c.category, s.entry_id
+	from (select public.server_utc_date() as utc_date) as t
+	cross join (values (1, 'mixed'), (2, 'protocols'), (3, 'applications')) as c (ord, category)
 	left join public.schedule s
-		on s.category = c.category and s.day = public.server_utc_date()
+		on s.category = c.category and s.day = t.utc_date
 	order by c.ord
 $$;
 

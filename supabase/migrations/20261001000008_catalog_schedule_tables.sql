@@ -59,7 +59,7 @@ grant usage on schema public to schedule_generator;
 
 create policy schedule_read_to_server_date on public.schedule
 	for select to anon, authenticated
-	using (day <= public.server_utc_date());
+	using (day <= (select public.server_utc_date()));
 
 create policy schedule_generator_select on public.schedule
 	for select to schedule_generator using (true);
