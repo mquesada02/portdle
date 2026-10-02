@@ -257,7 +257,12 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 	const { catalog, dailies } = useServerData();
 	const data = allReady(catalog, dailies);
 	if (data.status !== "ready") {
-		return <DailyLoading category={category} state={data.status} />;
+		return (
+			<DailyLoading
+				top={<DailySwitcher category={category} />}
+				state={data.status}
+			/>
+		);
 	}
 	const [{ protocols, applications }, current] = data.value;
 	return (
@@ -301,11 +306,21 @@ function PinnedDaily({
 		shown.daily.entryIds[category],
 	);
 	if (!puzzle) {
-		return <MissingPuzzle category={category} />;
+		return <MissingPuzzle top={<DailySwitcher category={category} />} />;
 	}
 	return (
 		<DailyBoard
 			key={shown.daily.today}
+			top={
+				<>
+					<DailySwitcher category={category} />
+					<p className="mt-3 text-center text-sm">
+						<Link to="/archive" className="underline">
+							Archive
+						</Link>
+					</p>
+				</>
+			}
 			category={category}
 			puzzle={puzzle}
 			protocols={protocols}
@@ -323,28 +338,32 @@ function PinnedDaily({
 
 // The current Dailies name an entry the loaded catalog lacks. The catalog counts
 // as failed, so the panel's Try again, `online`, and focus reload it.
-function MissingPuzzle({ category }: { category: DailyCategory }) {
+export function MissingPuzzle({ top }: { top: ReactNode }) {
 	const { serverStore } = useRouteContext({ from: "__root__" });
 	useEffect(() => serverStore.rejectCatalog(), [serverStore]);
-	return <DailyLoading category={category} state="failed" />;
+	return <DailyLoading top={top} state="failed" />;
 }
 
-function DailyLoading({
-	category,
+export function DailyLoading({
+	top,
 	state,
+	onRetry,
 }: {
-	category: DailyCategory;
+	// What leads the screen: the Daily switcher, or the Archive's back link.
+	top: ReactNode;
 	state: "loading" | "failed";
+	onRetry?: () => void;
 }) {
 	return (
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
-			<DailySwitcher category={category} />
-			<LoadStatus state={state} />
+			{top}
+			<LoadStatus state={state} onRetry={onRetry} />
 		</main>
 	);
 }
 
-function DailyBoard({
+export function DailyBoard({
+	top,
 	category,
 	puzzle,
 	protocols,
@@ -353,6 +372,8 @@ function DailyBoard({
 	serverToday,
 	onTry,
 }: {
+	// What leads the screen: the Daily switcher, or the Archive's back link.
+	top: ReactNode;
 	category: DailyCategory;
 	puzzle: CatalogEntry;
 	protocols: CatalogEntry[];
@@ -360,7 +381,7 @@ function DailyBoard({
 	// The Daily's own day, and the server's latest today.
 	date: string;
 	serverToday: string;
-	onTry: () => void;
+	onTry?: () => void;
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
 	// Misses identify only entries still in play; a saved identification
@@ -428,7 +449,7 @@ function DailyBoard({
 		setDigits("");
 		setMessage("");
 		setBoard(next);
-		onTry();
+		onTry?.();
 		noteWrite(persist.writeDaily(category, date, next));
 		if (result.status === "miss" && result.identified) {
 			noteWrite(
@@ -448,7 +469,7 @@ function DailyBoard({
 
 	return (
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
-			<DailySwitcher category={category} />
+			{top}
 			<div className="[view-transition-name:switcher-content]">
 				<header className="mt-8 text-center">
 					<p className="font-mono text-xs text-zinc-500">

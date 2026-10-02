@@ -1,25 +1,19 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { HistoryRow } from "../engine/history";
+import { useEffect, useMemo } from "react";
 import {
 	groupBlitzRunsByDate,
 	historyRows,
-	savedFinishedRows,
+	type SavedDaily,
 } from "../engine/history";
-import { CATEGORY_LABEL } from "../engine/share";
-import type { BlitzRun, DailyPersist, ScheduleRow } from "../engine/types";
+import type { BlitzRun } from "../engine/types";
 import { DAILY_CATEGORIES } from "../engine/types";
 import type { Persist } from "../persist/storage";
-import type { Remote } from "../remote/remote";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
+import { DailyRowLink, groupByDate } from "./daily-row";
 import { RoundLog } from "./round-log";
+import { useScheduleRows } from "./schedule-rows";
 import { useServerData } from "./server-data";
-import {
-	allReady,
-	attachRetryTriggers,
-	type Loadable,
-	settle,
-} from "./server-store";
+import { allReady, attachRetryTriggers } from "./server-store";
 
 const HEADING_ID = "history-heading";
 
@@ -28,70 +22,21 @@ const ENDED_LABEL: Record<BlitzRun["ended"], string> = {
 	timeout: "Time's up",
 };
 
-function isFinished(status: DailyPersist["status"] | undefined): boolean {
-	return status === "won" || status === "lost";
-}
-
-// A row has no name or port until the catalog and the Schedule rows load.
-type ListRow = Pick<HistoryRow, "date" | "category"> &
-	Partial<Pick<HistoryRow, "name" | "port">>;
-
-type HistoryGroup = { date: string; rows: ListRow[] };
-
-function groupByDate(rows: ListRow[]): HistoryGroup[] {
-	const groups: HistoryGroup[] = [];
-	for (const row of rows) {
-		const current = groups.at(-1);
-		if (current && current.date === row.date) {
-			current.rows.push(row);
-		} else {
-			groups.push({ date: row.date, rows: [row] });
-		}
-	}
-	return groups;
-}
-
-// The past Schedule rows, read when History mounts and read again by the
-// returned `retry` when the read has failed. With no remote the read counts as
-// failed.
-function useScheduleRows(remote: Remote | undefined): {
-	rows: Loadable<ScheduleRow[]>;
-	retry: () => void;
-} {
-	const [state, setState] = useState<{
-		rows: Loadable<ScheduleRow[]>;
-		attempt: number;
-	}>({
-		rows: remote ? { status: "loading" } : { status: "failed" },
-		attempt: 0,
-	});
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `state.attempt` changes on a retry, which must read again.
-	useEffect(() => {
-		if (!remote) {
-			return;
-		}
-		return settle(remote.readSchedule(), (rows) =>
-			setState((current) => ({ ...current, rows })),
-		);
-	}, [remote, state.attempt]);
-	const retry = useCallback(() => {
-		setState((current) =>
-			remote && current.rows.status === "failed"
-				? { rows: { status: "loading" }, attempt: current.attempt + 1 }
-				: current,
-		);
-	}, [remote]);
-	return { rows: state.rows, retry };
-}
-
-function savedDailyRows(persist: Persist): ListRow[] {
-	return savedFinishedRows(
-		DAILY_CATEGORIES.flatMap((category) =>
-			persist.listDailyDates(category).flatMap((date) => {
-				const record = persist.readDaily(category, date);
-				return record ? [{ date, category, status: record.status }] : [];
-			}),
-		),
+function savedDailyRows(persist: Persist): SavedDaily[] {
+	return DAILY_CATEGORIES.flatMap((category) =>
+		persist.listDailyDates(category).flatMap((date) => {
+			const record = persist.readDaily(category, date);
+			return record
+				? [
+						{
+							date,
+							category,
+							status: record.status,
+							tries: record.guesses.length,
+						},
+					]
+				: [];
+		}),
 	);
 }
 
@@ -106,64 +51,62 @@ function DailySegmentList({ persist }: { persist: Persist }) {
 		return attachRetryTriggers(retrySchedule);
 	}, [serverStore, retrySchedule]);
 	const data = allReady(catalog, dailies, schedule);
-	// Until every read has succeeded, list what the device saved, with no
-	// names. Read once per status change, not on every render.
-	const saved = useMemo(
-		() => (data.status === "ready" ? [] : savedDailyRows(persist)),
-		[data.status, persist],
+	// The player's finished Dailies are listed at once. Their names join in
+	// once every read has succeeded; until then the rows carry none. Read once
+	// per status change, not on every render.
+	const names = data.status === "ready" ? data.value : undefined;
+	const catalogValue = names?.[0];
+	const scheduleValue = names?.[2];
+	const rows = useMemo(
+		() =>
+			historyRows({
+				saved: savedDailyRows(persist),
+				schedule: scheduleValue ?? [],
+				protocols: catalogValue?.protocols ?? [],
+				applications: catalogValue?.applications ?? [],
+			}),
+		[persist, catalogValue, scheduleValue],
 	);
-	let rows: ListRow[];
-	if (data.status === "ready") {
-		const [{ protocols, applications }, { today: utcToday }, fromServer] =
-			data.value;
-		rows = historyRows({
-			utcToday,
-			schedule: fromServer,
-			protocols,
-			applications,
-			finishedToday: {
-				mixed: isFinished(persist.readDaily("mixed", utcToday)?.status),
-				protocols: isFinished(persist.readDaily("protocols", utcToday)?.status),
-				applications: isFinished(
-					persist.readDaily("applications", utcToday)?.status,
-				),
-			},
-		});
-	} else {
-		rows = saved;
-	}
 	const groups = groupByDate(rows);
 	return (
-		<ul
-			className="mt-4 space-y-6 [view-transition-name:switcher-content]"
-			aria-labelledby={HEADING_ID}
-		>
-			{groups.map((group) => {
-				const dateHeadingId = `history-date-${group.date}`;
-				return (
-					<li key={group.date}>
-						<h2 id={dateHeadingId} className="text-sm font-semibold">
-							{group.date}
-						</h2>
-						<ul className="mt-2 space-y-2" aria-labelledby={dateHeadingId}>
-							{group.rows.map((row) => (
-								<li key={`${row.date}:${row.category}`}>
-									<span className="mr-2 inline-block rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-										{CATEGORY_LABEL[row.category]}
-									</span>
-									{row.name !== undefined && (
-										<>
-											{" "}
-											{row.name} <span className="font-mono">{row.port}</span>
-										</>
-									)}
-								</li>
-							))}
-						</ul>
-					</li>
-				);
-			})}
-		</ul>
+		<>
+			<p className="mt-4 text-sm">
+				<Link to="/archive" className="underline">
+					Archive
+				</Link>
+			</p>
+			<ul
+				className="mt-4 space-y-6 [view-transition-name:switcher-content]"
+				aria-labelledby={HEADING_ID}
+			>
+				{groups.map((group) => {
+					const dateHeadingId = `history-date-${group.date}`;
+					return (
+						<li key={group.date}>
+							<h2 id={dateHeadingId} className="text-sm font-semibold">
+								{group.date}
+							</h2>
+							<ul className="mt-2 space-y-2" aria-labelledby={dateHeadingId}>
+								{group.rows.map((row) => (
+									<li key={`${row.date}:${row.category}`}>
+										<DailyRowLink
+											category={row.category}
+											date={row.date}
+											result={row}
+											answer={
+												row.name !== undefined && row.port !== undefined
+													? { name: row.name, port: row.port }
+													: undefined
+											}
+										/>
+									</li>
+								))}
+							</ul>
+						</li>
+					);
+				})}
+			</ul>
+		</>
 	);
 }
 

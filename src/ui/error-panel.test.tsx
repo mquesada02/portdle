@@ -285,7 +285,7 @@ test("History lists saved finished Dailies without names, then fills them in on 
 	remote.failSchedule = false;
 	remote.today = "2026-09-10";
 	setOnLine(true);
-	await screen.findByText(dailyOn("mixed", "2026-09-09").name);
+	await screen.findByText(new RegExp(dailyOn("mixed", "2026-09-09").name));
 	expect(remote.scheduleCalls).toBe(2);
 });
 
