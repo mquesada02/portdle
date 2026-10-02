@@ -24,6 +24,13 @@ export type CatalogEntry = {
 	sources?: Source[];
 };
 
+// One Schedule row: the entry that is the Daily of a category on a UTC day.
+export type ScheduleRow = {
+	category: DailyCategory;
+	date: string;
+	entryId: string;
+};
+
 export type Cycle = { startDay: number; order: string[] };
 export type ScheduleFile = { epoch: string; cycles: Cycle[] };
 
