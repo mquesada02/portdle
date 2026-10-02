@@ -9,7 +9,7 @@ import type { Remote } from "../remote/remote";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { RoundLog } from "./round-log";
 import { LoadStatus, useServerData } from "./server-data";
-import { allReady, type Loadable } from "./server-store";
+import { allReady, type Loadable, settle } from "./server-store";
 
 const HEADING_ID = "history-heading";
 
@@ -47,22 +47,7 @@ function useScheduleRows(remote: Remote | undefined): Loadable<ScheduleRow[]> {
 		if (!remote) {
 			return;
 		}
-		let cancelled = false;
-		remote.readSchedule().then(
-			(value) => {
-				if (!cancelled) {
-					setRows({ status: "ready", value });
-				}
-			},
-			() => {
-				if (!cancelled) {
-					setRows({ status: "failed" });
-				}
-			},
-		);
-		return () => {
-			cancelled = true;
-		};
+		return settle(remote.readSchedule(), setRows);
 	}, [remote]);
 	return rows;
 }

@@ -45,11 +45,9 @@ export function fixtureCatalog(): Catalog {
 }
 
 export function fixtureEntryIds(date: string): Record<DailyCategory, string> {
-	return {
-		mixed: dailyOn("mixed", date).id,
-		protocols: dailyOn("protocols", date).id,
-		applications: dailyOn("applications", date).id,
-	};
+	return Object.fromEntries(
+		DAILY_CATEGORIES.map((category) => [category, dailyOn(category, date).id]),
+	) as Record<DailyCategory, string>;
 }
 
 // Every Schedule row from the epoch through `upTo`.

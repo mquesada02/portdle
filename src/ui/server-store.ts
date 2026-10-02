@@ -17,6 +17,30 @@ export type ServerStore = {
 	load(): void;
 };
 
+// Turns a read into a Loadable. The returned function drops a result that
+// arrives after it is called.
+export function settle<T>(
+	request: Promise<T>,
+	set: (state: Loadable<T>) => void,
+): () => void {
+	let cancelled = false;
+	request.then(
+		(value) => {
+			if (!cancelled) {
+				set({ status: "ready", value });
+			}
+		},
+		() => {
+			if (!cancelled) {
+				set({ status: "failed" });
+			}
+		},
+	);
+	return () => {
+		cancelled = true;
+	};
+}
+
 // Holds what the app reads from the server at start: the catalog and the
 // current Dailies. Outside the router, so a load never remounts a screen. With
 // no remote (a build with no backend) both reads count as failed.
@@ -36,16 +60,6 @@ export function createServerStore(remote?: Remote): ServerStore {
 		}
 	}
 
-	function read<T>(
-		request: Promise<T>,
-		assign: (state: Loadable<T>) => Partial<ServerData>,
-	) {
-		request.then(
-			(value) => set(assign({ status: "ready", value })),
-			() => set(assign({ status: "failed" })),
-		);
-	}
-
 	return {
 		getSnapshot: () => data,
 		subscribe(listener) {
@@ -59,8 +73,8 @@ export function createServerStore(remote?: Remote): ServerStore {
 				return;
 			}
 			started = true;
-			read(remote.readCatalog(), (catalog) => ({ catalog }));
-			read(remote.readCurrentDailies(), (dailies) => ({ dailies }));
+			settle(remote.readCatalog(), (catalog) => set({ catalog }));
+			settle(remote.readCurrentDailies(), (dailies) => set({ dailies }));
 		},
 	};
 }
