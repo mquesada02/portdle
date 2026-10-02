@@ -1,17 +1,14 @@
 import { MAX_BLITZ_RUNS } from "./blitz";
 import { RANK } from "./codex";
-import { applyDailyFinish, applyStreakGap, emptyStats } from "./stats";
 import type {
 	BlitzBest,
 	BlitzBests,
 	BlitzBestsKey,
 	BlitzRun,
-	CategoryStats,
 	CodexMap,
 	CodexState,
 	DailyPersist,
 } from "./types";
-import { yesterdayUtc } from "./utc";
 
 export function mergeCodex(
 	local: CodexMap,
@@ -92,8 +89,20 @@ function dailyBeats(a: DailyPersist, b: DailyPersist): boolean {
 	return JSON.stringify(a.guesses) < JSON.stringify(b.guesses);
 }
 
+// `late` merges apart from the record choice: late only when both sides are
+// late, and a side with no `late` counts as on-day.
+function mergeLate(a: boolean | undefined, b: boolean | undefined) {
+	if (a === undefined && b === undefined) {
+		return undefined;
+	}
+	return a === true && b === true;
+}
+
 export function mergeDaily(a: DailyPersist, b: DailyPersist): DailyPersist {
-	return dailyBeats(b, a) ? b : a;
+	// The picked record's own `late` is dropped; the merged one replaces it.
+	const { late: _late, ...picked } = dailyBeats(b, a) ? b : a;
+	const late = mergeLate(a.late, b.late);
+	return late === undefined ? picked : { ...picked, late };
 }
 
 export type Stamped<T> = { value: T; at: string };
@@ -110,39 +119,4 @@ export function mergePreference<T>(a: Stamped<T>, b: Stamped<T>): Stamped<T> {
 		return aText < bText ? a : b;
 	}
 	return a.at <= b.at ? a : b;
-}
-
-export function foldStats(input: {
-	dailies: Record<string, DailyPersist>;
-	utcToday: string;
-}): { stats: CategoryStats; lastPlayed: string | null } {
-	const { dailies, utcToday } = input;
-	let stats = emptyStats();
-	let lastPlayed: string | null = null;
-	for (const date of Object.keys(dailies).sort()) {
-		const daily = dailies[date];
-		if (!daily || daily.status === "playing") {
-			continue;
-		}
-		stats = applyDailyFinish({
-			stats: applyStreakGap({
-				stats,
-				utcToday: date,
-				lastPlayed,
-				yesterdayPersist: dailies[yesterdayUtc(date)] ?? null,
-			}),
-			result: daily.status,
-			tries: daily.guesses.length,
-		});
-		lastPlayed = date;
-	}
-	if (lastPlayed !== utcToday) {
-		stats = applyStreakGap({
-			stats,
-			utcToday,
-			lastPlayed,
-			yesterdayPersist: dailies[yesterdayUtc(utcToday)] ?? null,
-		});
-	}
-	return { stats, lastPlayed };
 }

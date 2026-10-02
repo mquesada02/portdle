@@ -1,5 +1,11 @@
 import { expect, test } from "vitest";
-import { addUtcDays, utcDateString, utcDayIndex, yesterdayUtc } from "./utc";
+import {
+	addUtcDays,
+	isLate,
+	utcDateString,
+	utcDayIndex,
+	yesterdayUtc,
+} from "./utc";
 
 test("utcDateString uses UTC calendar date", () => {
 	expect(utcDateString(new Date("2026-09-09T00:30:00Z"))).toBe("2026-09-09");
@@ -16,4 +22,10 @@ test("utcDayIndex is 0 on epoch", () => {
 test("yesterdayUtc and addUtcDays", () => {
 	expect(yesterdayUtc("2026-09-09")).toBe("2026-09-08");
 	expect(addUtcDays("2026-09-09", 7)).toBe("2026-09-16");
+});
+
+test("isLate is true only when the server today is after the day", () => {
+	expect(isLate("2026-09-10", "2026-09-10")).toBe(false);
+	expect(isLate("2026-09-10", "2026-09-11")).toBe(true);
+	expect(isLate("2026-09-10", "2026-09-09")).toBe(false);
 });

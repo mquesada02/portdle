@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "vitest";
 import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { currentEntry, missThree } from "../test/blitz";
-import { padToAnswer, UTC_TODAY } from "../test/dailies";
+import { padToAnswer } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
 import {
 	loaded,
@@ -29,12 +29,7 @@ async function renderBlitz(
 		initialEntries: ["/portdle/blitz"],
 	});
 	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();

@@ -9,15 +9,15 @@ import {
 } from "../engine/guess";
 import { bestMarkByDigit, computeMarks, type Mark } from "../engine/marks";
 import { CATEGORY_LABEL } from "../engine/share";
-import { applyDailyFinish, emptyStats } from "../engine/stats";
 import {
 	type CatalogEntry,
-	type CategoryStats,
 	type CodexEncounter,
 	DAILY_CATEGORIES,
 	type DailyCategory,
 	type DailyPersist,
 } from "../engine/types";
+import { isLate } from "../engine/utc";
+import { categoryStats } from "./category-stats";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
@@ -25,7 +25,6 @@ import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { LoadStatus, useServerData } from "./server-data";
 import { allReady } from "./server-store";
-import { categoryStreakGap } from "./sync-utc";
 
 const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
 	mixed: "/",
@@ -264,7 +263,8 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 			puzzle={puzzle}
 			protocols={protocols}
 			applications={applications}
-			utcToday={today}
+			date={today}
+			serverToday={today}
 		/>
 	);
 }
@@ -297,13 +297,16 @@ function DailyBoard({
 	puzzle,
 	protocols,
 	applications,
-	utcToday,
+	date,
+	serverToday,
 }: {
 	category: DailyCategory;
 	puzzle: CatalogEntry;
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
-	utcToday: string;
+	// The Daily's own day, and the server's latest today.
+	date: string;
+	serverToday: string;
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
 	// Misses identify only entries still in play; a saved identification
@@ -311,7 +314,7 @@ function DailyBoard({
 	const catalog = playableCatalogFor(category, protocols, applications);
 	const wholeCatalog = catalogFor("mixed", protocols, applications);
 	const [board, setBoard] = useState<DailyPersist | null>(() =>
-		persist.readDaily(category, utcToday),
+		persist.readDaily(category, date),
 	);
 	const [digits, setDigits] = useState("");
 	const [message, setMessage] = useState("");
@@ -321,7 +324,6 @@ function DailyBoard({
 
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
-	const stats: CategoryStats = persist.readStats(category) ?? emptyStats();
 
 	function noteWrite(result: { ok: boolean }) {
 		if (!result.ok) {
@@ -335,7 +337,7 @@ function DailyBoard({
 	}
 
 	function submitGuess() {
-		const stored = persist.readDaily(category, utcToday);
+		const stored = persist.readDaily(category, date);
 		if (stored?.status === "won" || stored?.status === "lost") {
 			setBoard(stored);
 			return;
@@ -352,7 +354,11 @@ function DailyBoard({
 			previousPorts,
 			catalog,
 		});
-		const next = applyCommittedGuess(current, result);
+		const next = applyCommittedGuess(
+			current,
+			result,
+			isLate(date, serverToday),
+		);
 		if (next.status === "invalid") {
 			setMessage(
 				digits.length < length ? "Not enough digits." : "Not a valid port.",
@@ -368,7 +374,7 @@ function DailyBoard({
 		setDigits("");
 		setMessage("");
 		setBoard(next);
-		noteWrite(persist.writeDaily(category, utcToday, next));
+		noteWrite(persist.writeDaily(category, date, next));
 		if (result.status === "miss" && result.identified) {
 			noteWrite(
 				recordEncounter({ state: "identified", id: result.identified.id }),
@@ -382,17 +388,6 @@ function DailyBoard({
 				}),
 			);
 			setFinishedThisSession(true);
-			if (persist.readLastPlayed(category) !== utcToday) {
-				const gapped = categoryStreakGap(persist, category, utcToday);
-				const finished = applyDailyFinish({
-					stats: gapped,
-					result: next.status,
-					tries: next.guesses.length,
-				});
-				noteWrite(persist.writeStats(category, finished));
-				noteWrite(persist.writeLastPlayed(category, utcToday));
-			}
-			noteWrite(persist.writeLastSeenUtc(utcToday));
 		}
 	}
 
@@ -462,8 +457,8 @@ function DailyBoard({
 						category={category}
 						puzzle={puzzle}
 						board={board}
-						stats={stats}
-						utcToday={utcToday}
+						stats={categoryStats(persist, category, serverToday)}
+						utcToday={date}
 						finishedThisSession={finishedThisSession}
 					/>
 				) : null}

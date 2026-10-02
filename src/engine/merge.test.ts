@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import { replacesBest } from "./blitz";
 import {
-	foldStats,
 	mergeBest,
 	mergeBests,
 	mergeCodex,
@@ -9,16 +8,13 @@ import {
 	mergePreference,
 	mergeRuns,
 } from "./merge";
-import { applyDailyFinish, applyStreakGap, emptyStats } from "./stats";
 import type {
 	BlitzBest,
 	BlitzRun,
-	CategoryStats,
 	CodexMap,
 	CodexState,
 	DailyPersist,
 } from "./types";
-import { addUtcDays, yesterdayUtc } from "./utc";
 
 function states(map: CodexMap): Record<string, CodexState> {
 	return Object.fromEntries(
@@ -306,6 +302,47 @@ test("daily: commutative and idempotent over the cases", () => {
 	}
 });
 
+const LATE_STATES = [undefined, true, false] as const;
+
+test("daily late: on-day wins, an absent value counts as on-day", () => {
+	const a = daily("won", [1, 2]);
+	const merge = (x: boolean | undefined, y: boolean | undefined) =>
+		mergeDaily({ ...a, late: x }, { ...a, late: y }).late;
+	expect(merge(true, true)).toBe(true);
+	expect(merge(true, false)).toBe(false);
+	expect(merge(false, true)).toBe(false);
+	expect(merge(true, undefined)).toBe(false);
+	expect(merge(undefined, true)).toBe(false);
+	expect(merge(false, undefined)).toBe(false);
+	expect(merge(undefined, undefined)).toBeUndefined();
+});
+
+test("daily late: the record choice does not depend on late", () => {
+	const win = { ...daily("won", [1, 2]), late: true };
+	const loss = { ...daily("lost", [1, 2, 3, 4, 5, 6]), late: false };
+	expect(mergeDaily(win, loss)).toEqual({ ...win, late: false });
+	expect(mergeDaily(loss, win)).toEqual({ ...win, late: false });
+});
+
+test("daily late: commutative and idempotent over every late pair and pick", () => {
+	const picks = [
+		daily("playing", [1]),
+		daily("won", [1, 2]),
+		daily("lost", [1, 2, 3, 4, 5, 6]),
+	];
+	const cases = picks.flatMap((pick) =>
+		LATE_STATES.map((late) => (late === undefined ? pick : { ...pick, late })),
+	);
+	for (const a of cases) {
+		for (const b of cases) {
+			const ab = mergeDaily(a, b);
+			expect(ab).toEqual(mergeDaily(b, a));
+			expect(mergeDaily(ab, a)).toEqual(ab);
+			expect(mergeDaily(ab, b)).toEqual(ab);
+		}
+	}
+});
+
 test("preference: the later stamp wins", () => {
 	const older = { value: "dark", at: "2026-09-29T10:00:00.000000+00:00" };
 	const newer = { value: "light", at: "2026-09-29T11:00:00.000000+00:00" };
@@ -336,179 +373,4 @@ test("preference: idempotent", () => {
 	const ab = mergePreference(a, b);
 	expect(mergePreference(ab, a)).toEqual(ab);
 	expect(mergePreference(ab, b)).toEqual(ab);
-});
-
-// The incremental path, as the Daily screen and the UTC-day change run it.
-// It deliberately mirrors the fold's steps with the same stats functions, day by day.
-function incremental(
-	days: Array<[string, DailyPersist]>,
-	utcToday: string,
-): { stats: CategoryStats; lastPlayed: string | null } {
-	const stored = new Map<string, DailyPersist>(days);
-	let stats = emptyStats();
-	let lastPlayed: string | null = null;
-	for (const [date, value] of [...days].sort(([a], [b]) => (a < b ? -1 : 1))) {
-		if (value.status === "playing") {
-			continue;
-		}
-		stats = applyStreakGap({
-			stats,
-			utcToday: date,
-			lastPlayed,
-			yesterdayPersist: stored.get(yesterdayUtc(date)) ?? null,
-		});
-		stats = applyDailyFinish({
-			stats,
-			result: value.status,
-			tries: value.guesses.length,
-		});
-		lastPlayed = date;
-	}
-	if (lastPlayed !== utcToday) {
-		stats = applyStreakGap({
-			stats,
-			utcToday,
-			lastPlayed,
-			yesterdayPersist: stored.get(yesterdayUtc(utcToday)) ?? null,
-		});
-	}
-	return { stats, lastPlayed };
-}
-
-const D1 = "2026-09-10";
-const won = (tries: number) =>
-	daily(
-		"won",
-		Array.from({ length: tries }, (_, i) => 100 + i),
-	);
-const lost = () => daily("lost", [1, 2, 3, 4, 5, 6]);
-const playing = () => daily("playing", [1, 2]);
-
-function expectFold(days: Array<[string, DailyPersist]>, utcToday: string) {
-	const folded = foldStats({ dailies: Object.fromEntries(days), utcToday });
-	expect(folded).toEqual(incremental(days, utcToday));
-	return folded;
-}
-
-test("fold: no finished Daily gives empty stats and no last played", () => {
-	expect(foldStats({ dailies: {}, utcToday: D1 })).toEqual({
-		stats: emptyStats(),
-		lastPlayed: null,
-	});
-	expect(foldStats({ dailies: { [D1]: playing() }, utcToday: D1 })).toEqual({
-		stats: emptyStats(),
-		lastPlayed: null,
-	});
-});
-
-test("fold: consecutive wins build a streak and histogram", () => {
-	const folded = expectFold(
-		[
-			[D1, won(3)],
-			[addUtcDays(D1, 1), won(1)],
-			[addUtcDays(D1, 2), won(3)],
-		],
-		addUtcDays(D1, 2),
-	);
-	expect(folded.stats.currentStreak).toBe(3);
-	expect(folded.stats.histogram).toEqual([1, 0, 2, 0, 0, 0]);
-	expect(folded.lastPlayed).toBe(addUtcDays(D1, 2));
-});
-
-test("fold: a skipped day resets the streak before the next win", () => {
-	const folded = expectFold(
-		[
-			[D1, won(2)],
-			[addUtcDays(D1, 2), won(2)],
-		],
-		addUtcDays(D1, 2),
-	);
-	expect(folded.stats.currentStreak).toBe(1);
-	expect(folded.stats.bestStreak).toBe(1);
-});
-
-test("fold: a loss resets the streak", () => {
-	const folded = expectFold(
-		[
-			[D1, won(2)],
-			[addUtcDays(D1, 1), lost()],
-		],
-		addUtcDays(D1, 1),
-	);
-	expect(folded.stats.currentStreak).toBe(0);
-	expect(folded.stats.played).toBe(2);
-});
-
-test("fold: a win after an unfinished yesterday restarts at 1", () => {
-	const folded = expectFold(
-		[
-			[D1, won(2)],
-			[addUtcDays(D1, 1), playing()],
-			[addUtcDays(D1, 2), won(2)],
-		],
-		addUtcDays(D1, 2),
-	);
-	expect(folded.stats.currentStreak).toBe(1);
-});
-
-test("fold: a win today with yesterday unfinished gives a streak of 1", () => {
-	const today = addUtcDays(D1, 1);
-	const folded = expectFold(
-		[
-			[D1, playing()],
-			[today, won(4)],
-		],
-		today,
-	);
-	expect(folded.stats.currentStreak).toBe(1);
-});
-
-test("fold: a later current day keeps the streak when yesterday was won", () => {
-	const folded = expectFold([[D1, won(2)]], addUtcDays(D1, 1));
-	expect(folded.stats.currentStreak).toBe(1);
-});
-
-test("fold: a later current day resets when last played is older than yesterday", () => {
-	const folded = expectFold([[D1, won(2)]], addUtcDays(D1, 2));
-	expect(folded.stats.currentStreak).toBe(0);
-	expect(folded.stats.bestStreak).toBe(1);
-});
-
-test("fold: an unfinished yesterday resets at the day change", () => {
-	const yesterday = addUtcDays(D1, 1);
-	const folded = expectFold(
-		[
-			[D1, won(2)],
-			[yesterday, playing()],
-		],
-		addUtcDays(D1, 2),
-	);
-	expect(folded.stats.currentStreak).toBe(0);
-});
-
-test("fold: an unfinished Daily today changes nothing", () => {
-	const today = addUtcDays(D1, 1);
-	const folded = expectFold(
-		[
-			[D1, won(2)],
-			[today, playing()],
-		],
-		today,
-	);
-	expect(folded.stats.currentStreak).toBe(1);
-});
-
-test("fold: gives the same result whatever order the Dailies are supplied in", () => {
-	const days: Array<[string, DailyPersist]> = [
-		[D1, won(2)],
-		[addUtcDays(D1, 1), lost()],
-		[addUtcDays(D1, 2), won(5)],
-	];
-	const utcToday = addUtcDays(D1, 3);
-	const forward = foldStats({ dailies: Object.fromEntries(days), utcToday });
-	const backward = foldStats({
-		dailies: Object.fromEntries([...days].reverse()),
-		utcToday,
-	});
-	expect(backward).toEqual(forward);
 });

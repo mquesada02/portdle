@@ -23,14 +23,7 @@ async function renderHistory(
 	const history = createMemoryHistory({
 		initialEntries: [path],
 	});
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
-	);
+	render(<App persist={persist} remote={remote} history={history} />);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();
 }
@@ -328,7 +321,6 @@ test("History lists the saved rows until the past rows arrive, with no loading l
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: ["/portdle/history"] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	const list = await screen.findByRole("list", { name: YESTERDAY });

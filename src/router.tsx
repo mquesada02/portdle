@@ -23,8 +23,8 @@ export type RouterContext = {
 	persist: Persist;
 	backend?: Backend;
 	remount: () => void;
-	// The device-clock day, for the shell's streak-gap step only; the Daily,
-	// Blitz, and History use the server's today from `serverStore`.
+	// The device-clock day. Nothing reads it now; ticket #188 removes it. The
+	// Daily, Blitz, and History use the server's today from `serverStore`.
 	utcToday: string;
 	serverStore: ServerStore;
 };

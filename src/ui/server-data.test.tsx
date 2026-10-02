@@ -53,7 +53,6 @@ async function open(
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: [`/portdle${path}`] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
@@ -74,7 +73,6 @@ test("Blitz's Play tab shows loading, then the error panel, and the Leaderboards
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: ["/portdle/blitz"] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	expect(await screen.findByText("Loading...")).toBeTruthy();
@@ -215,7 +213,6 @@ test("the store loads each read once under StrictMode's double effect", async ()
 				persist={persist}
 				remote={remote}
 				history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-				utcToday={UTC_TODAY}
 			/>
 		</StrictMode>,
 	);

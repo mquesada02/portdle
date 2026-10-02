@@ -61,7 +61,6 @@ async function open(
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: [`/portdle${path}`] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
@@ -264,7 +263,6 @@ test("a build with no backend shows the panel, and Try again does nothing", asyn
 		<App
 			persist={persist}
 			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	await user.click(await screen.findByRole("button", { name: "Try again" }));
