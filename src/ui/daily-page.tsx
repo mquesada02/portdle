@@ -20,6 +20,7 @@ import { isLate } from "../engine/utc";
 import { categoryStats } from "./category-stats";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
+import { GlobalStats } from "./global-stats";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
@@ -453,14 +454,17 @@ function DailyBoard({
 					</button>
 				)}
 				{frozen && board ? (
-					<DailyReveal
-						category={category}
-						puzzle={puzzle}
-						board={board}
-						stats={categoryStats(persist, category, serverToday)}
-						utcToday={date}
-						finishedThisSession={finishedThisSession}
-					/>
+					<>
+						<DailyReveal
+							category={category}
+							puzzle={puzzle}
+							board={board}
+							stats={categoryStats(persist, category, serverToday)}
+							utcToday={date}
+							finishedThisSession={finishedThisSession}
+						/>
+						<GlobalStats category={category} date={date} board={board} />
+					</>
 				) : null}
 			</div>
 		</main>
