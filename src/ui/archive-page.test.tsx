@@ -9,9 +9,14 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import type { DailyCategory, DailyPersist } from "../engine/types";
+import type { DailyCategory } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { dailyOn, fixtureCatalog, padToAnswer } from "../test/dailies";
+import {
+	dailyOn,
+	fixtureCatalog,
+	padToAnswer,
+	saveDaily,
+} from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
 import {
 	loaded,
@@ -48,24 +53,6 @@ async function open(
 	return { remote, persist };
 }
 
-function guesses(count: number): DailyPersist["guesses"] {
-	return Array.from({ length: count }, (_, index) => ({
-		port: index + 1,
-		result: "miss" as const,
-		identified: null,
-	}));
-}
-
-function save(
-	persist: Persist,
-	category: DailyCategory,
-	date: string,
-	record: Partial<DailyPersist> & Pick<DailyPersist, "status">,
-	tries = 1,
-) {
-	persist.writeDaily(category, date, { guesses: guesses(tries), ...record });
-}
-
 async function playWin(
 	user: ReturnType<typeof userEvent.setup>,
 	category: DailyCategory,
@@ -99,9 +86,9 @@ afterEach(() => {
 
 test("the list groups past days newest first, in category order, with number and state", async () => {
 	const persist = createPersist(memoryStore());
-	save(persist, "mixed", YESTERDAY, { status: "won" }, 3);
-	save(persist, "protocols", YESTERDAY, { status: "lost" }, 6);
-	save(persist, "applications", YESTERDAY, { status: "playing" }, 2);
+	saveDaily(persist, "mixed", YESTERDAY, "won", 3);
+	saveDaily(persist, "protocols", YESTERDAY, "lost", 6);
+	saveDaily(persist, "applications", YESTERDAY, "playing", 2);
 	await open("/portdle/archive", { persist });
 	await loaded();
 	expect(
@@ -241,7 +228,7 @@ test("a late play saves under its own date as late, shares with late, and leaves
 	const user = userEvent.setup();
 	const copied = captureShare();
 	const persist = createPersist(memoryStore());
-	save(persist, "mixed", TODAY, { status: "won", late: false });
+	saveDaily(persist, "mixed", TODAY, "won", 1, { late: false });
 	await open(`/portdle/archive/mixed/${YESTERDAY}`, { persist });
 	await loaded();
 	await playWin(user, "mixed", YESTERDAY);
@@ -277,17 +264,10 @@ test("an unfinished on-day Daily finished from the Archive stays on-day", async 
 	const persist = createPersist(memoryStore());
 	const answer = dailyOn("mixed", YESTERDAY);
 	const wrongPort = answer.port === 1 ? 2 : 1;
-	save(
-		persist,
-		"mixed",
-		YESTERDAY,
-		{
-			status: "playing",
-			late: false,
-			guesses: [{ port: wrongPort, result: "miss", identified: null }],
-		},
-		1,
-	);
+	saveDaily(persist, "mixed", YESTERDAY, "playing", 1, {
+		late: false,
+		guesses: [{ port: wrongPort, result: "miss", identified: null }],
+	});
 	await open(`/portdle/archive/mixed/${YESTERDAY}`, { persist });
 	await loaded();
 	await playWin(user, "mixed", YESTERDAY);
@@ -309,8 +289,8 @@ test("today's unfinished Daily on its Archive address plays as on-day", async ()
 
 test("a finished Daily opens read-only with its Reveal and global stats", async () => {
 	const persist = createPersist(memoryStore());
-	save(persist, "protocols", TODAY, { status: "lost", late: false }, 6);
-	save(persist, "mixed", YESTERDAY, { status: "won", late: false }, 2);
+	saveDaily(persist, "protocols", TODAY, "lost", 6, { late: false });
+	saveDaily(persist, "mixed", YESTERDAY, "won", 2, { late: false });
 	for (const date of [YESTERDAY, TODAY]) {
 		const category = date === TODAY ? "protocols" : "mixed";
 		await open(`/portdle/archive/${category}/${date}`, { persist });

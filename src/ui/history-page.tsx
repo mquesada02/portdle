@@ -1,5 +1,6 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { dailyResult } from "../engine/archive";
 import {
 	groupBlitzRunsByDate,
 	historyRows,
@@ -24,16 +25,7 @@ function savedDailyRows(persist: Persist): SavedDaily[] {
 	return DAILY_CATEGORIES.flatMap((category) =>
 		persist.listDailyDates(category).flatMap((date) => {
 			const record = persist.readDaily(category, date);
-			return record
-				? [
-						{
-							date,
-							category,
-							status: record.status,
-							tries: record.guesses.length,
-						},
-					]
-				: [];
+			return record ? [{ date, category, ...dailyResult(record) }] : [];
 		}),
 	);
 }

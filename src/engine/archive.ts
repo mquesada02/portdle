@@ -12,6 +12,10 @@ export type DailyResult = {
 	tries: number;
 };
 
+export function dailyResult(record: DailyPersist): DailyResult {
+	return { status: record.status, tries: record.guesses.length };
+}
+
 // A day that can have a board: from the first Daily through server today.
 export function isArchiveDay(date: string, serverToday: string): boolean {
 	return date >= PUZZLE_EPOCH && date <= serverToday;

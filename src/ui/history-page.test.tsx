@@ -2,9 +2,9 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import type { BlitzRun, DailyCategory, DailyPersist } from "../engine/types";
+import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { dailyOn } from "../test/dailies";
+import { dailyOn, saveDaily } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
 import { loaded, memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
@@ -71,31 +71,13 @@ afterEach(() => {
 	document.documentElement.classList.remove("dark");
 });
 
-function guesses(count: number): DailyPersist["guesses"] {
-	return Array.from({ length: count }, (_, index) => ({
-		port: index + 1,
-		result: "miss" as const,
-		identified: null,
-	}));
-}
-
-function save(
-	persist: ReturnType<typeof createPersist>,
-	category: DailyCategory,
-	date: string,
-	status: DailyPersist["status"],
-	tries: number,
-) {
-	persist.writeDaily(category, date, { status, guesses: guesses(tries) });
-}
-
 test("History lists only finished Dailies, newest first, with number, result, and answer", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	save(persist, "mixed", YESTERDAY, "won", 3);
-	save(persist, "protocols", YESTERDAY, "playing", 2);
-	save(persist, "applications", EPOCH, "won", 2);
-	save(persist, "mixed", EPOCH, "lost", 6);
+	saveDaily(persist, "mixed", YESTERDAY, "won", 3);
+	saveDaily(persist, "protocols", YESTERDAY, "playing", 2);
+	saveDaily(persist, "applications", EPOCH, "won", 2);
+	saveDaily(persist, "mixed", EPOCH, "lost", 6);
 	await renderHistory(persist);
 	expect(
 		screen.getByRole("heading", { level: 1, name: "History" }),
@@ -115,7 +97,7 @@ test("History lists only finished Dailies, newest first, with number, result, an
 test("a Daily finished today is listed and links to its Archive board", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	save(persist, "protocols", UTC_TODAY, "lost", 6);
+	saveDaily(persist, "protocols", UTC_TODAY, "lost", 6);
 	await renderHistory(persist);
 	expect(dateHeadingNames()).toEqual([UTC_TODAY]);
 	const [row] = dateRows(UTC_TODAY);
@@ -133,7 +115,7 @@ test("a finished Daily with no Schedule row stays listed and links to the no-Dai
 	remote.scheduleRows = [];
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	save(persist, "mixed", YESTERDAY, "won", 2);
+	saveDaily(persist, "mixed", YESTERDAY, "won", 2);
 	await renderHistory(persist, "/portdle/history", remote);
 	const [row] = dateRows(YESTERDAY);
 	expect(row?.textContent).toBe("Mixed#2 · Won 2/6");
@@ -144,8 +126,8 @@ test("a finished Daily with no Schedule row stays listed and links to the no-Dai
 test("an unfinished or unplayed Daily is not listed, today or before", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	save(persist, "mixed", UTC_TODAY, "playing", 1);
-	save(persist, "mixed", YESTERDAY, "playing", 4);
+	saveDaily(persist, "mixed", UTC_TODAY, "playing", 1);
+	saveDaily(persist, "mixed", YESTERDAY, "playing", 4);
 	await renderHistory(persist);
 	expect(dateHeadingNames()).toEqual([]);
 });
@@ -300,7 +282,7 @@ test("History lists the saved rows until the past rows arrive, with no loading l
 	stubMatchMedia();
 	remote.today = UTC_TODAY;
 	const persist = createPersist(memoryStore());
-	save(persist, "mixed", YESTERDAY, "won", 3);
+	saveDaily(persist, "mixed", YESTERDAY, "won", 3);
 	render(
 		<App
 			persist={persist}
@@ -346,8 +328,8 @@ test("answers resolve by id in the whole catalog: a retired entry and an entry o
 	];
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	save(persist, "protocols", YESTERDAY, "won", 1);
-	save(persist, "protocols", EPOCH, "won", 1);
+	saveDaily(persist, "protocols", YESTERDAY, "won", 1);
+	saveDaily(persist, "protocols", EPOCH, "won", 1);
 	await renderHistory(persist, "/portdle/history", remote);
 	expect(
 		within(screen.getByRole("list", { name: YESTERDAY })).getByText(

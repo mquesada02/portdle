@@ -1,6 +1,6 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import { archiveRows, boardEntryId } from "../engine/archive";
+import { type ReactNode, useMemo } from "react";
+import { archiveRows, boardEntryId, dailyResult } from "../engine/archive";
 import { entryById } from "../engine/catalog";
 import { isDailyCategory } from "../engine/types";
 import { isValidUtcDate } from "../engine/utc";
@@ -24,6 +24,20 @@ function BackLink() {
 export function ArchivePage() {
 	const { persist } = useRouteContext({ from: "__root__" });
 	const { data, retry } = useScheduleReads();
+	const [, current, schedule] = data.status === "ready" ? data.value : [];
+	// Every row's saved result is read once per load, not on every render.
+	const groups = useMemo(
+		() =>
+			groupByDate(
+				current && schedule
+					? archiveRows(schedule, current.today).map((row) => {
+							const record = persist.readDaily(row.category, row.date);
+							return { ...row, result: record && dailyResult(record) };
+						})
+					: [],
+			),
+		[persist, current, schedule],
+	);
 	if (data.status !== "ready") {
 		return (
 			<main>
@@ -32,8 +46,6 @@ export function ArchivePage() {
 			</main>
 		);
 	}
-	const [, { today }, schedule] = data.value;
-	const groups = groupByDate(archiveRows(schedule, today));
 	return (
 		<main>
 			<h1 id={HEADING_ID}>Archive</h1>
@@ -49,23 +61,15 @@ export function ArchivePage() {
 								{group.date}
 							</h2>
 							<ul className="mt-2 space-y-2" aria-labelledby={dateHeadingId}>
-								{group.rows.map(({ category, date }) => {
-									const record = persist.readDaily(category, date);
-									return (
-										<li key={category}>
-											<DailyRowLink
-												category={category}
-												date={date}
-												result={
-													record && {
-														status: record.status,
-														tries: record.guesses.length,
-													}
-												}
-											/>
-										</li>
-									);
-								})}
+								{group.rows.map(({ category, date, result }) => (
+									<li key={category}>
+										<DailyRowLink
+											category={category}
+											date={date}
+											result={result}
+										/>
+									</li>
+								))}
 							</ul>
 						</li>
 					);
