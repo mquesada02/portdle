@@ -377,6 +377,7 @@ test.each([
 		expect(remote.catalogCalls).toBe(2);
 		release();
 		expect(await findLateHeading()).toBeTruthy();
+		expect(remote.catalogCalls).toBe(2);
 	},
 );
 
