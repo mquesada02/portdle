@@ -5,6 +5,7 @@ import { SCHEDULE_EPOCH } from "../src/engine/schedule-gen.ts";
 import { SWITCH_OVER_DAY } from "../src/engine/switch-over.ts";
 import {
 	type CatalogEntry,
+	type CatalogKind,
 	DAILY_CATEGORIES,
 	type DailyCategory,
 	type ScheduleFile,
@@ -48,7 +49,7 @@ function sqlJsonArray(values: unknown[] | undefined): string {
 	return `${sqlText(JSON.stringify(values ?? []))}::jsonb`;
 }
 
-function entryRow(entry: CatalogEntry, kind: string): string {
+function entryRow(entry: CatalogEntry, kind: CatalogKind): string {
 	return `\t(${[
 		sqlText(entry.id),
 		sqlText(kind),

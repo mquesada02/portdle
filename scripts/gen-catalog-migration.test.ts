@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
+import { SCHEDULE_EPOCH } from "../src/engine/schedule-gen.ts";
+import { DAILY_CATEGORIES } from "../src/engine/types.ts";
+import { utcDayIndex } from "../src/engine/utc.ts";
 import {
 	buildMigration,
 	migrationPath,
@@ -90,6 +93,20 @@ test("a schedule id missing from the catalog throws", () => {
 	const input = fixture("2026-09-09");
 	input.schedules.mixed.cycles[0].order = ["zzz", "b"];
 	expect(() => buildMigration(input)).toThrow(/zzz/);
+});
+
+test("the real migration holds every entry and a row per day", () => {
+	const input = readInputs();
+	const sql = readFileSync(migrationPath, "utf8");
+	const days = utcDayIndex(input.switchOverDay, SCHEDULE_EPOCH) + 1;
+	expect(sql.match(/^\t\('[^']+', '(protocol|application)'/gm)).toHaveLength(
+		input.protocols.length + input.applications.length,
+	);
+	for (const category of DAILY_CATEGORIES) {
+		expect(sql.match(new RegExp(`^\\t\\('${category}', `, "gm"))).toHaveLength(
+			days,
+		);
+	}
 });
 
 test("the committed migration matches the committed files and constant", () => {
