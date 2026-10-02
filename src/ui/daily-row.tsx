@@ -4,7 +4,7 @@ import { puzzleNumber } from "../engine/puzzle-number";
 import { CATEGORY_LABEL } from "../engine/share";
 import type { DailyCategory } from "../engine/types";
 
-export type DailyGroup<Row extends { date: string }> = {
+type DailyGroup<Row extends { date: string }> = {
 	date: string;
 	rows: Row[];
 };

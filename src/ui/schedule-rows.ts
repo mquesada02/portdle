@@ -13,7 +13,7 @@ import {
 // The past Schedule rows, read when its screen mounts and read again by the
 // returned `retry` when the read has failed. With no remote the read counts as
 // failed.
-export function useScheduleRows(remote: Remote | undefined): {
+function useScheduleRows(remote: Remote | undefined): {
 	rows: Loadable<ScheduleRow[]>;
 	retry: () => void;
 } {
