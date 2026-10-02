@@ -10,6 +10,7 @@ import {
 	loaded,
 	memoryStore,
 	portDigits,
+	SERVER_MESSAGE,
 	stubMatchMedia,
 } from "../test/helpers";
 import { App } from "./app";
@@ -366,11 +367,11 @@ test("how-to still appears on first mixed visit", async () => {
 	).toBeTruthy();
 });
 
-test("a failed current Dailies read shows the failure line and keeps the Daily switcher", async () => {
+test("a failed current Dailies read shows the error panel and keeps the Daily switcher", async () => {
 	const remote = createFakeRemote();
 	remote.failDailies = true;
 	const persist = await renderDaily({ remote });
-	expect(screen.getByText("Could not load puzzles.")).toBeTruthy();
+	expect(screen.getByText(SERVER_MESSAGE)).toBeTruthy();
 	expect(
 		within(
 			screen.getByRole("navigation", { name: "Daily switcher" }),
@@ -379,21 +380,21 @@ test("a failed current Dailies read shows the failure line and keeps the Daily s
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
 });
 
-test("a failed catalog read shows the failure line", async () => {
+test("a failed catalog read shows the error panel", async () => {
 	const remote = createFakeRemote();
 	remote.failCatalog = true;
 	await renderDaily({ remote });
-	expect(screen.getByText("Could not load puzzles.")).toBeTruthy();
+	expect(screen.getByText(SERVER_MESSAGE)).toBeTruthy();
 });
 
-test("a Daily whose entry id is not in the catalog shows the failure line", async () => {
+test("a Daily whose entry id is not in the catalog shows the error panel", async () => {
 	const remote = createFakeRemote();
 	remote.entryIds = { mixed: "nope", protocols: "nope", applications: "nope" };
 	await renderDaily({ remote });
-	expect(screen.getByText("Could not load puzzles.")).toBeTruthy();
+	expect(screen.getByText(SERVER_MESSAGE)).toBeTruthy();
 });
 
-test("a build with no backend shows the failure line", async () => {
+test("a build with no backend shows the error panel", async () => {
 	stubMatchMedia();
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
@@ -404,7 +405,7 @@ test("a build with no backend shows the failure line", async () => {
 			utcToday={UTC_TODAY}
 		/>,
 	);
-	expect(await screen.findByText("Could not load puzzles.")).toBeTruthy();
+	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
 });
 
 test("the Daily shows loading until both reads arrive", async () => {

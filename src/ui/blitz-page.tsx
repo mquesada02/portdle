@@ -506,8 +506,9 @@ export function BlitzPage() {
 		from: "__root__",
 	});
 	// The Play tab waits for the catalog and the current Dailies. A run starts
-	// only with both, and they never go back to loading, so a run always has its
-	// catalog. The Leaderboards tab needs neither.
+	// only with both. A retry never reloads a ready read, and only the Daily
+	// screen marks the catalog failed, so a run always has its catalog. The
+	// Leaderboards tab needs neither.
 	const { catalog, dailies } = useServerData();
 	const data = allReady(catalog, dailies);
 	const [loadedCatalog, loadedDailies] =

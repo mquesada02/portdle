@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { catalogFor, entryById, playableCatalogFor } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
 import {
@@ -300,7 +300,7 @@ function PinnedDaily({
 		shown.daily.entryIds[category],
 	);
 	if (!puzzle) {
-		return <DailyLoading category={category} state="failed" />;
+		return <MissingPuzzle category={category} />;
 	}
 	return (
 		<DailyBoard
@@ -317,6 +317,14 @@ function PinnedDaily({
 			}
 		/>
 	);
+}
+
+// The current Dailies name an entry the loaded catalog lacks. The catalog counts
+// as failed, so the panel's Try again, `online`, and focus reload it.
+function MissingPuzzle({ category }: { category: DailyCategory }) {
+	const { serverStore } = useRouteContext({ from: "__root__" });
+	useEffect(() => serverStore.rejectCatalog(), [serverStore]);
+	return <DailyLoading category={category} state="failed" />;
 }
 
 function DailyLoading({

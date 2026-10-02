@@ -18,6 +18,12 @@ export type ServerStore = {
 	subscribe(listener: () => void): () => void;
 	// Starts the one load; later calls do nothing.
 	load(): void;
+	// Reloads the reads that have failed. A read that is loading or ready is
+	// left alone, so a loaded screen never goes back to loading.
+	retry(): void;
+	// Counts a loaded catalog as failed, for a catalog that lacks an entry the
+	// current Dailies name. A retry then reloads it.
+	rejectCatalog(): void;
 	// Reads the current Dailies again. A newer read always supersedes an older
 	// one, which is then dropped.
 	refreshDailies(): Promise<void>;
@@ -30,27 +36,50 @@ export type ServerStore = {
 // has its own throttle, apart from the sync pull's.
 export const FOCUS_READ_THROTTLE_MS = 30000;
 
-// Turns a read into a Loadable. The returned function drops a result that
-// arrives after it is called.
+// A read that has not settled after this long counts as failed.
+export const READ_TIMEOUT_MS = 10_000;
+
+// Turns a read into a Loadable. A read that fails, or does not settle within
+// READ_TIMEOUT_MS, counts as failed. The returned function drops a result that
+// arrives after it is called, and so does the timeout.
 export function settle<T>(
 	request: Promise<T>,
 	set: (state: Loadable<T>) => void,
 ): () => void {
 	let cancelled = false;
+	function finish(state: Loadable<T>) {
+		if (!cancelled) {
+			cancelled = true;
+			clearTimeout(timer);
+			set(state);
+		}
+	}
+	const timer = setTimeout(() => finish({ status: "failed" }), READ_TIMEOUT_MS);
 	request.then(
-		(value) => {
-			if (!cancelled) {
-				set({ status: "ready", value });
-			}
-		},
-		() => {
-			if (!cancelled) {
-				set({ status: "failed" });
-			}
-		},
+		(value) => finish({ status: "ready", value }),
+		() => finish({ status: "failed" }),
 	);
 	return () => {
 		cancelled = true;
+		clearTimeout(timer);
+	};
+}
+
+// Runs `retry` when the connection comes back and when the player returns to
+// the tab. No throttle: the callers retry only reads that have failed.
+export function attachRetryTriggers(retry: () => void): () => void {
+	function onVisibility() {
+		if (document.visibilityState === "visible") {
+			retry();
+		}
+	}
+	window.addEventListener("online", retry);
+	window.addEventListener("focus", retry);
+	document.addEventListener("visibilitychange", onVisibility);
+	return () => {
+		window.removeEventListener("online", retry);
+		window.removeEventListener("focus", retry);
+		document.removeEventListener("visibilitychange", onVisibility);
 	};
 }
 
@@ -79,6 +108,8 @@ export function createServerStore(
 	// null until a read is applied.
 	let lastSuccess: { at: number; serverNow: number } | null = null;
 	let timer: unknown = null;
+	// The pending catalog read that a retry started, so a newer one replaces it.
+	let cancelCatalog: (() => void) | null = null;
 
 	// Each change replaces the snapshot, so `getSnapshot` is stable between
 	// changes.
@@ -114,6 +145,24 @@ export function createServerStore(
 		);
 	}
 
+	// A read that fails, or does not settle in time, rejects.
+	function within<T>(request: Promise<T>): Promise<T> {
+		return new Promise((resolve, reject) => {
+			settle(request, (state) =>
+				state.status === "ready"
+					? resolve(state.value)
+					: reject(new Error("read failed")),
+			);
+		});
+	}
+
+	// A new read cancels the one before it, so only the newest request can set
+	// the catalog.
+	function readCatalog(remote: Remote) {
+		cancelCatalog?.();
+		cancelCatalog = settle(remote.readCatalog(), (catalog) => set({ catalog }));
+	}
+
 	function missesEntry(catalog: Catalog, dailies: CurrentDailies): boolean {
 		return Object.values(dailies.entryIds).some(
 			(id) => !entryById(catalog.protocols, catalog.applications, id),
@@ -129,17 +178,25 @@ export function createServerStore(
 		}
 		const mine = ++sequence;
 		inFlight = true;
+		// Only a read after a loaded Daily may reload the catalog: a missing entry
+		// on the first load or a retry is the Daily's own panel (`rejectCatalog`).
+		const background = data.dailies.status === "ready";
 		try {
-			const dailies = await remote.readCurrentDailies();
+			const dailies = await within(remote.readCurrentDailies());
 			const loaded = data.catalog;
 			const catalog =
-				loaded.status === "ready" && missesEntry(loaded.value, dailies)
-					? await remote.readCatalog()
+				background &&
+				loaded.status === "ready" &&
+				missesEntry(loaded.value, dailies)
+					? await within(remote.readCatalog())
 					: undefined;
 			if (mine !== sequence) {
 				return;
 			}
 			lastSuccess = { at: clock.now(), serverNow: dailies.serverNow };
+			if (catalog) {
+				cancelCatalog?.();
+			}
 			set({
 				dailies: { status: "ready", value: dailies },
 				...(catalog && { catalog: { status: "ready", value: catalog } }),
@@ -156,8 +213,14 @@ export function createServerStore(
 		}
 	}
 
+	// A failed or loading read is the retry's: while a panel can show, a focus
+	// is a retry, not a focus read.
 	function onFocus() {
-		if (inFlight) {
+		if (
+			inFlight ||
+			data.dailies.status !== "ready" ||
+			data.catalog.status !== "ready"
+		) {
 			return;
 		}
 		if (lastSuccess !== null) {
@@ -189,8 +252,33 @@ export function createServerStore(
 				return;
 			}
 			started = true;
-			settle(remote.readCatalog(), (catalog) => set({ catalog }));
+			readCatalog(remote);
 			void refreshDailies();
+		},
+		rejectCatalog() {
+			if (data.catalog.status === "ready") {
+				set({ catalog: { status: "failed" } });
+			}
+		},
+		retry() {
+			if (!remote) {
+				return;
+			}
+			const catalog = data.catalog.status === "failed";
+			const dailies = data.dailies.status === "failed";
+			if (!catalog && !dailies) {
+				return;
+			}
+			if (catalog) {
+				readCatalog(remote);
+			}
+			if (dailies) {
+				void refreshDailies();
+			}
+			set({
+				...(catalog && { catalog: { status: "loading" as const } }),
+				...(dailies && { dailies: { status: "loading" as const } }),
+			});
 		},
 		refreshDailies,
 		attach() {

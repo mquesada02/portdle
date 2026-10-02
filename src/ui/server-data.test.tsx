@@ -8,7 +8,12 @@ import { createPersist } from "../persist/storage";
 import type { Catalog } from "../remote/remote";
 import { UTC_TODAY } from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
-import { loaded, memoryStore, stubMatchMedia } from "../test/helpers";
+import {
+	loaded,
+	memoryStore,
+	SERVER_MESSAGE,
+	stubMatchMedia,
+} from "../test/helpers";
 import { App } from "./app";
 
 afterEach(cleanup);
@@ -56,7 +61,7 @@ async function open(
 	return persist;
 }
 
-test("Blitz's Play tab shows loading, then the failure line, and the Leaderboards tab stays", async () => {
+test("Blitz's Play tab shows loading, then the error panel, and the Leaderboards tab stays", async () => {
 	const user = userEvent.setup();
 	const remote = createFakeRemote();
 	const release = remote.holdCatalog();
@@ -74,17 +79,17 @@ test("Blitz's Play tab shows loading, then the failure line, and the Leaderboard
 	);
 	expect(await screen.findByText("Loading...")).toBeTruthy();
 	release();
-	expect(await screen.findByText("Could not load puzzles.")).toBeTruthy();
+	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
 	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
 	await user.click(screen.getByRole("tab", { name: "Leaderboards" }));
-	expect(screen.queryByText("Could not load puzzles.")).toBeNull();
+	expect(screen.queryByText(SERVER_MESSAGE)).toBeNull();
 });
 
 test("Blitz also waits for the current Dailies", async () => {
 	const remote = createFakeRemote();
 	remote.failDailies = true;
 	await open("/blitz", remote);
-	expect(screen.getByText("Could not load puzzles.")).toBeTruthy();
+	expect(screen.getByText(SERVER_MESSAGE)).toBeTruthy();
 });
 
 test("Blitz leaves out the three answers of the server's day", async () => {
@@ -187,13 +192,13 @@ test("the Codex needs only the catalog and hides unseen retired entries", async 
 	expect(screen.getByText("Seen")).toBeTruthy();
 });
 
-test("the Codex shows the failure line, and leaves the stored Codex alone, when the catalog fails", async () => {
+test("the Codex shows the error panel, and leaves the stored Codex alone, when the catalog fails", async () => {
 	const remote = createFakeRemote();
 	remote.failCatalog = true;
 	const persist = createPersist(memoryStore());
 	persist.writeCodex({ http: { state: "identified", fresh: true } });
 	await open("/codex", remote, persist);
-	expect(screen.getByText("Could not load puzzles.")).toBeTruthy();
+	expect(screen.getByText(SERVER_MESSAGE)).toBeTruthy();
 	expect(persist.readCodex()).toEqual({
 		http: { state: "identified", fresh: true },
 	});

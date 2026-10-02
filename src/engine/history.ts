@@ -2,6 +2,7 @@ import type {
 	BlitzRun,
 	CatalogEntry,
 	DailyCategory,
+	DailyPersist,
 	ScheduleRow,
 } from "./types";
 import { DAILY_CATEGORIES } from "./types";
@@ -45,16 +46,38 @@ export function historyRows(input: {
 			port: entry.port,
 		});
 	}
-	rows.sort((a, b) => {
-		if (a.date !== b.date) {
-			return a.date < b.date ? 1 : -1;
-		}
-		return (
-			DAILY_CATEGORIES.indexOf(a.category) -
-			DAILY_CATEGORIES.indexOf(b.category)
-		);
-	});
+	rows.sort(newestFirst);
 	return rows;
+}
+
+// Newest date first, then the category order.
+function newestFirst(
+	a: { date: string; category: DailyCategory },
+	b: { date: string; category: DailyCategory },
+): number {
+	if (a.date !== b.date) {
+		return a.date < b.date ? 1 : -1;
+	}
+	return (
+		DAILY_CATEGORIES.indexOf(a.category) - DAILY_CATEGORIES.indexOf(b.category)
+	);
+}
+
+export type SavedDaily = {
+	date: string;
+	category: DailyCategory;
+	status: DailyPersist["status"];
+};
+
+// The player's finished Dailies as saved on the device, for History while the
+// server reads that name them have not succeeded.
+export function savedFinishedRows(
+	saved: SavedDaily[],
+): Pick<HistoryRow, "date" | "category">[] {
+	return saved
+		.filter(({ status }) => status === "won" || status === "lost")
+		.map(({ date, category }) => ({ date, category }))
+		.sort(newestFirst);
 }
 
 export type BlitzRunGroup = { date: string; runs: BlitzRun[] };
