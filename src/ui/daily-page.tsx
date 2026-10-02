@@ -8,6 +8,7 @@ import {
 	evaluateDefaultGuess,
 } from "../engine/guess";
 import { bestMarkByDigit, computeMarks, type Mark } from "../engine/marks";
+import { puzzleNumber } from "../engine/puzzle-number";
 import { CATEGORY_LABEL } from "../engine/share";
 import {
 	type CatalogEntry,
@@ -396,7 +397,10 @@ function DailyBoard({
 			<DailySwitcher category={category} />
 			<div className="[view-transition-name:switcher-content]">
 				<header className="mt-8 text-center">
-					<p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+					<p className="font-mono text-xs text-zinc-500">
+						#{puzzleNumber(date)} · {date}
+					</p>
+					<p className="mt-2 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
 						Which port is
 					</p>
 					<h1 className="mt-1 text-3xl font-bold tracking-tight">
