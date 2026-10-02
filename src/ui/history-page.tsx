@@ -65,11 +65,11 @@ function useScheduleRows(remote: Remote | undefined): {
 		rows: remote ? { status: "loading" } : { status: "failed" },
 		attempt: 0,
 	});
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `state.attempt` changes on a retry, which must read again.
 	useEffect(() => {
 		if (!remote) {
 			return;
 		}
-		// `state.attempt` changes on a retry, which runs this effect again.
 		return settle(remote.readSchedule(), (rows) =>
 			setState((current) => ({ ...current, rows })),
 		);
