@@ -5,7 +5,7 @@ import { entryById } from "../engine/catalog";
 import { isDailyCategory } from "../engine/types";
 import { isValidUtcDate } from "../engine/utc";
 import { DailyBoard, DailyLoading, MissingPuzzle } from "./daily-page";
-import { DailyRowLink, groupByDate } from "./daily-row";
+import { DailyGroupList, DailyRowLink } from "./daily-row";
 import { useScheduleReads } from "./schedule-rows";
 import { LoadStatus } from "./server-data";
 
@@ -26,16 +26,14 @@ export function ArchivePage() {
 	const { data, retry } = useScheduleReads();
 	const [, current, schedule] = data.status === "ready" ? data.value : [];
 	// Every row's saved result is read once per load, not on every render.
-	const groups = useMemo(
+	const rows = useMemo(
 		() =>
-			groupByDate(
-				current && schedule
-					? archiveRows(schedule, current.today).map((row) => {
-							const record = persist.readDaily(row.category, row.date);
-							return { ...row, result: record && dailyResult(record) };
-						})
-					: [],
-			),
+			current && schedule
+				? archiveRows(schedule, current.today).map((row) => {
+						const record = persist.readDaily(row.category, row.date);
+						return { ...row, result: record && dailyResult(record) };
+					})
+				: [],
 		[persist, current, schedule],
 	);
 	if (data.status !== "ready") {
@@ -49,32 +47,14 @@ export function ArchivePage() {
 	return (
 		<main>
 			<h1 id={HEADING_ID}>Archive</h1>
-			<ul
-				className="mt-4 space-y-6 [view-transition-name:switcher-content]"
-				aria-labelledby={HEADING_ID}
-			>
-				{groups.map((group) => {
-					const dateHeadingId = `archive-date-${group.date}`;
-					return (
-						<li key={group.date}>
-							<h2 id={dateHeadingId} className="text-sm font-semibold">
-								{group.date}
-							</h2>
-							<ul className="mt-2 space-y-2" aria-labelledby={dateHeadingId}>
-								{group.rows.map(({ category, date, result }) => (
-									<li key={category}>
-										<DailyRowLink
-											category={category}
-											date={date}
-											result={result}
-										/>
-									</li>
-								))}
-							</ul>
-						</li>
-					);
-				})}
-			</ul>
+			<DailyGroupList
+				rows={rows}
+				idPrefix="archive-date"
+				labelledBy={HEADING_ID}
+				renderRow={({ category, date, result }) => (
+					<DailyRowLink category={category} date={date} result={result} />
+				)}
+			/>
 		</main>
 	);
 }

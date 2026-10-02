@@ -10,7 +10,7 @@ import type { BlitzRun } from "../engine/types";
 import { DAILY_CATEGORIES } from "../engine/types";
 import type { Persist } from "../persist/storage";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
-import { DailyRowLink, groupByDate } from "./daily-row";
+import { DailyGroupList, DailyRowLink } from "./daily-row";
 import { RoundLog } from "./round-log";
 import { useScheduleReads } from "./schedule-rows";
 
@@ -46,7 +46,6 @@ function DailySegmentList({ persist }: { persist: Persist }) {
 			}),
 		[persist, catalog, schedule],
 	);
-	const groups = groupByDate(rows);
 	return (
 		<>
 			<p className="mt-4 text-sm">
@@ -54,37 +53,23 @@ function DailySegmentList({ persist }: { persist: Persist }) {
 					Archive
 				</Link>
 			</p>
-			<ul
-				className="mt-4 space-y-6 [view-transition-name:switcher-content]"
-				aria-labelledby={HEADING_ID}
-			>
-				{groups.map((group) => {
-					const dateHeadingId = `history-date-${group.date}`;
-					return (
-						<li key={group.date}>
-							<h2 id={dateHeadingId} className="text-sm font-semibold">
-								{group.date}
-							</h2>
-							<ul className="mt-2 space-y-2" aria-labelledby={dateHeadingId}>
-								{group.rows.map((row) => (
-									<li key={`${row.date}:${row.category}`}>
-										<DailyRowLink
-											category={row.category}
-											date={row.date}
-											result={row}
-											answer={
-												row.name !== undefined && row.port !== undefined
-													? { name: row.name, port: row.port }
-													: undefined
-											}
-										/>
-									</li>
-								))}
-							</ul>
-						</li>
-					);
-				})}
-			</ul>
+			<DailyGroupList
+				rows={rows}
+				idPrefix="history-date"
+				labelledBy={HEADING_ID}
+				renderRow={(row) => (
+					<DailyRowLink
+						category={row.category}
+						date={row.date}
+						result={row}
+						answer={
+							row.name !== undefined && row.port !== undefined
+								? { name: row.name, port: row.port }
+								: undefined
+						}
+					/>
+				)}
+			/>
 		</>
 	);
 }
