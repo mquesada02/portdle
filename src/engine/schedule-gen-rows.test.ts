@@ -1,4 +1,9 @@
 import { expect, test } from "vitest";
+import applicationsJson from "../catalogs/applications.json";
+import protocolsJson from "../catalogs/protocols.json";
+import applicationsSchedule from "../catalogs/schedules/applications.json";
+import mixedSchedule from "../catalogs/schedules/mixed.json";
+import protocolsSchedule from "../catalogs/schedules/protocols.json";
 import { answerPool, catalogFor } from "./catalog";
 import { hashSeed, mulberry32 } from "./rng";
 import {
@@ -7,12 +12,14 @@ import {
 	SCHEDULE_EPOCH,
 	type StoredRow,
 } from "./schedule-gen";
+import { SWITCH_OVER_DAY } from "./switch-over";
 import {
 	type CatalogEntry,
 	DAILY_CATEGORIES,
 	type DailyCategory,
+	type ScheduleFile,
 } from "./types";
-import { addUtcDays } from "./utc";
+import { addUtcDays, utcDayIndex } from "./utc";
 
 function entry(id: string, port: number, extra: Partial<CatalogEntry> = {}) {
 	return {
@@ -311,6 +318,9 @@ test("Mixed swaps stay inside one cycle over many seeds", () => {
 		const rows = fresh(150, randomWith(`seed${seed}`));
 		expectEachEntryOncePerCycle(rows);
 		expectDistinctEachDay(rows);
+		expect(
+			run(rows, 150, { random: randomWith(`seed${seed}`) }).insert,
+		).toEqual([]);
 	}
 });
 
@@ -413,4 +423,197 @@ test("issue text never names a future entry id", () => {
 	const out = run(strange, 10);
 	expect(out.issues.length).toBeGreaterThan(0);
 	expect(out.issues.join(" ")).not.toContain("zz-secret");
+});
+
+test("a retired entry that changes a cycle can re-append a later cycle with the same entry on a day but another start", () => {
+	let found = false;
+	for (let seed = 0; seed < 40 && !found; seed += 1) {
+		const rows = fresh(60, randomWith(`start${seed}`));
+		const tail = rows.find(
+			(row) => row.category === "protocols" && row.day === day(43),
+		) as StoredRow;
+		const retired = protocols.map((candidate) =>
+			candidate.id === tail.entryId
+				? { ...candidate, retired: true }
+				: candidate,
+		);
+		const out = run(rows, 40, {
+			protocols: retired,
+			random: randomWith(`start${seed}`),
+		});
+		expect(out.issues).toEqual([]);
+		const removed = new Map(out.remove.map((row) => [key(row), row]));
+		for (const row of out.insert) {
+			const old = removed.get(key(row));
+			if (
+				old &&
+				old.entryId === row.entryId &&
+				old.cycleStart !== row.cycleStart
+			) {
+				found = true;
+			}
+		}
+		const next = apply(rows, out);
+		expectOneRange(next);
+		expect(
+			run(next, 40, { protocols: retired, random: randomWith(`start${seed}`) })
+				.insert,
+		).toEqual([]);
+	}
+	expect(found).toBe(true);
+});
+
+test("Mixed covers a day that another category's cycle reaches by appending a whole cycle", () => {
+	const rows = fresh(40);
+	const mixedPool = answerPool(
+		catalogFor("mixed", protocols, applications),
+	).length;
+	expect(lastDay(rows, "protocols") > day(mixedPool - 1)).toBe(true);
+	expect(lastDay(rows, "mixed") >= lastDay(rows, "protocols")).toBe(true);
+	expectEachEntryOncePerCycle(rows);
+	expectDistinctEachDay(rows);
+});
+
+test("a collision with an earlier movable day in the same cycle is fixed by a swap there", () => {
+	const mixedPool = answerPool(
+		catalogFor("mixed", protocols, applications),
+	).length;
+	const lastIndex = mixedPool - 1;
+	let checked = false;
+	for (let seed = 0; seed < 60 && !checked; seed += 1) {
+		const rows = fresh(mixedPool + 10, randomWith(`earlier${seed}`));
+		const lastMixed = rows.find(
+			(row) => row.category === "mixed" && row.day === day(lastIndex),
+		) as StoredRow;
+		const onDay = rows.find(
+			(row) => row.category === "protocols" && row.day === day(lastIndex),
+		) as StoredRow;
+		const holder = rows.find(
+			(row) =>
+				row.category === "protocols" &&
+				row.cycleStart === onDay.cycleStart &&
+				row.entryId === lastMixed.entryId,
+		);
+		if (!holder) {
+			continue;
+		}
+		const forced = rows.map((row) => {
+			if (row === onDay) {
+				return { ...row, entryId: lastMixed.entryId };
+			}
+			return row === holder ? { ...row, entryId: onDay.entryId } : row;
+		});
+		const out = run(forced, lastIndex - 5, {
+			random: randomWith(`earlier${seed}`),
+		});
+		if (out.issues.length > 0) {
+			continue;
+		}
+		checked = true;
+		const next = apply(forced, out);
+		expect(
+			next.find((row) => row.category === "mixed" && row.day === day(lastIndex))
+				?.entryId,
+		).not.toBe(lastMixed.entryId);
+		const mixedCycle = next.filter(
+			(row) => row.category === "mixed" && row.cycleStart === SCHEDULE_EPOCH,
+		);
+		expect(new Set(mixedCycle.map((row) => row.entryId)).size).toBe(
+			mixedCycle.length,
+		);
+		for (const row of [...out.remove, ...out.insert]) {
+			expect(row.day > day(lastIndex - 5)).toBe(true);
+		}
+	}
+	expect(checked).toBe(true);
+});
+
+test("Mixed resolution never moves a frozen stored row, whatever the seed", () => {
+	for (let seed = 0; seed < 10; seed += 1) {
+		const random = randomWith(`frozen${seed}`);
+		const rows = fresh(30, random);
+		const smaller = protocols.filter((candidate) => candidate.id !== "p05");
+		const out = run(rows, 30, { protocols: smaller, random });
+		expect(out.issues).toEqual([]);
+		for (const row of out.remove) {
+			expect(row.day > day(30)).toBe(true);
+		}
+		const next = apply(rows, out);
+		for (const row of upTo(rows, day(30))) {
+			expect(next).toContainEqual(row);
+		}
+	}
+});
+
+test("missing past days come with distinctness and coverage through frozen-through plus 7", () => {
+	const imported = upTo(fresh(60), day(20));
+	const rows = apply(imported, run(imported, 25));
+	expectDistinctEachDay(rows);
+	for (const category of DAILY_CATEGORIES) {
+		expect(lastDay(rows, category) >= day(32)).toBe(true);
+	}
+});
+
+function committedRows(): StoredRow[] {
+	const schedules: Record<DailyCategory, ScheduleFile> = {
+		mixed: mixedSchedule as ScheduleFile,
+		protocols: protocolsSchedule as ScheduleFile,
+		applications: applicationsSchedule as ScheduleFile,
+	};
+	const last = utcDayIndex(SWITCH_OVER_DAY, SCHEDULE_EPOCH);
+	return DAILY_CATEGORIES.flatMap((category) =>
+		Array.from({ length: last + 1 }, (_, index) => {
+			const cycle = schedules[category].cycles.find(
+				(candidate) =>
+					candidate.startDay <= index &&
+					index < candidate.startDay + candidate.order.length,
+			) as ScheduleFile["cycles"][number];
+			return {
+				category,
+				day: day(index),
+				entryId: cycle.order[index - cycle.startDay] as string,
+				cycleStart: day(cycle.startDay),
+			};
+		}),
+	);
+}
+
+test("the first run after the real import fills the cut cycles, each entry once", () => {
+	const imported = committedRows();
+	const real = {
+		protocols: protocolsJson as CatalogEntry[],
+		applications: applicationsJson as CatalogEntry[],
+	};
+	for (const frozen of [SWITCH_OVER_DAY, addUtcDays(SWITCH_OVER_DAY, 1)]) {
+		const out = generateFromRows({
+			frozenThrough: frozen,
+			...real,
+			rows: imported,
+			random: randomA,
+		});
+		expect(out.issues).toEqual([]);
+		expect(out.remove).toEqual([]);
+		const rows = [...imported, ...out.insert];
+		for (const category of DAILY_CATEGORIES) {
+			const pool = answerPool(
+				catalogFor(category, real.protocols, real.applications),
+			)
+				.map((candidate) => candidate.id)
+				.sort();
+			for (const ids of cycles(rows, category).values()) {
+				expect([...ids].sort()).toEqual(pool);
+			}
+		}
+		for (const row of out.insert) {
+			const start = rows.find(
+				(candidate) =>
+					candidate.category === row.category &&
+					candidate.cycleStart === row.cycleStart &&
+					candidate.day < row.day,
+			);
+			expect(start === undefined ? row.cycleStart === row.day : true).toBe(
+				true,
+			);
+		}
+	}
 });

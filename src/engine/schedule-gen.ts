@@ -630,7 +630,7 @@ function rowsToSchedule(
 	const schedule: ScheduleFile = { epoch: SCHEDULE_EPOCH, cycles: [] };
 	const mine = rows
 		.filter((row) => row.category === category)
-		.sort((left, right) => (left.day < right.day ? -1 : 1));
+		.sort((left, right) => left.day.localeCompare(right.day));
 	let current: Cycle | undefined;
 	for (const [position, row] of mine.entries()) {
 		const dayIndex = utcDayIndex(row.day, SCHEDULE_EPOCH);

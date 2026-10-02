@@ -19,7 +19,7 @@ export type Queryable = {
 // Held for the length of the transaction, so two runs queue.
 const LOCK_KEY = 1850001;
 
-function toEntry(row: Record<string, unknown>): CatalogEntry {
+export function toEntry(row: Record<string, unknown>): CatalogEntry {
 	return {
 		id: row.id as string,
 		name: row.name as string,
@@ -105,7 +105,8 @@ export async function runGenerator(
 		await client.query("commit");
 		return { inserted: plan.insert.length, removed: plan.remove.length };
 	} catch (error) {
-		await client.query("rollback");
+		// A failed rollback must not hide the error that caused it.
+		await client.query("rollback").catch(() => undefined);
 		throw error;
 	}
 }

@@ -4,8 +4,8 @@
 -- before the frozen-through day; no move into the frozen past; a missing past
 -- day may be inserted; no truncate. It inserts its own rows (a day before the
 -- epoch, and days 30 or more after the last stored Schedule day) and rolls
--- back, so it depends on no live rows past the import. The second transaction moves the switch-over day
--- past the server's date.
+-- back, so it depends on no live rows past the import. The second
+-- transaction moves the switch-over day past the server's date.
 
 -- Runs a statement as a role and asserts it fails with a message like the
 -- pattern, so a trigger error is told apart from "permission denied".

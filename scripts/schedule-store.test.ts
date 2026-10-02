@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { type Queryable, runGenerator } from "./schedule-store.ts";
+import { type Queryable, runGenerator, toEntry } from "./schedule-store.ts";
 
 type Reply = Record<string, unknown>[];
 
@@ -110,8 +110,7 @@ test("rows after the frozen day are deleted before the new rows are inserted", a
 		entry_id: ids?.[index],
 		cycle_start: starts?.[index],
 	}));
-	// Same rows, the frozen day moved back: every row after it is replaced
-	// only if the plan differs; the second run with the same secret plans nothing.
+	// The second run with the same secret and the stored rows plans nothing.
 	const second = fakeClient({
 		frozen: "2026-10-01",
 		entries: catalog,
@@ -153,4 +152,108 @@ test("dates are read as text, never as Date objects", async () => {
 	);
 	expect(read).toContain("day::text");
 	expect(read).toContain("cycle_start::text");
+});
+
+test("a database row maps to every CatalogEntry field", () => {
+	expect(
+		toEntry({
+			id: "http",
+			kind: "protocol",
+			name: "HTTP",
+			aliases: ["web"],
+			port: 80,
+			transport: "tcp",
+			description: "d",
+			blurb: "b",
+			answer_eligible: true,
+			retired: true,
+			sources: [{ label: "l", url: "u" }],
+		}),
+	).toEqual({
+		id: "http",
+		name: "HTTP",
+		aliases: ["web"],
+		port: 80,
+		transport: "tcp",
+		description: "d",
+		blurb: "b",
+		answerEligible: true,
+		retired: true,
+		sources: [{ label: "l", url: "u" }],
+	});
+	expect(
+		toEntry({
+			id: "x",
+			name: "X",
+			aliases: [],
+			port: 1,
+			transport: "udp",
+			description: "d",
+			blurb: null,
+			answer_eligible: false,
+			retired: false,
+			sources: [],
+		}).blurb,
+	).toBeUndefined();
+});
+
+async function insertedColumns(
+	secret: string,
+	frozen = "2026-10-01",
+): Promise<unknown[]> {
+	const base = fakeClient({ frozen, entries: catalog, rows: [] });
+	let written: unknown[] = [];
+	await runGenerator(
+		{
+			async query(text, values) {
+				if (text.startsWith("insert into")) {
+					written = values ?? [];
+				}
+				return base.client.query(text, values);
+			},
+		},
+		secret,
+	);
+	return written;
+}
+
+test("the planned rows do not depend on the machine time zone", async () => {
+	const original = process.env.TZ;
+	try {
+		process.env.TZ = "UTC";
+		const utc = await insertedColumns("secret");
+		process.env.TZ = "America/Los_Angeles";
+		expect(await insertedColumns("secret")).toEqual(utc);
+	} finally {
+		if (original === undefined) {
+			delete process.env.TZ;
+		} else {
+			process.env.TZ = original;
+		}
+	}
+});
+
+test("the thrown issue text names no future entry id", async () => {
+	const written = await insertedColumns("secret", "2026-12-10");
+	const [categories, days, ids, starts] = written as string[][];
+	const stored = (categories ?? []).map((category, index) => ({
+		category,
+		day: days?.[index],
+		entry_id:
+			category === "protocols" && days?.[index] === "2026-12-18"
+				? "zz-secret"
+				: ids?.[index],
+		cycle_start: starts?.[index],
+	}));
+	const { client } = fakeClient({
+		frozen: "2026-10-01",
+		entries: catalog,
+		rows: stored,
+	});
+	const failure = await runGenerator(client, "secret").then(
+		() => "",
+		(error: Error) => error.message,
+	);
+	expect(failure).toContain("issues");
+	expect(failure).not.toContain("zz-secret");
 });
