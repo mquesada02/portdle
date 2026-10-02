@@ -79,7 +79,7 @@ test("winning shows Solved, the answer, stats, and a histogram row per try", asy
 
 	expect(screen.getByText("Guess distribution")).toBeTruthy();
 	const items = within(
-		screen.getAllByRole("list")[0] as HTMLElement,
+		screen.getByText("Guess distribution").nextElementSibling as HTMLElement,
 	).getAllByRole("listitem");
 	expect(items).toHaveLength(6);
 	// Won on the first try: bucket 1 holds the winning count (1); its
@@ -114,7 +114,7 @@ test("losing shows The answer was and an unhighlighted histogram", async () => {
 
 	expect(screen.getByText("Guess distribution")).toBeTruthy();
 	const items = within(
-		screen.getAllByRole("list")[0] as HTMLElement,
+		screen.getByText("Guess distribution").nextElementSibling as HTMLElement,
 	).getAllByRole("listitem");
 	expect(items).toHaveLength(6);
 	for (const item of items) {

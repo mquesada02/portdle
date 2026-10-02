@@ -228,7 +228,7 @@ test("a failed read shows one error line and leaves the Reveal and Share", async
 	expect(screen.getByText("Played")).toBeTruthy();
 });
 
-test("a read that answers after the player left is dropped", async () => {
+test("a read that answers after the player left leaves the new screen without a block", async () => {
 	const user = userEvent.setup();
 	const remote = createFakeRemote();
 	const release = remote.holdDailyStats();
