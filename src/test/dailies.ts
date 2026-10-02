@@ -9,10 +9,12 @@ import {
 	type CatalogEntry,
 	DAILY_CATEGORIES,
 	type DailyCategory,
+	type DailyPersist,
 	type ScheduleFile,
 	type ScheduleRow,
 } from "../engine/types";
 import { addUtcDays } from "../engine/utc";
+import type { Persist } from "../persist/storage";
 import type { Catalog } from "../remote/remote";
 
 export const UTC_TODAY = "2026-09-09";
@@ -68,4 +70,25 @@ export function padToAnswer(port: number, answer: CatalogEntry): string {
 // Every Daily category served by one entry.
 export function sameEntry(id: string): Record<DailyCategory, string> {
 	return { mixed: id, protocols: id, applications: id };
+}
+
+// Saves a Daily record of `tries` missed guesses; `extra` adds or overrides
+// record fields such as `late` or the guesses themselves.
+export function saveDaily(
+	persist: Persist,
+	category: DailyCategory,
+	date: string,
+	status: DailyPersist["status"],
+	tries: number,
+	extra: Partial<DailyPersist> = {},
+) {
+	persist.writeDaily(category, date, {
+		status,
+		guesses: Array.from({ length: tries }, (_, index) => ({
+			port: index + 1,
+			result: "miss" as const,
+			identified: null,
+		})),
+		...extra,
+	});
 }

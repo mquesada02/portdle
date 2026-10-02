@@ -23,7 +23,7 @@ export const OFFLINE_MESSAGE =
 
 // The shared panel a screen shows in place of its content when the catalog or
 // the current Dailies could not load. The message follows the connection.
-export function ErrorPanel() {
+export function ErrorPanel({ onRetry }: { onRetry?: () => void }) {
 	const { serverStore } = useRouteContext({ from: "__root__" });
 	const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine);
 	return (
@@ -32,7 +32,7 @@ export function ErrorPanel() {
 			<button
 				type="button"
 				className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
-				onClick={serverStore.retry}
+				onClick={onRetry ?? serverStore.retry}
 			>
 				Try again
 			</button>
@@ -41,9 +41,15 @@ export function ErrorPanel() {
 }
 
 // What a screen shows while the server data is not ready.
-export function LoadStatus({ state }: { state: "loading" | "failed" }) {
+export function LoadStatus({
+	state,
+	onRetry,
+}: {
+	state: "loading" | "failed";
+	onRetry?: () => void;
+}) {
 	if (state === "failed") {
-		return <ErrorPanel />;
+		return <ErrorPanel onRetry={onRetry} />;
 	}
 	return (
 		<p role="status" className="py-16 text-center text-sm">
