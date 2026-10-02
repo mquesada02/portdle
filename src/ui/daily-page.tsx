@@ -8,6 +8,7 @@ import {
 	evaluateDefaultGuess,
 } from "../engine/guess";
 import { bestMarkByDigit, computeMarks, type Mark } from "../engine/marks";
+import { puzzleNumber } from "../engine/puzzle-number";
 import { CATEGORY_LABEL } from "../engine/share";
 import {
 	type CatalogEntry,
@@ -17,6 +18,7 @@ import {
 	type DailyPersist,
 } from "../engine/types";
 import { isLate } from "../engine/utc";
+import type { CurrentDailies } from "../remote/remote";
 import { categoryStats } from "./category-stats";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
@@ -247,25 +249,74 @@ function TrackerStrip({
 	);
 }
 
+function hasTry(record: DailyPersist | null): boolean {
+	return (record?.guesses.length ?? 0) > 0;
+}
+
 export function DailyPage({ category }: { category: DailyCategory }) {
 	const { catalog, dailies } = useServerData();
 	const data = allReady(catalog, dailies);
 	if (data.status !== "ready") {
 		return <DailyLoading category={category} state={data.status} />;
 	}
-	const [{ protocols, applications }, { today, entryIds }] = data.value;
-	const puzzle = entryById(protocols, applications, entryIds[category]);
+	const [{ protocols, applications }, current] = data.value;
+	return (
+		<PinnedDaily
+			category={category}
+			protocols={protocols}
+			applications={applications}
+			current={current}
+		/>
+	);
+}
+
+// Shows one day's Daily for the life of the mount. A new server day replaces
+// it at once while the player has not committed a try on it; with a try
+// (unfinished, or finished with its Reveal) it stays until the player leaves.
+function PinnedDaily({
+	category,
+	protocols,
+	applications,
+	current,
+}: {
+	category: DailyCategory;
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+	current: CurrentDailies;
+}) {
+	const { persist } = useRouteContext({ from: "__root__" });
+	function showing(daily: CurrentDailies) {
+		return {
+			daily,
+			started: hasTry(persist.readDaily(category, daily.today)),
+		};
+	}
+	const [shown, setShown] = useState(() => showing(current));
+	if (current.today !== shown.daily.today && !shown.started) {
+		setShown(showing(current));
+	}
+	const puzzle = entryById(
+		protocols,
+		applications,
+		shown.daily.entryIds[category],
+	);
 	if (!puzzle) {
 		return <MissingPuzzle category={category} />;
 	}
 	return (
 		<DailyBoard
+			key={shown.daily.today}
 			category={category}
 			puzzle={puzzle}
 			protocols={protocols}
 			applications={applications}
-			date={today}
-			serverToday={today}
+			date={shown.daily.today}
+			serverToday={current.today}
+			onTry={() =>
+				setShown((previous) =>
+					previous.started ? previous : { ...previous, started: true },
+				)
+			}
 		/>
 	);
 }
@@ -300,6 +351,7 @@ function DailyBoard({
 	applications,
 	date,
 	serverToday,
+	onTry,
 }: {
 	category: DailyCategory;
 	puzzle: CatalogEntry;
@@ -308,6 +360,7 @@ function DailyBoard({
 	// The Daily's own day, and the server's latest today.
 	date: string;
 	serverToday: string;
+	onTry: () => void;
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
 	// Misses identify only entries still in play; a saved identification
@@ -375,6 +428,7 @@ function DailyBoard({
 		setDigits("");
 		setMessage("");
 		setBoard(next);
+		onTry();
 		noteWrite(persist.writeDaily(category, date, next));
 		if (result.status === "miss" && result.identified) {
 			noteWrite(
@@ -397,7 +451,10 @@ function DailyBoard({
 			<DailySwitcher category={category} />
 			<div className="[view-transition-name:switcher-content]">
 				<header className="mt-8 text-center">
-					<p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+					<p className="font-mono text-xs text-zinc-500">
+						#{puzzleNumber(date)} · {date}
+					</p>
+					<p className="mt-2 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
 						Which port is
 					</p>
 					<h1 className="mt-1 text-3xl font-bold tracking-tight">

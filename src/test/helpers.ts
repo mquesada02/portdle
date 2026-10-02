@@ -98,4 +98,8 @@ export async function loaded() {
 	});
 }
 
+// Lets every pending promise step and zero-delay timer run.
+export const flush = () =>
+	new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 export { OFFLINE_MESSAGE, SERVER_MESSAGE } from "../ui/server-data";

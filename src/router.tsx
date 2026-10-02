@@ -23,9 +23,6 @@ export type RouterContext = {
 	persist: Persist;
 	backend?: Backend;
 	remount: () => void;
-	// The device-clock day. Nothing reads it now; ticket #188 removes it. The
-	// Daily, Blitz, and History use the server's today from `serverStore`.
-	utcToday: string;
 	serverStore: ServerStore;
 };
 
@@ -111,7 +108,6 @@ export function createAppRouter(options: {
 	backend?: Backend;
 	remount: () => void;
 	history?: RouterHistory;
-	utcToday: string;
 	serverStore: ServerStore;
 }) {
 	return createRouter({
@@ -120,7 +116,6 @@ export function createAppRouter(options: {
 			persist: options.persist,
 			backend: options.backend,
 			remount: options.remount,
-			utcToday: options.utcToday,
 			serverStore: options.serverStore,
 		},
 		basepath: "/portdle",

@@ -64,3 +64,8 @@ export function fixtureScheduleRows(upTo: string): ScheduleRow[] {
 export function padToAnswer(port: number, answer: CatalogEntry): string {
 	return String(port).padStart(digitLength(answer.port), "0");
 }
+
+// Every Daily category served by one entry.
+export function sameEntry(id: string): Record<DailyCategory, string> {
+	return { mixed: id, protocols: id, applications: id };
+}

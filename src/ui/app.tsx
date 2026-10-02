@@ -1,7 +1,6 @@
 import type { RouterHistory } from "@tanstack/react-router";
 import { RouterProvider } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { utcDateString } from "../engine/utc";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { type Backend, createAppRouter } from "../router";
@@ -17,18 +16,6 @@ export function App({
 	remote?: Remote;
 	history?: RouterHistory;
 }) {
-	const [clockToday, setClockToday] = useState(() => utcDateString(new Date()));
-	useEffect(() => {
-		function refresh() {
-			setClockToday(utcDateString(new Date()));
-		}
-		document.addEventListener("visibilitychange", refresh);
-		window.addEventListener("focus", refresh);
-		return () => {
-			document.removeEventListener("visibilitychange", refresh);
-			window.removeEventListener("focus", refresh);
-		};
-	}, []);
 	const backend = useMemo<Backend | undefined>(
 		() =>
 			remote && {
@@ -40,7 +27,12 @@ export function App({
 	const serverStore = useMemo(() => createServerStore(remote), [remote]);
 	useEffect(() => {
 		serverStore.load();
-		return attachRetryTriggers(serverStore.retry);
+		const detachRetry = attachRetryTriggers(serverStore.retry);
+		const detach = serverStore.attach();
+		return () => {
+			detach();
+			detachRetry();
+		};
 	}, [serverStore]);
 	const sync = backend?.sync;
 	useEffect(() => {
@@ -62,10 +54,9 @@ export function App({
 				backend,
 				remount,
 				history,
-				utcToday: clockToday,
 				serverStore,
 			}),
-		[persist, backend, remount, history, clockToday, serverStore],
+		[persist, backend, remount, history, serverStore],
 	);
 	// The router moves to the Daily before the remount, so the remount opens
 	// the Daily, not the screen the player deleted from, and no screen mounts

@@ -180,6 +180,7 @@ type CatalogDbRow = {
 type ScheduleDbRow = { category: string; day: string; entry_id: string };
 
 type CurrentDailiesDbRow = {
+	server_time: string | null;
 	utc_date: string;
 	category: string;
 	entry_id: string | null;
@@ -526,8 +527,13 @@ export function createSupabaseRemote(
 			) {
 				throw new Error("Current Dailies are incomplete");
 			}
+			const serverNow = Date.parse(first.server_time ?? "");
+			if (Number.isNaN(serverNow)) {
+				throw new Error("Current Dailies have no server time");
+			}
 			return {
 				today: first.utc_date,
+				serverNow,
 				entryIds: entryIds as Record<DailyCategory, string>,
 			};
 		},

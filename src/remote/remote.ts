@@ -68,9 +68,12 @@ export type Catalog = {
 	applications: CatalogEntry[];
 };
 
-// The server's UTC date and each category's Daily entry id.
+// The server's UTC date, the server's current time, and each category's
+// Daily entry id.
 export type CurrentDailies = {
 	today: string;
+	// Epoch milliseconds.
+	serverNow: number;
 	entryIds: Record<DailyCategory, string>;
 };
 

@@ -130,6 +130,7 @@ export function DailyReveal({
 			date: utcToday,
 			status: board.status,
 			rows,
+			late: board.late === true,
 		});
 		try {
 			if (navigator.clipboard?.writeText) {

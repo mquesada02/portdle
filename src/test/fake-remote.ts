@@ -92,6 +92,8 @@ export type FakeRemote = Remote & {
 	// current Dailies and the Schedule rows follow it unless overridden.
 	catalog: Catalog;
 	today: string;
+	// The server's current time; noon UTC of `today` when null.
+	serverNow: number | null;
 	entryIds: Record<DailyCategory, string> | null;
 	scheduleRows: ScheduleRow[] | null;
 	catalogCalls: number;
@@ -184,6 +186,7 @@ export function createFakeRemote(
 		reorderKeys: false,
 		catalog: fixtureCatalog(),
 		today: UTC_TODAY,
+		serverNow: null,
 		entryIds: null,
 		scheduleRows: null,
 		catalogCalls: 0,
@@ -398,6 +401,7 @@ export function createFakeRemote(
 			}
 			return {
 				today: fake.today,
+				serverNow: fake.serverNow ?? Date.parse(`${fake.today}T12:00:00Z`),
 				entryIds: clone(fake.entryIds ?? fixtureEntryIds(fake.today)),
 			};
 		},
