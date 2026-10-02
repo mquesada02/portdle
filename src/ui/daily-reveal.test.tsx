@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { digitLength } from "../engine/guess";
+import { puzzleNumber } from "../engine/puzzle-number";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
@@ -141,8 +142,52 @@ test("Share shows the share line in a text area when the clipboard is unavailabl
 	expect(screen.queryByRole("button", { name: "Copied!" })).toBeNull();
 	const textbox = screen.getByRole("textbox") as HTMLTextAreaElement;
 	expect(textbox.value).toBe(
-		`Portdle · Mixed · ${UTC_TODAY} · 1/6\n\n${"🟩".repeat(digitLength(mixedAnswer.port))}`,
+		`Portdle #1 · Mixed · 1/6\n\n${"🟩".repeat(digitLength(mixedAnswer.port))}`,
 	);
+});
+
+async function sharedText(
+	persist: ReturnType<typeof createPersist>,
+): Promise<string> {
+	const user = userEvent.setup();
+	const copied: string[] = [];
+	withClipboard(async (text) => {
+		copied.push(text);
+	});
+	await renderDaily({ persist });
+	await user.click(screen.getByRole("button", { name: "Share" }));
+	return copied[0] ?? "";
+}
+
+function finishedRecord(late: boolean | undefined) {
+	return {
+		status: "won" as const,
+		guesses: [
+			{ port: mixedAnswer.port, result: "correct" as const, identified: null },
+		],
+		...(late === undefined ? {} : { late }),
+	};
+}
+
+test("the share line of a late play ends with late", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeDaily("mixed", UTC_TODAY, finishedRecord(true));
+	const text = await sharedText(persist);
+	expect(text.split("\n")[0]).toBe("Portdle #1 · Mixed · 1/6 · late");
+});
+
+test("the share line of a record with no late mark has no late suffix", async () => {
+	const persist = createPersist(memoryStore());
+	persist.writeDaily("mixed", UTC_TODAY, finishedRecord(undefined));
+	const text = await sharedText(persist);
+	expect(text.split("\n")[0]).toBe("Portdle #1 · Mixed · 1/6");
+});
+
+test("the Daily header shows the puzzle number and the date", async () => {
+	await renderDaily();
+	expect(
+		screen.getByText(`#${puzzleNumber(UTC_TODAY)} · ${UTC_TODAY}`),
+	).toBeTruthy();
 });
 
 test("winning a Daily during the page session calls the page scroll", async () => {
