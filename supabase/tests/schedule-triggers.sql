@@ -75,7 +75,8 @@ rollback;
 
 -- The switch-over day after the server's date: it must come first in the
 -- transaction, before anything uses the function. A row between the two dates
--- is then frozen, although it is in the server's future.
+-- is then frozen, although it is in the server's future. The days are beyond
+-- the generator's seven-day horizon, so no live row collides.
 begin;
 
 create or replace function public.switch_over_day()
@@ -83,14 +84,14 @@ returns date
 language sql
 immutable
 set search_path = ''
-as $$ select (now() at time zone 'utc')::date + 10 $$;
+as $$ select (now() at time zone 'utc')::date + 30 $$;
 
 do $$
 declare
-	frozen_future date := public.server_utc_date() + 5;
-	open_future date := public.server_utc_date() + 30;
+	frozen_future date := public.server_utc_date() + 20;
+	open_future date := public.server_utc_date() + 40;
 begin
-	assert public.schedule_frozen_through() = public.server_utc_date() + 10, 'frozen through is the later date';
+	assert public.schedule_frozen_through() = public.server_utc_date() + 30, 'frozen through is the later date';
 	grant schedule_generator to postgres;
 	insert into public.catalog_entries (id, kind, name, port, transport, description, answer_eligible)
 	values ('t184-trg2', 'protocol', 'Trg2', 80, 'tcp', 'd', true);
