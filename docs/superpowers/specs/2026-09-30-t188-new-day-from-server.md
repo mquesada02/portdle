@@ -67,7 +67,7 @@ The client asks the server for the current Dailies again when the tab regains fo
 
 ## Further Notes
 
-- #189 also deletes the same shell `syncUtcDay` lines (coordinator-approved); a trivial merge conflict there is expected.
+- #189 merged into `spec5` after this ticket was written. It deleted the same shell `syncUtcDay` lines and the streak-gap module, the `App` `utcToday` prop, and the sync module's `utcToday`; the merge keeps those removals. The Daily screen passes the board its own day and the live server today (`late` is marked on the first try from the two), and the pinned board keeps its own day.
 - Owner decisions on 2026-10-02: Q1 (the shell's `syncUtcDay`, the device-clock day state and its listeners, and the router-context `utcToday` go now; the optional `App` `utcToday` prop and the sync module's `utcToday` stay for #189), Q2 (the deviation above), Q3 (the author calls below), Q4 (the catalog reload on a missing entry, above).
 - Author calls approved with Q3: `serverNow` on `CurrentDailies`; `refreshDailies()` with no retry timer; focus listeners in the store with a 30-second throttle from the last success; an injectable clock; the Daily pin rule; a test that a Blitz run carries on; store unit tests plus App-level tests. Added after spec review (mechanics inside those calls): newest-read-wins ordering, the timer ignores the throttle, the `attach()` lifecycle.
 - PR: targets `spec5`, conventional title, body "Closes #188".
