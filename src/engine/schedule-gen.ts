@@ -44,7 +44,7 @@ function lastAssignedDay(schedule: ScheduleFile): number {
 	return max;
 }
 
-function cycleForDay(
+export function cycleForDay(
 	schedule: ScheduleFile,
 	dayIndex: number,
 ): Cycle | undefined {
