@@ -1063,19 +1063,19 @@ test("readSchedule pages until a short page and maps the rows", async () => {
 
 const DAILY_ROWS = [
 	{
-		server_time: "t",
+		server_time: "2026-10-02T12:00:00.123456+00:00",
 		utc_date: "2026-10-02",
 		category: "mixed",
 		entry_id: "a",
 	},
 	{
-		server_time: "t",
+		server_time: "2026-10-02T12:00:00.123456+00:00",
 		utc_date: "2026-10-02",
 		category: "protocols",
 		entry_id: "b",
 	},
 	{
-		server_time: "t",
+		server_time: "2026-10-02T12:00:00.123456+00:00",
 		utc_date: "2026-10-02",
 		category: "applications",
 		entry_id: "c",
@@ -1086,6 +1086,7 @@ test("readCurrentDailies posts to the function and returns the date and ids", as
 	const { remote, calls } = publicRemote([{ body: DAILY_ROWS }]);
 	expect(await remote.readCurrentDailies()).toEqual({
 		today: "2026-10-02",
+		serverNow: Date.parse("2026-10-02T12:00:00.123Z"),
 		entryIds: { mixed: "a", protocols: "b", applications: "c" },
 	});
 	expect(calls[0]?.url).toBe(`${URL}/rest/v1/rpc/current_dailies`);
@@ -1110,6 +1111,15 @@ test("readCurrentDailies rejects a null id, a missing row, and a repeated catego
 		await expect(
 			publicRemote([{ body }]).remote.readCurrentDailies(),
 		).rejects.toThrow("incomplete");
+	}
+});
+
+test("readCurrentDailies rejects a missing, null, or unparseable server time", async () => {
+	for (const server_time of [undefined, null, "not a time"]) {
+		const body = DAILY_ROWS.map((row) => ({ ...row, server_time }));
+		await expect(
+			publicRemote([{ body }]).remote.readCurrentDailies(),
+		).rejects.toThrow("server time");
 	}
 });
 
