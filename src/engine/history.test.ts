@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { groupBlitzRunsByDate, historyRows } from "./history";
+import {
+	groupBlitzRunsByDate,
+	historyRows,
+	savedFinishedRows,
+} from "./history";
 import { http, vite } from "./test-fixtures";
 import type { BlitzRun, CatalogEntry, ScheduleRow } from "./types";
 
@@ -129,5 +133,20 @@ test("groupBlitzRunsByDate groups three runs across two local dates newest first
 	expect(groupBlitzRunsByDate([newest, middle, oldest], localDate)).toEqual([
 		{ date: "2026-09-10", runs: [newest, middle] },
 		{ date: "2026-09-09", runs: [oldest] },
+	]);
+});
+
+test("savedFinishedRows keeps won and lost Dailies, newest date first, then category order", () => {
+	expect(
+		savedFinishedRows([
+			{ date: "2026-09-09", category: "applications", status: "won" },
+			{ date: "2026-09-10", category: "protocols", status: "playing" },
+			{ date: "2026-09-09", category: "mixed", status: "lost" },
+			{ date: "2026-09-10", category: "mixed", status: "won" },
+		]),
+	).toEqual([
+		{ date: "2026-09-10", category: "mixed" },
+		{ date: "2026-09-09", category: "mixed" },
+		{ date: "2026-09-09", category: "applications" },
 	]);
 });

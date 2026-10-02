@@ -97,3 +97,5 @@ export async function loaded() {
 		expect(screen.queryByText("Loading...")).toBeNull();
 	});
 }
+
+export { OFFLINE_MESSAGE, SERVER_MESSAGE } from "../ui/server-data";

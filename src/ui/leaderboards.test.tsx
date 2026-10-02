@@ -20,6 +20,7 @@ import {
 } from "../test/fake-remote";
 import {
 	memoryStore,
+	SERVER_MESSAGE,
 	stubMatchMedia,
 	stubViewTransitions,
 } from "../test/helpers";
@@ -82,10 +83,10 @@ async function openLeaderboards(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(screen.getByRole("tab", { name: "Leaderboards" }));
 }
 
-test("without a Remote the Blitz screen has no tabs and its Play side shows the failure line", async () => {
+test("without a Remote the Blitz screen has no tabs and its Play side shows the error panel", async () => {
 	await mountBlitz();
 	expect(screen.queryByRole("tablist")).toBeNull();
-	expect(await screen.findByText("Could not load puzzles.")).toBeTruthy();
+	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
 	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
 });
 
