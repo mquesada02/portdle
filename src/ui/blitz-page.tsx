@@ -35,7 +35,7 @@ import { type LeaderboardPicker, Leaderboards } from "./leaderboards";
 import { ProgressNotice } from "./notice";
 import { RoundLog } from "./round-log";
 import { LoadStatus, useServerData } from "./server-data";
-import { notReady } from "./server-store";
+import { allReady } from "./server-store";
 import { Typeahead } from "./typeahead";
 import { runViewTransition } from "./view-transition";
 
@@ -509,7 +509,7 @@ export function BlitzPage() {
 	// only with both, and they never go back to loading, so a run always has its
 	// catalog. The Leaderboards tab needs neither.
 	const { catalog, dailies } = useServerData();
-	const waiting = notReady(catalog, dailies);
+	const data = allReady(catalog, dailies);
 	const protocols =
 		catalog.status === "ready" ? catalog.value.protocols : NO_ENTRIES;
 	const applications =
@@ -810,7 +810,7 @@ export function BlitzPage() {
 		const lastRun = persist.readBlitzRuns()[0];
 		const bests = persist.readBlitzBests();
 		const arena =
-			waiting === null ? (
+			data.status === "ready" ? (
 				<>
 					<button
 						type="button"
@@ -826,7 +826,7 @@ export function BlitzPage() {
 					<BestsTable bests={bests} />
 				</>
 			) : (
-				<LoadStatus state={waiting} />
+				<LoadStatus state={data.status} />
 			);
 		return (
 			<>

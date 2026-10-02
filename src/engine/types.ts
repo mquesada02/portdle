@@ -5,6 +5,9 @@ export const DAILY_CATEGORIES: DailyCategory[] = [
 	"protocols",
 	"applications",
 ];
+export function isDailyCategory(value: string): value is DailyCategory {
+	return (DAILY_CATEGORIES as string[]).includes(value);
+}
 export type Orientation = "default" | "inverted";
 export type BlitzMode = "sprint" | "marathon" | "survival";
 export type Transport = "tcp" | "udp" | "both";

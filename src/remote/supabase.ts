@@ -3,6 +3,7 @@ import {
 	type CatalogEntry,
 	DAILY_CATEGORIES,
 	type DailyCategory,
+	isDailyCategory,
 	type ScheduleRow,
 } from "../engine/types";
 import {
@@ -126,15 +127,28 @@ const CONFLICT_COLUMNS = {
 	preferences: "account_id",
 } as const;
 
+// Collects pages from `fetchPage(from)` until a page is short.
+async function readPages<T>(
+	fetchPage: (from: number) => Promise<T[]>,
+): Promise<T[]> {
+	const all: T[] = [];
+	for (let from = 0; ; from += PAGE_SIZE) {
+		const page = await fetchPage(from);
+		all.push(...page);
+		if (page.length < PAGE_SIZE) {
+			return all;
+		}
+	}
+}
+
 // Reads a whole table in pages, ordered by primary key so no page skips or
 // repeats a row.
-async function readAll<T>(
+function readAll<T>(
 	supabase: SupabaseClient,
 	table: string,
 	order: string[],
 ): Promise<T[]> {
-	const all: T[] = [];
-	for (let from = 0; ; from += PAGE_SIZE) {
+	return readPages(async (from) => {
 		let query = supabase.from(table).select("*");
 		for (const column of order) {
 			query = query.order(column);
@@ -143,12 +157,8 @@ async function readAll<T>(
 		if (error) {
 			throw error;
 		}
-		const page = (data ?? []) as T[];
-		all.push(...page);
-		if (page.length < PAGE_SIZE) {
-			return all;
-		}
-	}
+		return (data ?? []) as T[];
+	});
 }
 
 type CatalogDbRow = {
@@ -232,18 +242,10 @@ export function createSupabaseRemote(
 		return (await response.json()) as T;
 	}
 
-	// Pages through a table read until a page is short.
-	async function fetchAllRows<T>(path: string): Promise<T[]> {
-		const all: T[] = [];
-		for (let offset = 0; ; offset += PAGE_SIZE) {
-			const page = await restJson<T[]>(
-				`${path}&limit=${PAGE_SIZE}&offset=${offset}`,
-			);
-			all.push(...page);
-			if (page.length < PAGE_SIZE) {
-				return all;
-			}
-		}
+	function fetchAllRows<T>(path: string): Promise<T[]> {
+		return readPages((offset) =>
+			restJson<T[]>(`${path}&limit=${PAGE_SIZE}&offset=${offset}`),
+		);
 	}
 
 	const redirect = parseAuthRedirect(location.search, location.hash);
@@ -498,11 +500,14 @@ export function createSupabaseRemote(
 			);
 			const entryIds: Partial<Record<DailyCategory, string>> = {};
 			for (const row of rows) {
-				const category = DAILY_CATEGORIES.find((c) => c === row.category);
-				if (!category || row.entry_id === null || category in entryIds) {
+				if (
+					!isDailyCategory(row.category) ||
+					row.entry_id === null ||
+					row.category in entryIds
+				) {
 					throw new Error("Current Dailies are incomplete");
 				}
-				entryIds[category] = row.entry_id;
+				entryIds[row.category] = row.entry_id;
 			}
 			const [first] = rows;
 			if (!first || DAILY_CATEGORIES.some((c) => !(c in entryIds))) {
@@ -518,11 +523,14 @@ export function createSupabaseRemote(
 				"schedule?select=category,day,entry_id&order=day,category",
 			);
 			return rows.map((row) => {
-				const category = DAILY_CATEGORIES.find((c) => c === row.category);
-				if (!category) {
+				if (!isDailyCategory(row.category)) {
 					throw new Error(`Unknown Schedule category: ${row.category}`);
 				}
-				return { category, date: row.day, entryId: row.entry_id };
+				return {
+					category: row.category,
+					date: row.day,
+					entryId: row.entry_id,
+				};
 			});
 		},
 		redirectError: () => pendingError,

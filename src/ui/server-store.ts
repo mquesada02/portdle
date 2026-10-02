@@ -65,13 +65,19 @@ export function createServerStore(remote?: Remote): ServerStore {
 	};
 }
 
-// Why a screen cannot show yet, from the reads it needs: failed if any failed,
-// else loading if any is still loading, else null.
-export function notReady(
-	...needs: Array<Loadable<unknown>>
-): "loading" | "failed" | null {
+// The reads a screen needs as one: failed if any failed, else loading if any
+// is still loading, else ready with every value.
+export function allReady<T extends unknown[]>(
+	...needs: { [K in keyof T]: Loadable<T[K]> }
+): Loadable<T> {
 	if (needs.some((need) => need.status === "failed")) {
-		return "failed";
+		return { status: "failed" };
 	}
-	return needs.some((need) => need.status === "loading") ? "loading" : null;
+	if (needs.some((need) => need.status === "loading")) {
+		return { status: "loading" };
+	}
+	return {
+		status: "ready",
+		value: needs.map((need) => (need as { value: unknown }).value) as T,
+	};
 }

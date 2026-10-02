@@ -24,7 +24,7 @@ import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { LoadStatus, useServerData } from "./server-data";
-import { notReady } from "./server-store";
+import { allReady } from "./server-store";
 import { categoryStreakGap } from "./sync-utc";
 
 const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
@@ -249,16 +249,12 @@ function TrackerStrip({
 
 export function DailyPage({ category }: { category: DailyCategory }) {
 	const { catalog, dailies } = useServerData();
-	const waiting = notReady(catalog, dailies);
-	const entryId =
-		dailies.status === "ready" ? dailies.value.entryIds[category] : undefined;
-	const puzzle =
-		catalog.status === "ready" && entryId !== undefined
-			? entryById(catalog.value.protocols, catalog.value.applications, entryId)
-			: undefined;
-	if (waiting || catalog.status !== "ready" || dailies.status !== "ready") {
-		return <DailyLoading category={category} state={waiting ?? "failed"} />;
+	const data = allReady(catalog, dailies);
+	if (data.status !== "ready") {
+		return <DailyLoading category={category} state={data.status} />;
 	}
+	const [{ protocols, applications }, { today, entryIds }] = data.value;
+	const puzzle = entryById(protocols, applications, entryIds[category]);
 	if (!puzzle) {
 		return <DailyLoading category={category} state="failed" />;
 	}
@@ -266,9 +262,9 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 		<DailyBoard
 			category={category}
 			puzzle={puzzle}
-			protocols={catalog.value.protocols}
-			applications={catalog.value.applications}
-			utcToday={dailies.value.today}
+			protocols={protocols}
+			applications={applications}
+			utcToday={today}
 		/>
 	);
 }

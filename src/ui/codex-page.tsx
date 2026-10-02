@@ -16,7 +16,6 @@ import { transportLabel } from "./daily-reveal";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { LoadStatus, useServerData } from "./server-data";
-import { notReady } from "./server-store";
 import { runViewTransition } from "./view-transition";
 
 const KIND_LABEL: Record<CatalogKind, string> = {
@@ -196,12 +195,11 @@ function UnseenCard({ id }: { id: string }) {
 // Codex, until the catalog is ready.
 export function CodexPage() {
 	const { catalog } = useServerData();
-	const waiting = notReady(catalog);
-	if (waiting || catalog.status !== "ready") {
+	if (catalog.status !== "ready") {
 		return (
 			<main className="mx-auto w-full max-w-3xl px-4 pb-6">
 				<h1 className="text-2xl font-bold tracking-tight">Codex</h1>
-				<LoadStatus state={waiting ?? "failed"} />
+				<LoadStatus state={catalog.status} />
 			</main>
 		);
 	}

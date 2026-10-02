@@ -1,4 +1,3 @@
-import { entryById } from "./catalog";
 import type {
 	BlitzRun,
 	CatalogEntry,
@@ -22,6 +21,12 @@ export function historyRows(input: {
 	finishedToday: Record<DailyCategory, boolean>;
 }): HistoryRow[] {
 	const rows: HistoryRow[] = [];
+	const entries = new Map(
+		[...input.protocols, ...input.applications].map((entry) => [
+			entry.id,
+			entry,
+		]),
+	);
 	for (const { category, date, entryId } of input.schedule) {
 		if (date > input.utcToday) {
 			continue;
@@ -29,7 +34,7 @@ export function historyRows(input: {
 		if (date === input.utcToday && !input.finishedToday[category]) {
 			continue;
 		}
-		const entry = entryById(input.protocols, input.applications, entryId);
+		const entry = entries.get(entryId);
 		if (!entry) {
 			continue;
 		}
