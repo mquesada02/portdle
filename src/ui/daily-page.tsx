@@ -17,6 +17,7 @@ import {
 	type DailyCategory,
 	type DailyPersist,
 } from "../engine/types";
+import { isLate } from "../engine/utc";
 import { categoryStats } from "./category-stats";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
@@ -264,6 +265,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 			protocols={protocols}
 			applications={applications}
 			utcToday={today}
+			serverToday={today}
 		/>
 	);
 }
@@ -289,12 +291,15 @@ function DailyBoard({
 	protocols,
 	applications,
 	utcToday,
+	serverToday,
 }: {
 	category: DailyCategory;
 	puzzle: CatalogEntry;
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
+	// The Daily's own day, and the server's latest today.
 	utcToday: string;
+	serverToday: string;
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
 	// Misses identify only entries still in play; a saved identification
@@ -312,7 +317,7 @@ function DailyBoard({
 
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
-	const stats: CategoryStats = categoryStats(persist, category, utcToday);
+	const stats: CategoryStats = categoryStats(persist, category, serverToday);
 
 	function noteWrite(result: { ok: boolean }) {
 		if (!result.ok) {
@@ -343,9 +348,11 @@ function DailyBoard({
 			previousPorts,
 			catalog,
 		});
-		// This screen plays only server today's Daily, so a new record is
-		// on-day. The Archive board (#190) passes `isLate(date, serverToday)`.
-		const next = applyCommittedGuess(current, result, false);
+		const next = applyCommittedGuess(
+			current,
+			result,
+			isLate(utcToday, serverToday),
+		);
 		if (next.status === "invalid") {
 			setMessage(
 				digits.length < length ? "Not enough digits." : "Not a valid port.",
