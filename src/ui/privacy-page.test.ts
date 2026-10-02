@@ -46,8 +46,8 @@ test("page links back to the game and shows the contact email", () => {
 });
 
 test("page shows a last updated date", () => {
-	expect(page.querySelector('time[datetime="2026-09-30"]')).toBeTruthy();
-	expect(text).toContain("Last updated: September 30, 2026");
+	expect(page.querySelector('time[datetime="2026-10-02"]')).toBeTruthy();
+	expect(text).toContain("Last updated: October 2, 2026");
 });
 
 test("page states what Portdle stores and who can see it", () => {
@@ -62,6 +62,9 @@ test("page states what Portdle stores and who can see it", () => {
 	);
 	expect(text).toContain("Other players cannot see them");
 	expect(text).toContain("display name, score, time to score, and rank");
+	expect(text).toContain(
+		"Your Daily results also count, without your name, in public per-Daily totals: how many players finished a Daily and how many tries they needed.",
+	);
 	expect(text).toContain("Supabase");
 	expect(text).toContain("São Paulo");
 	expect(text).toContain("no ads, no tracking, and no selling of data");
