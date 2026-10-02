@@ -226,7 +226,7 @@ function laterMixedSwapIndex(
 type DistinctnessOptions = {
 	// Swap only inside one cycle, so each cycle keeps each entry once. A
 	// collision with no such swap is reported in `issues`.
-	sameCycleOnly?: { issues: string[]; epoch: string };
+	sameCycleOnly?: { issues: string[] };
 };
 
 export function sameCycleSwapIndex(
@@ -302,7 +302,7 @@ function resolveDistinctness(
 					cycle.order[day - cycle.startDay] = laterId as string;
 				} else {
 					options.sameCycleOnly.issues.push(
-						`mixed collision on ${addUtcDays(options.sameCycleOnly.epoch, day)} has no swap`,
+						`mixed collision on ${addUtcDays(mixed.epoch, day)} has no swap`,
 					);
 				}
 				day += 1;
@@ -729,7 +729,7 @@ export function generateFromRows(input: {
 		Math.min(frozenIndex, storedLast.mixed) + 1,
 		new Set(poolIds("mixed", input.protocols, input.applications)),
 		input.random,
-		{ sameCycleOnly: { issues, epoch: SCHEDULE_EPOCH } },
+		{ sameCycleOnly: { issues } },
 	);
 	issues.push(
 		...validateSchedules({
