@@ -11,7 +11,6 @@ import { bestMarkByDigit, computeMarks, type Mark } from "../engine/marks";
 import { CATEGORY_LABEL } from "../engine/share";
 import {
 	type CatalogEntry,
-	type CategoryStats,
 	type CodexEncounter,
 	DAILY_CATEGORIES,
 	type DailyCategory,
@@ -317,7 +316,6 @@ function DailyBoard({
 
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
-	const stats: CategoryStats = categoryStats(persist, category, serverToday);
 
 	function noteWrite(result: { ok: boolean }) {
 		if (!result.ok) {
@@ -451,7 +449,7 @@ function DailyBoard({
 						category={category}
 						puzzle={puzzle}
 						board={board}
-						stats={stats}
+						stats={categoryStats(persist, category, serverToday)}
 						utcToday={date}
 						finishedThisSession={finishedThisSession}
 					/>

@@ -14,6 +14,7 @@ import type {
 	StoredBlitzBests,
 	WrongAnswer,
 } from "../engine/types";
+import { DAILY_CATEGORIES } from "../engine/types";
 
 export type Theme = "system" | "light" | "dark";
 
@@ -63,8 +64,6 @@ const SYNC_ACCOUNT_KEY = "portdle:v1:syncAccount";
 const KEY_PREFIX = "portdle:";
 // The keys of stats that were stored before stats were folded from records.
 const STORED_STATS_KEY = /^portdle:v1:(stats:.+|lastPlayed:.+|lastSeenUtc)$/;
-const DAILY_STORE_KEY =
-	/^portdle:v1:daily:(mixed|protocols|applications):(\d{4}-\d{2}-\d{2})$/;
 
 function dailyKeyPrefix(category: DailyCategory): string {
 	return `portdle:v1:daily:${category}:`;
@@ -465,7 +464,6 @@ export function createPersist(store: KeyValueStore): Persist {
 		},
 		applySwitchOver(switchOverDay) {
 			let ok = true;
-			const discarded = new Set<string>();
 			for (const key of storeKeys(store)) {
 				if (STORED_STATS_KEY.test(key)) {
 					try {
@@ -473,36 +471,31 @@ export function createPersist(store: KeyValueStore): Persist {
 					} catch {
 						ok = false;
 					}
-					continue;
-				}
-				const match = DAILY_STORE_KEY.exec(key);
-				const value = match ? readJson(store, key) : undefined;
-				if (!match || !isDailyPersist(value) || value.late !== undefined) {
-					continue;
-				}
-				const category = match[1] as DailyCategory;
-				const date = match[2] as string;
-				if (date <= switchOverDay) {
-					if (
-						!write(
-							key,
-							{ ...value, late: false },
-							{ kind: "daily", category, date },
-						).ok
-					) {
-						ok = false;
-					}
-					continue;
-				}
-				try {
-					store.removeItem(key);
-					discarded.add(pendingDailyKey(category, date));
-				} catch {
-					ok = false;
 				}
 			}
-			const changes = persist.readSyncChanges();
-			if (changes.dailies.some((key) => discarded.has(key))) {
+			const discarded = new Set<string>();
+			for (const category of DAILY_CATEGORIES) {
+				for (const date of persist.listDailyDates(category)) {
+					const daily = persist.readDaily(category, date);
+					if (!daily || daily.late !== undefined) {
+						continue;
+					}
+					if (date <= switchOverDay) {
+						ok =
+							persist.writeDaily(category, date, { ...daily, late: false })
+								.ok && ok;
+						continue;
+					}
+					try {
+						store.removeItem(dailyKey(category, date));
+						discarded.add(pendingDailyKey(category, date));
+					} catch {
+						ok = false;
+					}
+				}
+			}
+			if (discarded.size > 0) {
+				const changes = persist.readSyncChanges();
 				const dailies = changes.dailies.filter((key) => !discarded.has(key));
 				if (!persist.writeSyncChanges({ ...changes, dailies }).ok) {
 					ok = false;
