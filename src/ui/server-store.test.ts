@@ -61,3 +61,22 @@ test("retry reloads only the failed reads and ignores one in flight", async () =
 	store.retry();
 	expect(remote.dailiesCalls).toBe(2);
 });
+
+test("rejectCatalog fails only a ready catalog, and a retry reloads it", async () => {
+	const remote = createFakeRemote();
+	const release = remote.holdCatalog();
+	const store = createServerStore(remote);
+	store.load();
+	store.rejectCatalog();
+	expect(store.getSnapshot().catalog.status).toBe("loading");
+	release();
+	await vi.advanceTimersByTimeAsync(0);
+	expect(store.getSnapshot().catalog.status).toBe("ready");
+	store.rejectCatalog();
+	expect(store.getSnapshot().catalog.status).toBe("failed");
+	expect(store.getSnapshot().dailies.status).toBe("ready");
+	store.retry();
+	expect(store.getSnapshot().catalog.status).toBe("loading");
+	expect(remote.catalogCalls).toBe(2);
+	expect(remote.dailiesCalls).toBe(1);
+});
