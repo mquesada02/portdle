@@ -111,19 +111,17 @@ test("the real migration holds every entry and a row per day", () => {
 });
 
 test("the SQL category lists match DAILY_CATEGORIES", () => {
-	const dir = join(dirname(migrationPath));
-	const lists = [
-		readFileSync(
-			join(dir, "20261001000008_catalog_schedule_tables.sql"),
-			"utf8",
-		).match(/category in \(([^)]*)\)/),
-		readFileSync(join(dir, "20261001000011_current_dailies.sql"), "utf8").match(
-			/values \(1, ([^)]*)\), \(2, ([^)]*)\), \(3, ([^)]*)\)/,
-		),
-	];
+	const dir = dirname(migrationPath);
+	const read = (name: string) => readFileSync(join(dir, name), "utf8");
+	const check = read("20261001000008_catalog_schedule_tables.sql").match(
+		/category in \(([^)]*)\)/,
+	);
+	const values = read("20261001000011_current_dailies.sql").match(
+		/values \(1, ([^)]*)\), \(2, ([^)]*)\), \(3, ([^)]*)\)/,
+	);
 	const expected = DAILY_CATEGORIES.map((category) => `'${category}'`);
-	expect(lists[0]?.[1]?.split(", ")).toEqual(expected);
-	expect(lists[1]?.slice(1)).toEqual(expected);
+	expect(check?.[1]?.split(", ")).toEqual(expected);
+	expect(values?.slice(1)).toEqual(expected);
 });
 
 test("the committed migration matches the committed files and constant", () => {
