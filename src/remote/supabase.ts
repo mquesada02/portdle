@@ -229,12 +229,7 @@ export function createSupabaseRemote(
 	async function restJson<T>(path: string, init?: RequestInit): Promise<T> {
 		const response = await fetchJson(`${url}/rest/v1/${path}`, {
 			...init,
-			headers: {
-				apikey: anonKey,
-				...(init?.body === undefined
-					? {}
-					: { "Content-Type": "application/json" }),
-			},
+			headers: { apikey: anonKey, ...init?.headers },
 		});
 		if (!response.ok) {
 			throw new Error(`Request failed: ${response.status}`);
@@ -496,21 +491,25 @@ export function createSupabaseRemote(
 		async readCurrentDailies(): Promise<CurrentDailies> {
 			const rows = await restJson<CurrentDailiesDbRow[]>(
 				"rpc/current_dailies",
-				{ method: "POST", body: "{}" },
+				{
+					method: "POST",
+					body: "{}",
+					headers: { "Content-Type": "application/json" },
+				},
 			);
 			const entryIds: Partial<Record<DailyCategory, string>> = {};
 			for (const row of rows) {
-				if (
-					!isDailyCategory(row.category) ||
-					row.entry_id === null ||
-					row.category in entryIds
-				) {
-					throw new Error("Current Dailies are incomplete");
+				if (isDailyCategory(row.category) && row.entry_id !== null) {
+					entryIds[row.category] = row.entry_id;
 				}
-				entryIds[row.category] = row.entry_id;
 			}
+			// One row per category, each with an entry id.
 			const [first] = rows;
-			if (!first || DAILY_CATEGORIES.some((c) => !(c in entryIds))) {
+			if (
+				!first ||
+				rows.length !== DAILY_CATEGORIES.length ||
+				DAILY_CATEGORIES.some((c) => !(c in entryIds))
+			) {
 				throw new Error("Current Dailies are incomplete");
 			}
 			return {

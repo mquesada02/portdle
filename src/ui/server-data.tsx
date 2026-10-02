@@ -11,13 +11,9 @@ export function useServerData(): ServerData {
 // TEMPORARY (approved stand-in): this plain failure line has no retry. The
 // shared error panel of ticket #187 replaces it.
 export function LoadStatus({ state }: { state: "loading" | "failed" }) {
-	return state === "loading" ? (
+	return (
 		<p role="status" className="py-16 text-center text-sm">
-			Loading...
-		</p>
-	) : (
-		<p role="status" className="py-16 text-center text-sm">
-			Could not load puzzles.
+			{state === "loading" ? "Loading..." : "Could not load puzzles."}
 		</p>
 	);
 }

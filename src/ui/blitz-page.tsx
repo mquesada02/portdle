@@ -510,12 +510,11 @@ export function BlitzPage() {
 	// catalog. The Leaderboards tab needs neither.
 	const { catalog, dailies } = useServerData();
 	const data = allReady(catalog, dailies);
-	const protocols =
-		catalog.status === "ready" ? catalog.value.protocols : NO_ENTRIES;
-	const applications =
-		catalog.status === "ready" ? catalog.value.applications : NO_ENTRIES;
-	const dailyIds =
-		dailies.status === "ready" ? Object.values(dailies.value.entryIds) : [];
+	const [loadedCatalog, loadedDailies] =
+		data.status === "ready" ? data.value : [];
+	const protocols = loadedCatalog?.protocols ?? NO_ENTRIES;
+	const applications = loadedCatalog?.applications ?? NO_ENTRIES;
+	const dailyIds = loadedDailies ? Object.values(loadedDailies.entryIds) : [];
 	// Read once, at mount: the dialog preselects the last run's setup, or the
 	// fixed fallback when there is none.
 	const [initialSetup] = useState(() => {
