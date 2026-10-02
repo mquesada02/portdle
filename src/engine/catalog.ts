@@ -41,7 +41,9 @@ export function entryById(
 	applications: CatalogEntry[],
 	id: string,
 ): CatalogEntry | undefined {
-	return [...protocols, ...applications].find((entry) => entry.id === id);
+	return catalogFor("mixed", protocols, applications).find(
+		(entry) => entry.id === id,
+	);
 }
 
 export function answerPool(catalog: CatalogEntry[]): CatalogEntry[] {
