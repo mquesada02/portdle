@@ -63,14 +63,7 @@ async function mountBlitz(
 	persist.writeHowToSeen();
 	seed?.(persist);
 	const history = createMemoryHistory({ initialEntries: ["/portdle/blitz"] });
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday="2026-09-09"
-		/>,
-	);
+	render(<App persist={persist} remote={remote} history={history} />);
 	await screen.findByRole("navigation", { name: "Main" });
 	if (remote?.state.status === "signedIn") {
 		await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));

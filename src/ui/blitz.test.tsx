@@ -34,12 +34,7 @@ async function renderBlitz(
 		initialEntries: ["/portdle/blitz"],
 	});
 	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();
@@ -581,12 +576,7 @@ test("history still has heading History", async () => {
 		initialEntries: ["/portdle/history"],
 	});
 	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
 	);
 	await screen.findByRole("heading", { level: 1, name: "History" });
 });
@@ -684,12 +674,7 @@ test("visiting History leaves the codex store unchanged", async () => {
 		initialEntries: ["/portdle/history"],
 	});
 	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
 	);
 	await screen.findByRole("heading", { level: 1, name: "History" });
 	expect(persist.readCodex()).toEqual({

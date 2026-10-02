@@ -23,14 +23,7 @@ async function renderHistory(
 	const history = createMemoryHistory({
 		initialEntries: [path],
 	});
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
-	);
+	render(<App persist={persist} remote={remote} history={history} />);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();
 }
@@ -326,7 +319,6 @@ test("History shows loading until the past rows arrive", async () => {
 			persist={createPersist(memoryStore())}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: ["/portdle/history"] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	expect(await screen.findByText("Loading...")).toBeTruthy();

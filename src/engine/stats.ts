@@ -1,5 +1,5 @@
 import type { CategoryStats, DailyPersist } from "./types";
-import { yesterdayUtc } from "./utc";
+import { addUtcDays, yesterdayUtc } from "./utc";
 
 export function emptyStats(): CategoryStats {
 	return {
@@ -15,50 +15,52 @@ export function winPercent(stats: CategoryStats): number {
 	return stats.played === 0 ? 0 : stats.wins / stats.played;
 }
 
-export function applyStreakGap(input: {
-	stats: CategoryStats;
-	utcToday: string;
-	lastPlayed: string | null;
-	yesterdayPersist: DailyPersist | null;
+// Folds one category's saved Dailies into its stats at the server's today.
+// A finished record counts in the totals, late or not. Only on-day records
+// count for streaks: any other day (no record, unfinished, lost, or late
+// only) ends a run. Today's unfinished Daily does not break the current
+// streak. Records after the server's today are ignored.
+export function foldStats(input: {
+	dailies: Record<string, DailyPersist>;
+	serverToday: string;
 }): CategoryStats {
-	const { stats, utcToday, lastPlayed, yesterdayPersist } = input;
-	if (yesterdayPersist?.status === "playing") {
-		return { ...stats, currentStreak: 0 };
+	const { dailies, serverToday } = input;
+	const stats = emptyStats();
+	const winDays = new Set<string>();
+	for (const date of Object.keys(dailies).sort()) {
+		const daily = dailies[date];
+		if (!daily || date > serverToday || daily.status === "playing") {
+			continue;
+		}
+		stats.played += 1;
+		if (daily.status === "won") {
+			stats.wins += 1;
+			const bucket = daily.guesses.length - 1;
+			if (bucket >= 0 && bucket < stats.histogram.length) {
+				stats.histogram[bucket] = (stats.histogram[bucket] ?? 0) + 1;
+			}
+			if (daily.late !== true) {
+				winDays.add(date);
+			}
+		}
 	}
-	if (lastPlayed === null) {
-		return stats;
+	let run = 0;
+	let previous: string | null = null;
+	for (const date of [...winDays].sort()) {
+		run = previous !== null && addUtcDays(previous, 1) === date ? run + 1 : 1;
+		stats.bestStreak = Math.max(stats.bestStreak, run);
+		previous = date;
 	}
-	if (lastPlayed < yesterdayUtc(utcToday)) {
-		return { ...stats, currentStreak: 0 };
+	const today = dailies[serverToday];
+	const lostToday = today?.status === "lost" && today.late !== true;
+	if (!lostToday) {
+		let day = winDays.has(serverToday)
+			? serverToday
+			: yesterdayUtc(serverToday);
+		while (winDays.has(day)) {
+			stats.currentStreak += 1;
+			day = yesterdayUtc(day);
+		}
 	}
 	return stats;
-}
-
-export function applyDailyFinish(input: {
-	stats: CategoryStats;
-	result: "won" | "lost";
-	tries: number;
-}): CategoryStats {
-	const histogram: CategoryStats["histogram"] = [...input.stats.histogram];
-	if (input.result === "won") {
-		const bucket = input.tries - 1;
-		if (bucket >= 0 && bucket < histogram.length) {
-			histogram[bucket] = (histogram[bucket] ?? 0) + 1;
-		}
-		const currentStreak = input.stats.currentStreak + 1;
-		return {
-			played: input.stats.played + 1,
-			wins: input.stats.wins + 1,
-			currentStreak,
-			bestStreak: Math.max(input.stats.bestStreak, currentStreak),
-			histogram,
-		};
-	}
-	return {
-		played: input.stats.played + 1,
-		wins: input.stats.wins,
-		currentStreak: 0,
-		bestStreak: input.stats.bestStreak,
-		histogram,
-	};
 }

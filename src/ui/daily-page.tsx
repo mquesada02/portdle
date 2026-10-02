@@ -9,7 +9,6 @@ import {
 } from "../engine/guess";
 import { bestMarkByDigit, computeMarks, type Mark } from "../engine/marks";
 import { CATEGORY_LABEL } from "../engine/share";
-import { applyDailyFinish, emptyStats } from "../engine/stats";
 import {
 	type CatalogEntry,
 	type CategoryStats,
@@ -18,6 +17,7 @@ import {
 	type DailyCategory,
 	type DailyPersist,
 } from "../engine/types";
+import { categoryStats } from "./category-stats";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
@@ -25,7 +25,6 @@ import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { LoadStatus, useServerData } from "./server-data";
 import { allReady } from "./server-store";
-import { categoryStreakGap } from "./sync-utc";
 
 const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
 	mixed: "/",
@@ -313,7 +312,7 @@ function DailyBoard({
 
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
-	const stats: CategoryStats = persist.readStats(category) ?? emptyStats();
+	const stats: CategoryStats = categoryStats(persist, category, utcToday);
 
 	function noteWrite(result: { ok: boolean }) {
 		if (!result.ok) {
@@ -344,7 +343,9 @@ function DailyBoard({
 			previousPorts,
 			catalog,
 		});
-		const next = applyCommittedGuess(current, result);
+		// This screen plays only server today's Daily, so a new record is
+		// on-day. The Archive board (#190) passes `isLate(date, serverToday)`.
+		const next = applyCommittedGuess(current, result, false);
 		if (next.status === "invalid") {
 			setMessage(
 				digits.length < length ? "Not enough digits." : "Not a valid port.",
@@ -374,17 +375,6 @@ function DailyBoard({
 				}),
 			);
 			setFinishedThisSession(true);
-			if (persist.readLastPlayed(category) !== utcToday) {
-				const gapped = categoryStreakGap(persist, category, utcToday);
-				const finished = applyDailyFinish({
-					stats: gapped,
-					result: next.status,
-					tries: next.guesses.length,
-				});
-				noteWrite(persist.writeStats(category, finished));
-				noteWrite(persist.writeLastPlayed(category, utcToday));
-			}
-			noteWrite(persist.writeLastSeenUtc(utcToday));
 		}
 	}
 

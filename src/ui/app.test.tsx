@@ -28,14 +28,7 @@ async function renderApp(options: {
 	if (options.utcToday !== undefined) {
 		remote.today = options.utcToday;
 	}
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday={options.utcToday ?? "2026-09-09"}
-		/>,
-	);
+	render(<App persist={persist} remote={remote} history={history} />);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();
 	return persist;

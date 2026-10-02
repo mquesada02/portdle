@@ -64,6 +64,9 @@ export type DailyPersist = {
 		result: "correct" | "miss";
 		identified: Identified | null;
 	}>;
+	// Set at the first committed try and never changed; an absent value
+	// (a record saved before `late` existed, or a pulled null) reads as on-day.
+	late?: boolean;
 };
 
 export type BlitzBestsKey = `${DailyCategory}|${Orientation}|${BlitzMode}`;

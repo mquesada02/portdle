@@ -3,6 +3,8 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { digitLength } from "../engine/guess";
+import type { DailyPersist } from "../engine/types";
+import { addUtcDays } from "../engine/utc";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
@@ -34,17 +36,17 @@ async function renderDaily(
 	if (options.utcToday !== undefined) {
 		remote.today = options.utcToday;
 	}
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday={options.utcToday ?? UTC_TODAY}
-		/>,
-	);
+	render(<App persist={persist} remote={remote} history={history} />);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();
 	return persist;
+}
+
+// The Reveal's Played figure.
+function playedCount(): string | undefined {
+	return (
+		screen.getByText("Played").nextElementSibling?.textContent ?? undefined
+	);
 }
 
 afterEach(() => {
@@ -76,12 +78,7 @@ test("first slot regains focus after Got it closes How-to", async () => {
 	const persist = createPersist(memoryStore());
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
 	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
 	);
 	await screen.findByRole("dialog", { name: "How-to" });
 	const user = userEvent.setup();
@@ -230,9 +227,8 @@ test("correct guess wins, reveals, stats, and copies share text", async () => {
 	await user.click(screen.getByRole("button", { name: "Share" }));
 	expect(copied[0]).toBe(`Portdle · Mixed · ${UTC_TODAY} · 1/6\n\n🟩🟩🟩🟩`);
 	expect(persist.readDaily("mixed", UTC_TODAY)?.status).toBe("won");
-	expect(persist.readLastPlayed("mixed")).toBe(UTC_TODAY);
-	expect(persist.readLastSeenUtc()).toBe(UTC_TODAY);
-	expect(persist.readStats("mixed")?.played).toBe(1);
+	expect(persist.readDaily("mixed", UTC_TODAY)?.late).toBe(false);
+	expect(playedCount()).toBe("1");
 	expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
 });
 
@@ -241,7 +237,7 @@ test("double submit of a winning guess counts played once", async () => {
 	const persist = await renderDaily();
 	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
 	await user.dblClick(screen.getByRole("button", { name: "Submit" }));
-	expect(persist.readStats("mixed")?.played).toBe(1);
+	expect(playedCount()).toBe("1");
 	expect(persist.readDaily("mixed", UTC_TODAY)?.guesses).toHaveLength(1);
 });
 
@@ -353,12 +349,7 @@ test("how-to still appears on first mixed visit", async () => {
 	const persist = createPersist(memoryStore());
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
 	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
 	);
 	expect(await screen.findByRole("dialog", { name: "How-to" })).toBeTruthy();
 	expect(
@@ -401,7 +392,6 @@ test("a build with no backend shows the failure line", async () => {
 		<App
 			persist={persist}
 			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	expect(await screen.findByText("Could not load puzzles.")).toBeTruthy();
@@ -418,7 +408,6 @@ test("the Daily shows loading until both reads arrive", async () => {
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	expect(await screen.findByText("Loading...")).toBeTruthy();
@@ -440,7 +429,6 @@ test("the Daily is the server's date, not the device clock's, and tries are save
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	await screen.findByRole("heading", { level: 1, name: answer.name });
@@ -448,8 +436,7 @@ test("the Daily is the server's date, not the device clock's, and tries are save
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(persist.readDaily("mixed", "2026-09-12")?.status).toBe("won");
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
-	expect(persist.readLastPlayed("mixed")).toBe("2026-09-12");
-	expect(persist.readLastSeenUtc()).toBe("2026-09-12");
+	expect(persist.readDaily("mixed", "2026-09-12")?.late).toBe(false);
 });
 
 test("protocols and applications are independent dailies with distinct ids", async () => {
@@ -492,10 +479,9 @@ test("finishing protocols does not change mixed stats", async () => {
 		padToAnswer(protocolsAnswer.port, protocolsAnswer),
 	);
 	await user.click(screen.getByRole("button", { name: "Submit" }));
-	expect(persist.readStats("protocols")?.played).toBe(1);
-	expect(persist.readLastPlayed("protocols")).toBe(UTC_TODAY);
-	expect(persist.readStats("mixed")).toBeNull();
-	expect(persist.readLastPlayed("mixed")).toBeNull();
+	expect(playedCount()).toBe("1");
+	expect(persist.readDaily("protocols", UTC_TODAY)?.status).toBe("won");
+	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
 	await user.click(screen.getByRole("button", { name: "Share" }));
 });
 
@@ -504,8 +490,9 @@ test("finishing mixed does not change protocols stats", async () => {
 	const persist = await renderDaily();
 	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
-	expect(persist.readStats("mixed")?.played).toBe(1);
-	expect(persist.readStats("protocols")).toBeNull();
+	expect(playedCount()).toBe("1");
+	expect(persist.readDaily("mixed", UTC_TODAY)?.status).toBe("won");
+	expect(persist.readDaily("protocols", UTC_TODAY)).toBeNull();
 });
 
 test("protocols share uses the Protocols label", async () => {
@@ -584,4 +571,75 @@ test("a duplicate Daily try leaves the codex store unchanged beyond the first tr
 	await user.click(screen.getByRole("button", { name: "Submit" }));
 	expect(screen.getByText("Already guessed.")).toBeTruthy();
 	expect(persist.readCodex()).toEqual(afterFirst);
+});
+
+function streakCount(): string | undefined {
+	return (
+		screen.getByText("Streak").nextElementSibling?.textContent ?? undefined
+	);
+}
+
+function won(late?: boolean): DailyPersist {
+	return {
+		status: "won",
+		guesses: [{ port: 80, result: "correct", identified: null }],
+		...(late === undefined ? {} : { late }),
+	};
+}
+
+test("finishing a Daily writes the record and no stats keys", async () => {
+	const user = userEvent.setup();
+	const store = memoryStore();
+	await renderDaily({ persist: createPersist(store) });
+	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(
+		[...store.data.keys()].filter((key) =>
+			/stats|lastPlayed|lastSeenUtc/.test(key),
+		),
+	).toEqual([]);
+});
+
+test("a later try keeps the stored late mark", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeDaily("mixed", UTC_TODAY, {
+		status: "playing",
+		guesses: [{ port: 1, result: "miss", identified: null }],
+		late: true,
+	});
+	await renderDaily({ persist });
+	await user.type(portDigits(), padToAnswer(2, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readDaily("mixed", UTC_TODAY)?.late).toBe(true);
+	expect(persist.readDaily("mixed", UTC_TODAY)?.guesses).toHaveLength(2);
+});
+
+test("the Reveal folds stats from the saved records: an unfinished on-day record before today breaks the streak", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeDaily("mixed", addUtcDays(UTC_TODAY, -3), won(false));
+	persist.writeDaily("mixed", addUtcDays(UTC_TODAY, -2), won(false));
+	persist.writeDaily("mixed", addUtcDays(UTC_TODAY, -1), {
+		status: "playing",
+		guesses: [{ port: 1, result: "miss", identified: null }],
+		late: false,
+	});
+	await renderDaily({ persist });
+	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(playedCount()).toBe("3");
+	expect(streakCount()).toBe("1");
+});
+
+test("the Reveal counts a late record in Played but not in the streak", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeDaily("mixed", addUtcDays(UTC_TODAY, -2), won(false));
+	persist.writeDaily("mixed", addUtcDays(UTC_TODAY, -1), won(true));
+	await renderDaily({ persist });
+	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(playedCount()).toBe("3");
+	expect(streakCount()).toBe("1");
 });

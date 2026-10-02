@@ -51,7 +51,6 @@ function mountApp(persist: Persist, remote: FakeRemote) {
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 }

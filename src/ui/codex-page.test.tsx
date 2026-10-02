@@ -12,7 +12,6 @@ import { afterEach, expect, test } from "vitest";
 import protocolsJson from "../catalogs/protocols.json";
 import type { CatalogEntry, CodexMap } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { UTC_TODAY } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
 import {
 	loaded,
@@ -43,12 +42,7 @@ async function renderCodex(
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/codex"] });
 	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();

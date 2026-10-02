@@ -1,9 +1,9 @@
+import { dailyKey as pendingDailyKey } from "../engine/daily-key";
 import type {
 	BlitzBest,
 	BlitzBests,
 	BlitzMode,
 	BlitzRun,
-	CategoryStats,
 	CodexMap,
 	CodexSort,
 	DailyCategory,
@@ -48,15 +48,12 @@ export type PersistChange =
 				| "codexSort"
 				| "codex"
 				| "blitzBests"
-				| "blitzRuns"
-				| "lastSeenUtc";
+				| "blitzRuns";
 	  }
-	| { kind: "daily"; category: DailyCategory; date: string }
-	| { kind: "stats" | "lastPlayed"; category: DailyCategory };
+	| { kind: "daily"; category: DailyCategory; date: string };
 
 const THEME_KEY = "portdle:v1:theme";
 const HOW_TO_SEEN_KEY = "portdle:v1:howToSeen";
-const LAST_SEEN_UTC_KEY = "portdle:v1:lastSeenUtc";
 const BLITZ_BESTS_KEY = "portdle:v1:blitzBests";
 const BLITZ_RUNS_KEY = "portdle:v1:blitzRuns";
 const CODEX_KEY = "portdle:v1:codex";
@@ -64,6 +61,10 @@ const CODEX_SORT_KEY = "portdle:v1:codexSort";
 const SYNC_CHANGES_KEY = "portdle:v1:syncChanges";
 const SYNC_ACCOUNT_KEY = "portdle:v1:syncAccount";
 const KEY_PREFIX = "portdle:";
+// The keys of stats that were stored before stats were folded from records.
+const STORED_STATS_KEY = /^portdle:v1:(stats:.+|lastPlayed:.+|lastSeenUtc)$/;
+const DAILY_STORE_KEY =
+	/^portdle:v1:daily:(mixed|protocols|applications):(\d{4}-\d{2}-\d{2})$/;
 
 function dailyKeyPrefix(category: DailyCategory): string {
 	return `portdle:v1:daily:${category}:`;
@@ -71,14 +72,6 @@ function dailyKeyPrefix(category: DailyCategory): string {
 
 function dailyKey(category: DailyCategory, date: string): string {
 	return `${dailyKeyPrefix(category)}${date}`;
-}
-
-function statsKey(category: DailyCategory): string {
-	return `portdle:v1:stats:${category}`;
-}
-
-function lastPlayedKey(category: DailyCategory): string {
-	return `portdle:v1:lastPlayed:${category}`;
 }
 
 function readJson(store: KeyValueStore, key: string): unknown {
@@ -150,6 +143,9 @@ function isDailyPersist(value: unknown): value is DailyPersist {
 		return false;
 	}
 	if (!Array.isArray(record.guesses)) {
+		return false;
+	}
+	if (record.late !== undefined && typeof record.late !== "boolean") {
 		return false;
 	}
 	return record.guesses.every((guess) => {
@@ -295,22 +291,6 @@ function isCodexMap(value: unknown): value is CodexMap {
 	});
 }
 
-function isCategoryStats(value: unknown): value is CategoryStats {
-	if (value === null || typeof value !== "object") {
-		return false;
-	}
-	const record = value as Record<string, unknown>;
-	return (
-		typeof record.currentStreak === "number" &&
-		typeof record.bestStreak === "number" &&
-		typeof record.played === "number" &&
-		typeof record.wins === "number" &&
-		Array.isArray(record.histogram) &&
-		record.histogram.length === 6 &&
-		record.histogram.every((n) => typeof n === "number")
-	);
-}
-
 function stringList(value: unknown): string[] {
 	return Array.isArray(value)
 		? value.filter((item): item is string => typeof item === "string")
@@ -328,18 +308,6 @@ export type Persist = {
 		date: string,
 		value: DailyPersist,
 	): { ok: true } | { ok: false };
-	readStats(category: DailyCategory): CategoryStats | null;
-	writeStats(
-		category: DailyCategory,
-		value: CategoryStats,
-	): { ok: true } | { ok: false };
-	readLastPlayed(category: DailyCategory): string | null;
-	writeLastPlayed(
-		category: DailyCategory,
-		date: string,
-	): { ok: true } | { ok: false };
-	readLastSeenUtc(): string | null;
-	writeLastSeenUtc(date: string): { ok: true } | { ok: false };
 	readBlitzBests(): BlitzBests;
 	writeBlitzBests(value: StoredBlitzBests): { ok: true } | { ok: false };
 	readBlitzRuns(): BlitzRun[];
@@ -354,6 +322,10 @@ export type Persist = {
 	writeSyncChanges(value: SyncChanges): { ok: true } | { ok: false };
 	readSyncAccount(): string | null;
 	writeSyncAccount(id: string): { ok: true } | { ok: false };
+	// The local switch-over step: drops the stored stats keys, marks a record
+	// on or before the day on-day when it has no `late`, and discards a record
+	// after the day that has none, with its pending push entry. Idempotent.
+	applySwitchOver(switchOverDay: string): { ok: true } | { ok: false };
 	clearAll(): void;
 	onWrite(listener: (change: PersistChange) => void): () => void;
 };
@@ -377,7 +349,7 @@ export function createPersist(store: KeyValueStore): Persist {
 		return result;
 	}
 
-	return {
+	const persist: Persist = {
 		readTheme(): Theme {
 			const value = readJson(store, THEME_KEY);
 			return isTheme(value) ? value : "system";
@@ -402,35 +374,6 @@ export function createPersist(store: KeyValueStore): Persist {
 				kind: "daily",
 				category,
 				date,
-			});
-		},
-		readStats(category) {
-			const value = readJson(store, statsKey(category));
-			return isCategoryStats(value) ? value : null;
-		},
-		writeStats(category, value) {
-			return write(statsKey(category), value, {
-				kind: "stats",
-				category,
-			});
-		},
-		readLastPlayed(category) {
-			const value = readJson(store, lastPlayedKey(category));
-			return isUtcDate(value) ? value : null;
-		},
-		writeLastPlayed(category, date) {
-			return write(lastPlayedKey(category), date, {
-				kind: "lastPlayed",
-				category,
-			});
-		},
-		readLastSeenUtc() {
-			const value = readJson(store, LAST_SEEN_UTC_KEY);
-			return isUtcDate(value) ? value : null;
-		},
-		writeLastSeenUtc(date) {
-			return write(LAST_SEEN_UTC_KEY, date, {
-				kind: "lastSeenUtc",
 			});
 		},
 		readBlitzBests() {
@@ -520,6 +463,53 @@ export function createPersist(store: KeyValueStore): Persist {
 		writeSyncAccount(id) {
 			return writeJson(store, SYNC_ACCOUNT_KEY, id);
 		},
+		applySwitchOver(switchOverDay) {
+			let ok = true;
+			const discarded = new Set<string>();
+			for (const key of storeKeys(store)) {
+				if (STORED_STATS_KEY.test(key)) {
+					try {
+						store.removeItem(key);
+					} catch {
+						ok = false;
+					}
+					continue;
+				}
+				const match = DAILY_STORE_KEY.exec(key);
+				const value = match ? readJson(store, key) : undefined;
+				if (!match || !isDailyPersist(value) || value.late !== undefined) {
+					continue;
+				}
+				const category = match[1] as DailyCategory;
+				const date = match[2] as string;
+				if (date <= switchOverDay) {
+					if (
+						!write(
+							key,
+							{ ...value, late: false },
+							{ kind: "daily", category, date },
+						).ok
+					) {
+						ok = false;
+					}
+					continue;
+				}
+				try {
+					store.removeItem(key);
+					discarded.add(pendingDailyKey(category, date));
+				} catch {
+					ok = false;
+				}
+			}
+			const changes = persist.readSyncChanges();
+			if (changes.dailies.some((key) => discarded.has(key))) {
+				const dailies = changes.dailies.filter((key) => !discarded.has(key));
+				if (!persist.writeSyncChanges({ ...changes, dailies }).ok) {
+					ok = false;
+				}
+			}
+			return ok ? { ok: true } : { ok: false };
+		},
 		clearAll() {
 			for (const key of storeKeys(store)) {
 				if (key.startsWith(KEY_PREFIX)) {
@@ -540,4 +530,5 @@ export function createPersist(store: KeyValueStore): Persist {
 			};
 		},
 	};
+	return persist;
 }

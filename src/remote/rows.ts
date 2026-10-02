@@ -49,6 +49,7 @@ export type DailyRow = {
 	day: string;
 	status: DailyPersist["status"];
 	guesses: DailyPersist["guesses"];
+	late: boolean | null;
 };
 
 function identified(value: Identified): Identified {
@@ -122,6 +123,7 @@ export function fromRows(rows: {
 		dailies[dailyKey(row.category, row.day)] = {
 			status: row.status,
 			guesses: row.guesses.map(guess),
+			...(typeof row.late === "boolean" && { late: row.late }),
 		};
 	}
 	const preferences: Preferences = {};
@@ -226,6 +228,7 @@ export function toRows(
 					day,
 					status: daily.status,
 					guesses: daily.guesses,
+					late: daily.late ?? null,
 				},
 			];
 		}),
