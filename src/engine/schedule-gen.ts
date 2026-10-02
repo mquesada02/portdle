@@ -241,26 +241,15 @@ export function sameCycleSwapIndex(
 	if (!cycle) {
 		return undefined;
 	}
-	const candidates: number[] = [];
-	for (
-		let other = day + 1;
-		other < cycle.startDay + cycle.order.length;
-		other += 1
-	) {
-		candidates.push(other);
-	}
-	for (
-		let other = day - 1;
-		other >= Math.max(fromDay, cycle.startDay);
-		other -= 1
-	) {
-		candidates.push(other);
-	}
+	// Later days first, then earlier days that are still movable.
+	const lastDay = cycle.startDay + cycle.order.length - 1;
+	const earliest = Math.max(fromDay, cycle.startDay);
+	const candidates = [
+		...Array.from({ length: lastDay - day }, (_, step) => day + 1 + step),
+		...Array.from({ length: day - earliest }, (_, step) => day - 1 - step),
+	];
 	for (const other of candidates) {
 		const candidate = cycle.order[other - cycle.startDay];
-		if (candidate === undefined) {
-			continue;
-		}
 		const otherP = idOnDay(schedules.protocols, other);
 		const otherA = idOnDay(schedules.applications, other);
 		const candidateFitsToday =
@@ -306,13 +295,11 @@ function resolveDistinctness(
 					protocolsId,
 					applicationsId,
 				);
-				const currentCycle = cycleForDay(mixed, day);
-				if (swap && currentCycle) {
-					const laterId = swap.cycle.order[swap.index];
-					if (laterId !== undefined) {
-						swap.cycle.order[swap.index] = mixedId;
-						currentCycle.order[day - currentCycle.startDay] = laterId;
-					}
+				if (swap) {
+					const { cycle } = swap;
+					const laterId = cycle.order[swap.index];
+					cycle.order[swap.index] = mixedId;
+					cycle.order[day - cycle.startDay] = laterId as string;
 				} else {
 					options.sameCycleOnly.issues.push(
 						`mixed collision on ${addUtcDays(options.sameCycleOnly.epoch, day)} has no swap`,
@@ -631,7 +618,9 @@ function rowsToSchedule(
 	const schedule: ScheduleFile = { epoch: SCHEDULE_EPOCH, cycles: [] };
 	const mine = rows
 		.filter((row) => row.category === category)
-		.sort((left, right) => left.day.localeCompare(right.day));
+		.sort((left, right) =>
+			left.day < right.day ? -1 : left.day > right.day ? 1 : 0,
+		);
 	let current: Cycle | undefined;
 	for (const [position, row] of mine.entries()) {
 		const dayIndex = utcDayIndex(row.day, SCHEDULE_EPOCH);
