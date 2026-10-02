@@ -20,6 +20,7 @@
 		"test:watch": "vitest",
 		"typecheck": "tsc -b --noEmit",
 		"gen:schedule": "tsx scripts/gen-schedule.ts",
+		"gen:catalog-migration": "tsx scripts/gen-catalog-migration.ts",
 		"smoke:backend": "tsx scripts/smoke-backend.ts",
 		"test:sql": "scripts/run-sql-tests.sh"
 	},
