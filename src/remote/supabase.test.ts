@@ -1114,6 +1114,52 @@ test("readCurrentDailies rejects a null id, a missing row, and a repeated catego
 	}
 });
 
+const STATS_ROW = {
+	category: "mixed",
+	day: "2026-10-02",
+	players: 8,
+	wins: 6,
+	won_in_1: 1,
+	won_in_2: 0,
+	won_in_3: 3,
+	won_in_4: 2,
+	won_in_5: 0,
+	won_in_6: 0,
+	lost: 2,
+};
+
+test("readDailyStats reads the view with the anon key and maps the row", async () => {
+	const { remote, calls } = publicRemote([{ body: [STATS_ROW] }]);
+	expect(await remote.readDailyStats("mixed", "2026-10-02")).toEqual({
+		players: 8,
+		wins: 6,
+		losses: 2,
+		byTries: [1, 0, 3, 2, 0, 0],
+	});
+	expect(calls[0]?.url).toBe(
+		`${URL}/rest/v1/daily_global_stats?select=*&category=eq.mixed&day=eq.2026-10-02`,
+	);
+	expect(calls[0]?.init?.headers).toEqual({ apikey: "anon" });
+});
+
+test("readDailyStats returns zeros when no row matches", async () => {
+	expect(
+		await publicRemote([{ body: [] }]).remote.readDailyStats(
+			"protocols",
+			"2026-10-02",
+		),
+	).toEqual({ players: 0, wins: 0, losses: 0, byTries: [0, 0, 0, 0, 0, 0] });
+});
+
+test("readDailyStats rejects on a failed request", async () => {
+	await expect(
+		publicRemote([{ ok: false, body: {} }]).remote.readDailyStats(
+			"mixed",
+			"2026-10-02",
+		),
+	).rejects.toThrow("Request failed");
+});
+
 test("readCurrentDailies rejects a missing, null, or unparseable server time", async () => {
 	for (const server_time of [undefined, null, "not a time"]) {
 		const body = DAILY_ROWS.map((row) => ({ ...row, server_time }));

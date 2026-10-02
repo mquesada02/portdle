@@ -9,6 +9,8 @@
 
 begin;
 
+drop view if exists public.daily_global_stats;
+
 alter table public.dailies drop constraint if exists dailies_late_required;
 alter table public.dailies drop column if exists late;
 

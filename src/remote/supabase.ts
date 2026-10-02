@@ -11,6 +11,8 @@ import {
 	type AccountState,
 	type Catalog,
 	type CurrentDailies,
+	type DailyGlobalStats,
+	emptyDailyStats,
 	LEADERBOARD_TOP,
 	type LeaderboardPage,
 	type LeaderboardQuery,
@@ -182,6 +184,18 @@ type CurrentDailiesDbRow = {
 	utc_date: string;
 	category: string;
 	entry_id: string | null;
+};
+
+type DailyStatsDbRow = {
+	players: number;
+	wins: number;
+	won_in_1: number;
+	won_in_2: number;
+	won_in_3: number;
+	won_in_4: number;
+	won_in_5: number;
+	won_in_6: number;
+	lost: number;
 };
 
 function toCatalogEntry(row: CatalogDbRow): CatalogEntry {
@@ -537,6 +551,26 @@ export function createSupabaseRemote(
 					entryId: row.entry_id,
 				};
 			});
+		},
+		async readDailyStats(category, date): Promise<DailyGlobalStats> {
+			const [row] = await restJson<DailyStatsDbRow[]>(
+				`daily_global_stats?select=*&category=eq.${category}&day=eq.${date}`,
+			);
+			return row
+				? {
+						players: row.players,
+						wins: row.wins,
+						losses: row.lost,
+						byTries: [
+							row.won_in_1,
+							row.won_in_2,
+							row.won_in_3,
+							row.won_in_4,
+							row.won_in_5,
+							row.won_in_6,
+						],
+					}
+				: emptyDailyStats();
 		},
 		redirectError: () => pendingError,
 		clearRedirectError() {

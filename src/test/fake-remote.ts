@@ -4,6 +4,8 @@ import {
 	type AccountState,
 	type Catalog,
 	type CurrentDailies,
+	type DailyGlobalStats,
+	emptyDailyStats,
 	LEADERBOARD_TOP,
 	type LeaderboardPage,
 	type LeaderboardQuery,
@@ -43,6 +45,10 @@ function reverseKeys(value: unknown): unknown {
 	return value;
 }
 
+export function dailyStatsId(category: DailyCategory, date: string): string {
+	return `${category}|${date}`;
+}
+
 export function leaderboardId(query: LeaderboardQuery): string {
 	return `${query.window}|${query.category}|${query.orientation}|${query.mode}`;
 }
@@ -74,6 +80,12 @@ export type FakeRemote = Remote & {
 	// How many pushes had completed when each leaderboard read arrived.
 	pushesAtRead: number[];
 	failLeaderboard: boolean;
+	// Totals per `dailyStatsId`; zeros when absent.
+	dailyStats: Record<string, DailyGlobalStats>;
+	dailyStatsCalls: number;
+	// How many pushes had completed when each stats read arrived.
+	pushesAtStatsRead: number[];
+	failDailyStats: boolean;
 	gone: boolean;
 	reorderKeys: boolean;
 	// What the public reads serve. `today` is the server's UTC date; the
@@ -96,6 +108,7 @@ export type FakeRemote = Remote & {
 	holdPull(): () => void;
 	holdPush(): () => void;
 	holdLeaderboard(): () => void;
+	holdDailyStats(): () => void;
 	holdConfirmDisplayName(): () => void;
 	holdChangeDisplayName(): () => void;
 	holdDeleteAccount(): () => void;
@@ -114,6 +127,7 @@ export function createFakeRemote(
 	let pullGate: Promise<void> | null = null;
 	let pushGate: Promise<void> | null = null;
 	let leaderboardGate: Promise<void> | null = null;
+	let dailyStatsGate: Promise<void> | null = null;
 	let completedPushes = 0;
 	let redirectText: string | null = null;
 	let gate: Promise<void> | null = null;
@@ -164,6 +178,10 @@ export function createFakeRemote(
 		leaderboardCalls: [],
 		pushesAtRead: [],
 		failLeaderboard: false,
+		dailyStats: {},
+		dailyStatsCalls: 0,
+		pushesAtStatsRead: [],
+		failDailyStats: false,
 		gone: false,
 		reorderKeys: false,
 		catalog: fixtureCatalog(),
@@ -205,6 +223,11 @@ export function createFakeRemote(
 		holdLeaderboard() {
 			return hold((g) => {
 				leaderboardGate = g;
+			});
+		},
+		holdDailyStats() {
+			return hold((g) => {
+				dailyStatsGate = g;
 			});
 		},
 		holdConfirmDisplayName() {
@@ -391,6 +414,21 @@ export function createFakeRemote(
 				throw new Error("schedule failed");
 			}
 			return clone(fake.scheduleRows ?? fixtureScheduleRows(fake.today));
+		},
+		async readDailyStats(category, date): Promise<DailyGlobalStats> {
+			fake.dailyStatsCalls += 1;
+			fake.pushesAtStatsRead.push(completedPushes);
+			// The answer a request gets is the one held when it is sent.
+			const held = clone(
+				fake.dailyStats[dailyStatsId(category, date)] ?? emptyDailyStats(),
+			);
+			if (dailyStatsGate) {
+				await dailyStatsGate;
+			}
+			if (fake.failDailyStats) {
+				throw new Error("daily stats failed");
+			}
+			return held;
 		},
 		redirectError: () => redirectText,
 		clearRedirectError() {
