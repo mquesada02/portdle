@@ -10,7 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import type { DailyCategory } from "../engine/types";
-import { createPersist } from "../persist/storage";
+import { createPersist, type Persist } from "../persist/storage";
 import {
 	dailyOn,
 	fixtureCatalog,
@@ -30,8 +30,6 @@ import { App } from "./app";
 const TODAY = "2026-09-11";
 const YESTERDAY = "2026-09-10";
 const EPOCH = "2026-09-09";
-
-type Persist = ReturnType<typeof createPersist>;
 
 async function open(
 	path: string,
