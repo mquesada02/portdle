@@ -161,6 +161,7 @@ export function createServerStore(
 			return;
 		}
 		if (lastSuccess !== null) {
+			// A clock that went back counts as a lapsed throttle.
 			const elapsed = clock.now() - lastSuccess.at;
 			if (elapsed >= 0 && elapsed < FOCUS_READ_THROTTLE_MS) {
 				return;

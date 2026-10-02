@@ -40,9 +40,12 @@ async function open(
 	remote: FakeRemote,
 	persist = createPersist(memoryStore()),
 	path = "/",
+	howToSeen = true,
 ) {
 	stubMatchMedia();
-	persist.writeHowToSeen();
+	if (howToSeen) {
+		persist.writeHowToSeen();
+	}
 	render(
 		<App
 			persist={persist}
@@ -90,6 +93,17 @@ async function wrongGuess(
 	await user.click(portDigits());
 	await user.keyboard(padToAnswer(port, answer));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
+}
+
+function newEntry(): CatalogEntry {
+	return {
+		id: "brand-new",
+		name: "Brand New",
+		port: 4242,
+		transport: "tcp",
+		description: "d",
+		answerEligible: true,
+	};
 }
 
 test("the two Dailies differ, so the tests tell the days apart", () => {
@@ -271,17 +285,7 @@ test("a new catalog entry is read once when the new Daily needs it", async () =>
 	await open(remote);
 	remote.catalog = {
 		...remote.catalog,
-		protocols: [
-			...remote.catalog.protocols,
-			{
-				id: "brand-new",
-				name: "Brand New",
-				port: 4242,
-				transport: "tcp",
-				description: "d",
-				answerEligible: true,
-			},
-		],
+		protocols: [...remote.catalog.protocols, newEntry()],
 	};
 	remote.entryIds = {
 		mixed: "brand-new",
@@ -294,4 +298,49 @@ test("a new catalog entry is read once when the new Daily needs it", async () =>
 		await screen.findByRole("heading", { level: 1, name: "Brand New" }),
 	).toBeTruthy();
 	expect(remote.catalogCalls).toBe(2);
+});
+
+test("a new day never rebuilds the router: the open How-to dialog stays", async () => {
+	const remote = createFakeRemote();
+	await open(remote, undefined, "/", false);
+	expect(screen.getByRole("dialog", { name: "How-to" })).toBeTruthy();
+	remote.today = NEXT_DAY;
+	focusLater();
+	await readApplied(remote, 2);
+	expect(screen.getByRole("dialog", { name: "How-to" })).toBeTruthy();
+});
+
+test("a device date that disagrees with the server's moves nothing on focus", async () => {
+	const remote = createFakeRemote();
+	await open(remote);
+	// The device says 2030; the server still says the same day.
+	deviceNow = Date.parse("2030-01-01T00:00:00Z");
+	focusLater();
+	await readApplied(remote, 2);
+	expect(heading(today.name)).toBeTruthy();
+});
+
+test("a failed catalog reload keeps the shown Daily, and the next focus moves it", async () => {
+	const remote = createFakeRemote();
+	await open(remote);
+	const fixture = remote.catalog;
+	remote.catalog = {
+		...fixture,
+		protocols: [...fixture.protocols, newEntry()],
+	};
+	remote.entryIds = {
+		mixed: "brand-new",
+		protocols: "brand-new",
+		applications: "brand-new",
+	};
+	remote.today = NEXT_DAY;
+	remote.failCatalog = true;
+	focusLater();
+	await readApplied(remote, 2);
+	expect(heading(today.name)).toBeTruthy();
+	remote.failCatalog = false;
+	focusLater();
+	expect(
+		await screen.findByRole("heading", { level: 1, name: "Brand New" }),
+	).toBeTruthy();
 });
