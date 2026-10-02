@@ -32,19 +32,20 @@ function savedDailyRows(persist: Persist): SavedDaily[] {
 
 function DailySegmentList({ persist }: { persist: Persist }) {
 	const { data } = useScheduleReads();
-	// The player's finished Dailies are listed at once. Their names join in
-	// once every read has succeeded; until then the rows carry none. Read again
-	// when the loaded reads change, not on every render.
+	// The player's finished Dailies are listed at once and read once. Their
+	// names join in once every read has succeeded; until then the rows carry
+	// none.
+	const saved = useMemo(() => savedDailyRows(persist), [persist]);
 	const [catalog, , schedule] = data.status === "ready" ? data.value : [];
 	const rows = useMemo(
 		() =>
 			historyRows({
-				saved: savedDailyRows(persist),
+				saved,
 				schedule: schedule ?? [],
 				protocols: catalog?.protocols ?? [],
 				applications: catalog?.applications ?? [],
 			}),
-		[persist, catalog, schedule],
+		[saved, catalog, schedule],
 	);
 	return (
 		<>

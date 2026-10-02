@@ -36,25 +36,21 @@ export function ArchivePage() {
 				: [],
 		[persist, current, schedule],
 	);
-	if (data.status !== "ready") {
-		return (
-			<main>
-				<h1 id={HEADING_ID}>Archive</h1>
-				<LoadStatus state={data.status} onRetry={retry} />
-			</main>
-		);
-	}
 	return (
 		<main>
 			<h1 id={HEADING_ID}>Archive</h1>
-			<DailyGroupList
-				rows={rows}
-				idPrefix="archive-date"
-				labelledBy={HEADING_ID}
-				renderRow={({ category, date, result }) => (
-					<DailyRowLink category={category} date={date} result={result} />
-				)}
-			/>
+			{data.status === "ready" ? (
+				<DailyGroupList
+					rows={rows}
+					idPrefix="archive-date"
+					labelledBy={HEADING_ID}
+					renderRow={({ category, date, result }) => (
+						<DailyRowLink category={category} date={date} result={result} />
+					)}
+				/>
+			) : (
+				<LoadStatus state={data.status} onRetry={retry} />
+			)}
 		</main>
 	);
 }
