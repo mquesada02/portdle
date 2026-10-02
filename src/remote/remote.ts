@@ -83,6 +83,10 @@ export type DailyGlobalStats = {
 	byTries: [number, number, number, number, number, number];
 };
 
+export function emptyDailyStats(): DailyGlobalStats {
+	return { players: 0, wins: 0, losses: 0, byTries: [0, 0, 0, 0, 0, 0] };
+}
+
 // Any Remote call may reject with this when the account no longer exists.
 export class AccountGoneError extends Error {
 	constructor() {

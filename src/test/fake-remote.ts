@@ -5,6 +5,7 @@ import {
 	type Catalog,
 	type CurrentDailies,
 	type DailyGlobalStats,
+	emptyDailyStats,
 	LEADERBOARD_TOP,
 	type LeaderboardPage,
 	type LeaderboardQuery,
@@ -414,13 +415,9 @@ export function createFakeRemote(
 			fake.dailyStatsCalls += 1;
 			fake.pushesAtStatsRead.push(completedPushes);
 			// The answer a request gets is the one held when it is sent.
-			const none: DailyGlobalStats = {
-				players: 0,
-				wins: 0,
-				losses: 0,
-				byTries: [0, 0, 0, 0, 0, 0],
-			};
-			const held = clone(fake.dailyStats[dailyStatsId(category, date)] ?? none);
+			const held = clone(
+				fake.dailyStats[dailyStatsId(category, date)] ?? emptyDailyStats(),
+			);
 			if (dailyStatsGate) {
 				await dailyStatsGate;
 			}

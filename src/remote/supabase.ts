@@ -12,6 +12,7 @@ import {
 	type Catalog,
 	type CurrentDailies,
 	type DailyGlobalStats,
+	emptyDailyStats,
 	LEADERBOARD_TOP,
 	type LeaderboardPage,
 	type LeaderboardQuery,
@@ -563,7 +564,7 @@ export function createSupabaseRemote(
 							row.won_in_6,
 						],
 					}
-				: { players: 0, wins: 0, losses: 0, byTries: [0, 0, 0, 0, 0, 0] };
+				: emptyDailyStats();
 		},
 		redirectError: () => pendingError,
 		clearRedirectError() {
