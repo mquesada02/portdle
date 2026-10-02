@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { HistoryRow } from "../engine/history";
 import {
 	groupBlitzRunsByDate,
@@ -58,28 +58,30 @@ function useScheduleRows(remote: Remote | undefined): {
 	rows: Loadable<ScheduleRow[]>;
 	retry: () => void;
 } {
-	const [rows, setRows] = useState<Loadable<ScheduleRow[]>>(
-		remote ? { status: "loading" } : { status: "failed" },
-	);
-	const [attempt, setAttempt] = useState(0);
-	const status = useRef(rows.status);
-	status.current = rows.status;
+	const [state, setState] = useState<{
+		rows: Loadable<ScheduleRow[]>;
+		attempt: number;
+	}>({
+		rows: remote ? { status: "loading" } : { status: "failed" },
+		attempt: 0,
+	});
 	useEffect(() => {
 		if (!remote) {
 			return;
 		}
-		// `attempt` makes a retry run this effect again.
-		void attempt;
-		return settle(remote.readSchedule(), setRows);
-	}, [remote, attempt]);
+		// `state.attempt` changes on a retry, which runs this effect again.
+		return settle(remote.readSchedule(), (rows) =>
+			setState((current) => ({ ...current, rows })),
+		);
+	}, [remote, state.attempt]);
 	const retry = useCallback(() => {
-		if (remote && status.current === "failed") {
-			status.current = "loading";
-			setRows({ status: "loading" });
-			setAttempt((count) => count + 1);
-		}
+		setState((current) =>
+			remote && current.rows.status === "failed"
+				? { rows: { status: "loading" }, attempt: current.attempt + 1 }
+				: current,
+		);
 	}, [remote]);
-	return { rows, retry };
+	return { rows: state.rows, retry };
 }
 
 function savedDailyRows(persist: Persist): ListRow[] {

@@ -202,12 +202,17 @@ test("Blitz keeps both tabs: the panel is only in the Play tab", async () => {
 	expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
 });
 
-test("the Codex shows the panel only when the catalog fails", async () => {
+test("the Codex shows the panel when the catalog fails, not when only the current Dailies fail", async () => {
 	const remote = createFakeRemote();
 	remote.failDailies = true;
 	await open("/codex", remote);
 	await screen.findByRole("heading", { level: 1, name: "Codex" });
 	expect(screen.queryByText(SERVER_MESSAGE)).toBeNull();
+	cleanup();
+	const failing = createFakeRemote();
+	failing.failCatalog = true;
+	await open("/codex", failing);
+	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
 });
 
 test("the nav stays on the panel and History is reachable", async () => {
