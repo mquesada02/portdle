@@ -38,12 +38,7 @@ function mountApp(
 	}
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
 	const view = render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday="2026-09-09"
-		/>,
+		<App persist={persist} remote={remote} history={history} />,
 	);
 	return { persist, store, view };
 }

@@ -1,7 +1,6 @@
 import type { RouterHistory } from "@tanstack/react-router";
 import { RouterProvider } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { utcDateString } from "../engine/utc";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { type Backend, createAppRouter } from "../router";
@@ -12,24 +11,16 @@ export function App({
 	persist,
 	remote,
 	history,
-	utcToday,
 }: {
 	persist: Persist;
 	remote?: Remote;
 	history?: RouterHistory;
-	utcToday?: string;
 }) {
-	const utcTodayRef = useRef(utcToday);
-	utcTodayRef.current = utcToday;
 	const backend = useMemo<Backend | undefined>(
 		() =>
 			remote && {
 				remote,
-				sync: createSync({
-					persist,
-					remote,
-					utcToday: () => utcTodayRef.current ?? utcDateString(new Date()),
-				}),
+				sync: createSync({ persist, remote }),
 			},
 		[persist, remote],
 	);

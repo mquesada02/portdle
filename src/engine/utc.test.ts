@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
 	addUtcDays,
+	isLate,
 	nextUtcMidnightMs,
 	utcDateString,
 	utcDayIndex,
@@ -31,4 +32,10 @@ test("nextUtcMidnightMs is strictly after the instant", () => {
 	expect(nextUtcMidnightMs(Date.parse("2026-09-10T13:30:00Z"))).toBe(
 		midnight + 86_400_000,
 	);
+});
+
+test("isLate is true only when the server today is after the day", () => {
+	expect(isLate("2026-09-10", "2026-09-10")).toBe(false);
+	expect(isLate("2026-09-10", "2026-09-11")).toBe(true);
+	expect(isLate("2026-09-10", "2026-09-09")).toBe(false);
 });

@@ -8,17 +8,18 @@ import {
 	evaluateDefaultGuess,
 } from "../engine/guess";
 import { bestMarkByDigit, computeMarks, type Mark } from "../engine/marks";
+import { puzzleNumber } from "../engine/puzzle-number";
 import { CATEGORY_LABEL } from "../engine/share";
-import { applyDailyFinish, emptyStats } from "../engine/stats";
 import {
 	type CatalogEntry,
-	type CategoryStats,
 	type CodexEncounter,
 	DAILY_CATEGORIES,
 	type DailyCategory,
 	type DailyPersist,
 } from "../engine/types";
+import { isLate } from "../engine/utc";
 import type { CurrentDailies } from "../remote/remote";
+import { categoryStats } from "./category-stats";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
@@ -26,7 +27,6 @@ import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { LoadStatus, useServerData } from "./server-data";
 import { allReady } from "./server-store";
-import { categoryStreakGap } from "./sync-utc";
 
 const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
 	mixed: "/",
@@ -309,7 +309,8 @@ function PinnedDaily({
 			puzzle={puzzle}
 			protocols={protocols}
 			applications={applications}
-			utcToday={shown.daily.today}
+			date={shown.daily.today}
+			serverToday={current.today}
 			onTry={() =>
 				setShown((previous) =>
 					previous.started ? previous : { ...previous, started: true },
@@ -347,14 +348,17 @@ function DailyBoard({
 	puzzle,
 	protocols,
 	applications,
-	utcToday,
+	date,
+	serverToday,
 	onTry,
 }: {
 	category: DailyCategory;
 	puzzle: CatalogEntry;
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
-	utcToday: string;
+	// The Daily's own day, and the server's latest today.
+	date: string;
+	serverToday: string;
 	onTry: () => void;
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
@@ -363,7 +367,7 @@ function DailyBoard({
 	const catalog = playableCatalogFor(category, protocols, applications);
 	const wholeCatalog = catalogFor("mixed", protocols, applications);
 	const [board, setBoard] = useState<DailyPersist | null>(() =>
-		persist.readDaily(category, utcToday),
+		persist.readDaily(category, date),
 	);
 	const [digits, setDigits] = useState("");
 	const [message, setMessage] = useState("");
@@ -373,7 +377,6 @@ function DailyBoard({
 
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
-	const stats: CategoryStats = persist.readStats(category) ?? emptyStats();
 
 	function noteWrite(result: { ok: boolean }) {
 		if (!result.ok) {
@@ -387,7 +390,7 @@ function DailyBoard({
 	}
 
 	function submitGuess() {
-		const stored = persist.readDaily(category, utcToday);
+		const stored = persist.readDaily(category, date);
 		if (stored?.status === "won" || stored?.status === "lost") {
 			setBoard(stored);
 			return;
@@ -404,7 +407,11 @@ function DailyBoard({
 			previousPorts,
 			catalog,
 		});
-		const next = applyCommittedGuess(current, result);
+		const next = applyCommittedGuess(
+			current,
+			result,
+			isLate(date, serverToday),
+		);
 		if (next.status === "invalid") {
 			setMessage(
 				digits.length < length ? "Not enough digits." : "Not a valid port.",
@@ -421,7 +428,7 @@ function DailyBoard({
 		setMessage("");
 		setBoard(next);
 		onTry();
-		noteWrite(persist.writeDaily(category, utcToday, next));
+		noteWrite(persist.writeDaily(category, date, next));
 		if (result.status === "miss" && result.identified) {
 			noteWrite(
 				recordEncounter({ state: "identified", id: result.identified.id }),
@@ -435,17 +442,6 @@ function DailyBoard({
 				}),
 			);
 			setFinishedThisSession(true);
-			if (persist.readLastPlayed(category) !== utcToday) {
-				const gapped = categoryStreakGap(persist, category, utcToday);
-				const finished = applyDailyFinish({
-					stats: gapped,
-					result: next.status,
-					tries: next.guesses.length,
-				});
-				noteWrite(persist.writeStats(category, finished));
-				noteWrite(persist.writeLastPlayed(category, utcToday));
-			}
-			noteWrite(persist.writeLastSeenUtc(utcToday));
 		}
 	}
 
@@ -454,7 +450,10 @@ function DailyBoard({
 			<DailySwitcher category={category} />
 			<div className="[view-transition-name:switcher-content]">
 				<header className="mt-8 text-center">
-					<p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+					<p className="font-mono text-xs text-zinc-500">
+						#{puzzleNumber(date)} · {date}
+					</p>
+					<p className="mt-2 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
 						Which port is
 					</p>
 					<h1 className="mt-1 text-3xl font-bold tracking-tight">
@@ -515,8 +514,8 @@ function DailyBoard({
 						category={category}
 						puzzle={puzzle}
 						board={board}
-						stats={stats}
-						utcToday={utcToday}
+						stats={categoryStats(persist, category, serverToday)}
+						utcToday={date}
 						finishedThisSession={finishedThisSession}
 					/>
 				) : null}

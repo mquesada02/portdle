@@ -3,7 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { createPersist } from "../persist/storage";
-import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
+import { dailyOn, padToAnswer } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
 import {
 	loaded,
@@ -24,12 +24,7 @@ async function renderDaily() {
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
 	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={history}
-			utcToday={UTC_TODAY}
-		/>,
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();

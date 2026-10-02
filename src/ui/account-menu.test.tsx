@@ -22,12 +22,7 @@ async function renderApp(options: { remote?: FakeRemote; strict?: boolean }) {
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
 	const app = (
-		<App
-			persist={persist}
-			remote={options.remote}
-			history={history}
-			utcToday="2026-09-09"
-		/>
+		<App persist={persist} remote={options.remote} history={history} />
 	);
 	render(options.strict ? <StrictMode>{app}</StrictMode> : app);
 	await screen.findByRole("navigation", { name: "Main" });

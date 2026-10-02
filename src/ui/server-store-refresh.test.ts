@@ -139,7 +139,6 @@ test("the focus read and the sync pull throttle apart from each other", async ()
 		persist: createPersist(memoryStore()),
 		remote,
 		clock,
-		utcToday: () => UTC_TODAY,
 	});
 	detachers.push(store.attach(), sync.attach());
 	store.load();

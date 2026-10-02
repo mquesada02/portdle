@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
-import type { BlitzRun } from "../engine/types";
+import { dailyKey } from "../engine/daily-key";
+import type { BlitzRun, DailyPersist } from "../engine/types";
 import { memoryStore } from "../test/helpers";
 import { createPersist } from "./storage";
 
@@ -51,17 +52,6 @@ test("setItem throw returns ok false", () => {
 			guesses: [{ port: 80, result: "miss", identified: null }],
 		}),
 	).toEqual({ ok: false });
-	expect(
-		persist.writeStats("mixed", {
-			played: 1,
-			wins: 1,
-			currentStreak: 1,
-			bestStreak: 1,
-			histogram: [1, 0, 0, 0, 0, 0],
-		}),
-	).toEqual({ ok: false });
-	expect(persist.writeLastPlayed("mixed", "2026-09-09")).toEqual({ ok: false });
-	expect(persist.writeLastSeenUtc("2026-09-09")).toEqual({ ok: false });
 });
 
 test("mixed daily round-trips and corrupt daily is ignored", () => {
@@ -83,71 +73,7 @@ test("mixed daily round-trips and corrupt daily is ignored", () => {
 	expect(persist.readTheme()).toBe("dark");
 });
 
-test("mixed stats and lastPlayed round-trip without protocols keys", () => {
-	const store = memoryStore();
-	const persist = createPersist(store);
-	const stats = {
-		played: 1,
-		wins: 1,
-		currentStreak: 1,
-		bestStreak: 1,
-		histogram: [0, 0, 1, 0, 0, 0] as [
-			number,
-			number,
-			number,
-			number,
-			number,
-			number,
-		],
-	};
-	expect(persist.readStats("mixed")).toBeNull();
-	expect(persist.writeStats("mixed", stats)).toEqual({ ok: true });
-	expect(persist.readStats("mixed")).toEqual(stats);
-	expect(persist.writeLastPlayed("mixed", "2026-09-09")).toEqual({ ok: true });
-	expect(persist.readLastPlayed("mixed")).toBe("2026-09-09");
-	expect(store.data.has("portdle:v1:stats:mixed")).toBe(true);
-	expect(store.data.has("portdle:v1:lastPlayed:mixed")).toBe(true);
-	expect(store.data.has("portdle:v1:stats:protocols")).toBe(false);
-	expect(store.data.has("portdle:v1:lastPlayed:protocols")).toBe(false);
-	expect(persist.readStats("protocols")).toBeNull();
-});
-
-test("protocols daily and stats round-trip without mixed or applications keys", () => {
-	const store = memoryStore();
-	const persist = createPersist(store);
-	const board = {
-		status: "playing" as const,
-		guesses: [{ port: 22, result: "miss" as const, identified: null }],
-	};
-	const stats = {
-		played: 1,
-		wins: 1,
-		currentStreak: 1,
-		bestStreak: 1,
-		histogram: [1, 0, 0, 0, 0, 0] as [
-			number,
-			number,
-			number,
-			number,
-			number,
-			number,
-		],
-	};
-	expect(persist.writeDaily("protocols", "2026-09-09", board)).toEqual({
-		ok: true,
-	});
-	expect(persist.readDaily("protocols", "2026-09-09")).toEqual(board);
-	expect(persist.writeStats("protocols", stats)).toEqual({ ok: true });
-	expect(persist.writeLastPlayed("protocols", "2026-09-09")).toEqual({
-		ok: true,
-	});
-	expect(store.data.has("portdle:v1:daily:protocols:2026-09-09")).toBe(true);
-	expect(store.data.has("portdle:v1:stats:protocols")).toBe(true);
-	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
-	expect(store.data.has("portdle:v1:stats:applications")).toBe(false);
-});
-
-test("applications daily and stats round-trip without mixed keys", () => {
+test("applications daily round-trips without mixed keys", () => {
 	const store = memoryStore();
 	const persist = createPersist(store);
 	expect(
@@ -232,14 +158,13 @@ test("corrupt blitzBests is empty without dropping theme", () => {
 	expect(persist.readTheme()).toBe("dark");
 });
 
-test("writing blitzBests does not write daily or stats keys", () => {
+test("writing blitzBests does not write daily keys", () => {
 	const store = memoryStore();
 	const persist = createPersist(store);
 	expect(persist.writeBlitzBests({ "mixed|default|sprint": 2 })).toEqual({
 		ok: true,
 	});
 	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
-	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
 });
 
 test("writeBlitzBests setItem throw returns ok false", () => {
@@ -252,16 +177,6 @@ test("writeBlitzBests setItem throw returns ok false", () => {
 	expect(persist.writeBlitzBests({ "mixed|default|sprint": 1 })).toEqual({
 		ok: false,
 	});
-});
-
-test("lastSeenUtc round-trips and corrupt is null", () => {
-	const store = memoryStore();
-	const persist = createPersist(store);
-	expect(persist.readLastSeenUtc()).toBeNull();
-	expect(persist.writeLastSeenUtc("2026-09-09")).toEqual({ ok: true });
-	expect(persist.readLastSeenUtc()).toBe("2026-09-09");
-	store.data.set("portdle:v1:lastSeenUtc", "{not json");
-	expect(persist.readLastSeenUtc()).toBeNull();
 });
 
 function fakeRun(): BlitzRun {
@@ -325,12 +240,11 @@ test("a run missing rounds reads the whole blitzRuns value as no runs", () => {
 	expect(persist.readBlitzRuns()).toEqual([]);
 });
 
-test("writing blitzRuns does not write daily or stats keys", () => {
+test("writing blitzRuns does not write daily keys", () => {
 	const store = memoryStore();
 	const persist = createPersist(store);
 	expect(persist.writeBlitzRuns([fakeRun()])).toEqual({ ok: true });
 	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
-	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
 });
 
 test("writeBlitzRuns setItem throw returns ok false", () => {
@@ -375,14 +289,13 @@ test("corrupt codex JSON is empty without dropping theme", () => {
 	expect(persist.readTheme()).toBe("dark");
 });
 
-test("writing codex does not write daily, stats, or blitzBests keys", () => {
+test("writing codex does not write daily or blitzBests keys", () => {
 	const store = memoryStore();
 	const persist = createPersist(store);
 	expect(
 		persist.writeCodex({ http: { state: "missed", fresh: false } }),
 	).toEqual({ ok: true });
 	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
-	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
 	expect(store.data.has("portdle:v1:blitzBests")).toBe(false);
 });
 
@@ -423,12 +336,11 @@ test("corrupt codexSort JSON is name without dropping theme", () => {
 	expect(persist.readTheme()).toBe("dark");
 });
 
-test("writing codexSort does not touch daily, stats, blitzBests, or codex keys", () => {
+test("writing codexSort does not touch daily, blitzBests, or codex keys", () => {
 	const store = memoryStore();
 	const persist = createPersist(store);
 	expect(persist.writeCodexSort("port")).toEqual({ ok: true });
 	expect(store.data.has("portdle:v1:daily:mixed:2026-09-09")).toBe(false);
-	expect(store.data.has("portdle:v1:stats:mixed")).toBe(false);
 	expect(store.data.has("portdle:v1:blitzBests")).toBe(false);
 	expect(store.data.has("portdle:v1:codex")).toBe(false);
 });
@@ -590,16 +502,7 @@ test("onWrite reports each successful player-data write", () => {
 	persist.writeCodex({});
 	persist.writeBlitzBests({});
 	persist.writeBlitzRuns([]);
-	persist.writeLastSeenUtc("2026-09-09");
 	persist.writeDaily("mixed", "2026-09-09", { status: "playing", guesses: [] });
-	persist.writeStats("protocols", {
-		played: 0,
-		wins: 0,
-		currentStreak: 0,
-		bestStreak: 0,
-		histogram: [0, 0, 0, 0, 0, 0],
-	});
-	persist.writeLastPlayed("applications", "2026-09-09");
 	expect(seen).toEqual([
 		{ kind: "theme" },
 		{ kind: "howToSeen" },
@@ -607,10 +510,7 @@ test("onWrite reports each successful player-data write", () => {
 		{ kind: "codex" },
 		{ kind: "blitzBests" },
 		{ kind: "blitzRuns" },
-		{ kind: "lastSeenUtc" },
 		{ kind: "daily", category: "mixed", date: "2026-09-09" },
-		{ kind: "stats", category: "protocols" },
-		{ kind: "lastPlayed", category: "applications" },
 	]);
 });
 
@@ -683,4 +583,119 @@ test("readPreferences returns only the stored valid preferences", () => {
 		howToSeen: true,
 		codexSort: "name",
 	});
+});
+
+const MISS = { port: 80, result: "miss" as const, identified: null };
+
+test("a daily record round-trips its late mark and refuses a late that is not a boolean", () => {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	for (const late of [true, false]) {
+		const board: DailyPersist = { status: "playing", guesses: [MISS], late };
+		persist.writeDaily("mixed", "2026-09-09", board);
+		expect(persist.readDaily("mixed", "2026-09-09")).toEqual(board);
+	}
+	store.data.set(
+		"portdle:v1:daily:mixed:2026-09-09",
+		JSON.stringify({ status: "playing", guesses: [], late: "yes" }),
+	);
+	expect(persist.readDaily("mixed", "2026-09-09")).toBeNull();
+	store.data.set(
+		"portdle:v1:daily:mixed:2026-09-09",
+		JSON.stringify({ status: "playing", guesses: [] }),
+	);
+	expect(persist.readDaily("mixed", "2026-09-09")?.late).toBeUndefined();
+});
+
+function seedSwitchOver() {
+	const store = memoryStore();
+	const persist = createPersist(store);
+	store.data.set("portdle:v1:stats:mixed", "{}");
+	store.data.set("portdle:v1:stats:protocols", "{}");
+	store.data.set("portdle:v1:lastPlayed:applications", '"2026-09-30"');
+	store.data.set("portdle:v1:lastSeenUtc", '"2026-09-30"');
+	persist.writeDaily("mixed", "2026-09-30", { status: "won", guesses: [MISS] });
+	persist.writeDaily("mixed", "2026-10-01", {
+		status: "playing",
+		guesses: [MISS],
+	});
+	persist.writeDaily("protocols", "2026-10-02", {
+		status: "playing",
+		guesses: [MISS],
+	});
+	persist.writeDaily("applications", "2026-10-02", {
+		status: "playing",
+		guesses: [MISS],
+		late: true,
+	});
+	persist.writeSyncChanges({
+		codex: ["http"],
+		bests: [],
+		runs: [],
+		dailies: [
+			dailyKey("mixed", "2026-09-30"),
+			dailyKey("protocols", "2026-10-02"),
+			dailyKey("applications", "2026-10-02"),
+		],
+		preferences: [],
+	});
+	store.data.set("other:key", "kept");
+	return { store, persist };
+}
+
+test("applySwitchOver marks records on or before the day, discards later unmarked ones, and drops their pending entries", () => {
+	const { store, persist } = seedSwitchOver();
+	expect(persist.applySwitchOver("2026-10-01")).toEqual({ ok: true });
+	expect(persist.readDaily("mixed", "2026-09-30")?.late).toBe(false);
+	expect(persist.readDaily("mixed", "2026-10-01")?.late).toBe(false);
+	expect(persist.readDaily("protocols", "2026-10-02")).toBeNull();
+	expect(store.data.has("portdle:v1:daily:protocols:2026-10-02")).toBe(false);
+	expect(persist.readDaily("applications", "2026-10-02")?.late).toBe(true);
+	expect(persist.readSyncChanges()).toEqual({
+		codex: ["http"],
+		bests: [],
+		runs: [],
+		dailies: [
+			dailyKey("mixed", "2026-09-30"),
+			dailyKey("applications", "2026-10-02"),
+		],
+		preferences: [],
+	});
+});
+
+test("applySwitchOver removes the stored stats keys and keeps other keys", () => {
+	const { store, persist } = seedSwitchOver();
+	persist.applySwitchOver("2026-10-01");
+	for (const key of store.data.keys()) {
+		expect(key).not.toMatch(/stats|lastPlayed|lastSeenUtc/);
+	}
+	expect(store.data.get("other:key")).toBe("kept");
+});
+
+test("applySwitchOver is idempotent and leaves a value that is not a record alone", () => {
+	const { store, persist } = seedSwitchOver();
+	store.data.set("portdle:v1:daily:mixed:2026-10-05", "{not json");
+	persist.applySwitchOver("2026-10-01");
+	const once = new Map(store.data);
+	expect(persist.applySwitchOver("2026-10-01")).toEqual({ ok: true });
+	expect(store.data).toEqual(once);
+	expect(store.data.get("portdle:v1:daily:mixed:2026-10-05")).toBe("{not json");
+});
+
+test("applySwitchOver reports a failed write and finishes the rest", () => {
+	const { store, persist } = seedSwitchOver();
+	const failing = createPersist({
+		...store,
+		length: store.length,
+		key: (index) => store.key(index),
+		getItem: (key) => store.getItem(key),
+		removeItem: (key) => store.removeItem(key),
+		setItem: () => {
+			throw new Error("quota");
+		},
+	});
+	expect(failing.applySwitchOver("2026-10-01")).toEqual({ ok: false });
+	expect(persist.readDaily("protocols", "2026-10-02")).toBeNull();
+	expect(persist.applySwitchOver("2026-10-01")).toEqual({ ok: true });
+	expect(persist.readDaily("mixed", "2026-09-30")?.late).toBe(false);
 });

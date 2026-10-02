@@ -52,7 +52,6 @@ async function open(
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: [`/portdle${path}`] })}
-			utcToday={UTC_TODAY}
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });

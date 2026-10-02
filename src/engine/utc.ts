@@ -39,3 +39,8 @@ export function isValidUtcDate(value: string): boolean {
 		!Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value)
 	);
 }
+
+// A Daily is late when the server's today is after the Daily's day.
+export function isLate(date: string, serverToday: string): boolean {
+	return serverToday > date;
+}

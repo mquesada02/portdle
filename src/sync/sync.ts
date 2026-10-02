@@ -1,15 +1,8 @@
 import { dailyKey, parseDailyKey } from "../engine/daily-key";
-import {
-	foldStats,
-	mergeBests,
-	mergeCodex,
-	mergeDaily,
-	mergeRuns,
-} from "../engine/merge";
+import { mergeBests, mergeCodex, mergeDaily, mergeRuns } from "../engine/merge";
 import {
 	type CodexSort,
 	DAILY_CATEGORIES,
-	type DailyCategory,
 	type DailyPersist,
 } from "../engine/types";
 import { isValidTimestamp, isValidUtcDate } from "../engine/utc";
@@ -99,9 +92,8 @@ export function createSync(options: {
 	persist: Persist;
 	remote: Remote;
 	clock?: SyncClock;
-	utcToday: () => string;
 }): Sync {
-	const { persist, remote, utcToday } = options;
+	const { persist, remote } = options;
 	const clock = options.clock ?? systemClock;
 
 	let epoch = 0;
@@ -270,7 +262,6 @@ export function createSync(options: {
 	// A device that never synced counts every stored preference as a local
 	// change, so it can replace the account's value once.
 	function applyPull(rows: SyncedRows, firstSync: boolean) {
-		const changedCategories = new Set<DailyCategory>();
 		if (firstSync) {
 			addPending("preferences", Object.keys(persist.readPreferences()));
 		}
@@ -300,11 +291,7 @@ export function createSync(options: {
 				const merged = local ? mergeDaily(local, account) : account;
 				if (local === null || canonical(merged) !== canonical(local)) {
 					persist.writeDaily(category, date, merged);
-					changedCategories.add(category);
 				}
-			}
-			for (const category of changedCategories) {
-				rebuildStats(category);
 			}
 			// A preference with a change not yet pushed keeps its local value.
 			const pending = new Set(persist.readSyncChanges().preferences);
@@ -346,24 +333,6 @@ export function createSync(options: {
 			persist.writeHowToSeen();
 		} else {
 			persist.writeCodexSort(value as CodexSort);
-		}
-	}
-
-	function rebuildStats(category: DailyCategory) {
-		const dailies: Record<string, DailyPersist> = {};
-		for (const date of persist.listDailyDates(category)) {
-			const daily = persist.readDaily(category, date);
-			if (daily) {
-				dailies[date] = daily;
-			}
-		}
-		const { stats, lastPlayed } = foldStats({
-			dailies,
-			utcToday: utcToday(),
-		});
-		if (lastPlayed !== null) {
-			persist.writeStats(category, stats);
-			persist.writeLastPlayed(category, lastPlayed);
 		}
 	}
 

@@ -641,6 +641,62 @@ test("push upserts each table with its conflict columns, the account id, chunks 
 	});
 });
 
+test("pull reads late into the record and a null late as absent", async () => {
+	const dailies = [true, false, null].map((late, i) => ({
+		category: "mixed",
+		day: `2026-09-1${i}`,
+		status: "won",
+		guesses: [],
+		late,
+	}));
+	const { remote } = makeRemote({
+		client: dataClient({ dailies }, []),
+	});
+	const rows = await remote.pull();
+	expect(rows.dailies["mixed|2026-09-10"]).toEqual({
+		status: "won",
+		guesses: [],
+		late: true,
+	});
+	expect(rows.dailies["mixed|2026-09-11"]).toEqual({
+		status: "won",
+		guesses: [],
+		late: false,
+	});
+	expect(rows.dailies["mixed|2026-09-12"]).toEqual({
+		status: "won",
+		guesses: [],
+	});
+});
+
+test("push sends late, and null for a record with no late", async () => {
+	const calls: Call[] = [];
+	const { remote } = makeRemote({ client: dataClient({}, calls) });
+	await remote.push("u1", {
+		codex: {},
+		bests: {},
+		runs: [],
+		dailies: {
+			"mixed|2026-09-10": { status: "won", guesses: [], late: true },
+			"mixed|2026-09-11": { status: "won", guesses: [], late: false },
+			"mixed|2026-09-12": { status: "won", guesses: [] },
+		},
+		preferences: {},
+	});
+	const upsert = calls
+		.filter((c) => c.table === "dailies")
+		.flatMap((c) => c.steps.filter((step) => step[0] === "upsert"))[0];
+	const records = (upsert?.[1] ?? []) as Array<{
+		day: string;
+		late: boolean | null;
+	}>;
+	expect(records.map((record) => [record.day, record.late])).toEqual([
+		["2026-09-10", true],
+		["2026-09-11", false],
+		["2026-09-12", null],
+	]);
+});
+
 test("push maps a foreign-key violation to AccountGoneError and rethrows other errors", async () => {
 	const gone = makeRemote({
 		client: dataClient(
