@@ -35,7 +35,15 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.119.0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: supabase start -x studio,mailpit
+      # Runs the Schedule generator once as the generator role, as pnpm dev does.
+      - run: pnpm dev:schedule
       - run: scripts/run-sql-tests.sh
   deploy:
     if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

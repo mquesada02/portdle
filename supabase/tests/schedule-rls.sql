@@ -2,14 +2,14 @@
 -- in CI. Raises on the first failed assertion; prints a notice on success.
 -- Schedule row-level security: visitors and players read only rows up to the
 -- server's UTC date; the generator reads every row. It inserts its own future
--- rows (server date plus 30 days) and rolls back, so it depends on no live
--- rows past the import.
+-- rows (30 days after the last stored Schedule day) and rolls back, so it
+-- depends on no live rows past the import.
 
 begin;
 
 do $$
 declare
-	future_day date := public.server_utc_date() + 30;
+	future_day date := greatest((select max(day) from public.schedule), public.server_utc_date()) + 30;
 begin
 	grant schedule_generator to postgres;
 	insert into public.catalog_entries (id, kind, name, port, transport, description, answer_eligible)

@@ -1,4 +1,5 @@
 import { answerPool, catalogFor, validateCatalog } from "./catalog";
+import { dailyKey } from "./daily-key";
 import { hashSeed, mulberry32 } from "./rng";
 import {
 	type CatalogEntry,
@@ -7,19 +8,27 @@ import {
 	type DailyCategory,
 	type ScheduleFile,
 } from "./types";
-import { utcDayIndex } from "./utc";
+import { addUtcDays, utcDayIndex } from "./utc";
 
 export type FrozenIdentity = Record<string, { name: string; port: number }>;
 
 export const SCHEDULE_EPOCH = "2026-09-09";
 
+export type RandomFactory = (seedKey: string) => () => number;
+
+const defaultRandom: RandomFactory = (seedKey) => mulberry32(hashSeed(seedKey));
+
 function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function shuffleSorted(ids: string[], seedKey: string): string[] {
+function shuffleSorted(
+	ids: string[],
+	seedKey: string,
+	makeRandom: RandomFactory,
+): string[] {
 	const shuffled = [...ids].sort();
-	const random = mulberry32(hashSeed(seedKey));
+	const random = makeRandom(seedKey);
 	for (let index = shuffled.length - 1; index > 0; index -= 1) {
 		const swapWith = Math.floor(random() * (index + 1));
 		const current = shuffled[index];
@@ -90,22 +99,23 @@ function appendCycle(
 	schedule: ScheduleFile,
 	category: DailyCategory,
 	ids: string[],
+	makeRandom: RandomFactory,
 ): Cycle {
 	const startDay = lastAssignedDay(schedule) + 1;
-	const order = shuffleSorted(ids, `${category}:${startDay}`);
+	const order = shuffleSorted(ids, `${category}:${startDay}`, makeRandom);
 	const cycle: Cycle = { startDay, order };
 	schedule.cycles.push(cycle);
 	return cycle;
 }
 
+// Returns the cycle it changed, if any.
 function applyA2(
 	schedule: ScheduleFile,
 	category: DailyCategory,
-	utcToday: string,
+	todayIndex: number,
 	eligible: Set<string>,
-): void {
-	const epoch = schedule.epoch;
-	const todayIndex = utcDayIndex(utcToday, epoch);
+	makeRandom: RandomFactory,
+): Cycle | undefined {
 	const containing = cycleForDay(schedule, todayIndex);
 	let cycle: Cycle | undefined = containing;
 	let frozenLength = 0;
@@ -115,7 +125,7 @@ function applyA2(
 	} else if (schedule.cycles.length > 0) {
 		const last = schedule.cycles[schedule.cycles.length - 1];
 		if (!last) {
-			return;
+			return undefined;
 		}
 		const lastEnd = last.startDay + last.order.length - 1;
 		if (todayIndex > lastEnd) {
@@ -128,10 +138,10 @@ function applyA2(
 	}
 
 	if (!cycle) {
-		return;
+		return undefined;
 	}
 	if (!containing && frozenLength >= cycle.order.length) {
-		return;
+		return undefined;
 	}
 
 	const prefix = cycle.order.slice(0, frozenLength);
@@ -146,31 +156,31 @@ function applyA2(
 	}
 	const dropped = tail.filter((id) => !eligible.has(id));
 	if (added.length === 0 && dropped.length === 0) {
-		return;
+		return undefined;
 	}
 	const nextTail = shuffleSorted(
 		[...stillEligibleTail, ...added],
 		`${category}:${cycle.startDay}:${[...stillEligibleTail, ...added].sort().join(",")}`,
+		makeRandom,
 	);
 	cycle.order = [...prefix, ...nextTail];
+	return cycle;
 }
 
 function coverThrough(
 	schedule: ScheduleFile,
 	category: DailyCategory,
-	utcToday: string,
+	todayIndex: number,
 	ids: string[],
-): Cycle[] {
-	const appended: Cycle[] = [];
-	const todayIndex = utcDayIndex(utcToday, schedule.epoch);
+	makeRandom: RandomFactory,
+): void {
 	const needed = todayIndex + 7;
 	while (lastAssignedDay(schedule) < needed) {
 		if (ids.length === 0) {
 			break;
 		}
-		appended.push(appendCycle(schedule, category, ids));
+		appendCycle(schedule, category, ids, makeRandom);
 	}
-	return appended;
 }
 
 function unusedMixedId(
@@ -213,10 +223,51 @@ function laterMixedSwapIndex(
 	return undefined;
 }
 
+type DistinctnessOptions = {
+	// Swap only inside one cycle, so each cycle keeps each entry once. A
+	// collision with no such swap is reported in `issues`.
+	sameCycleOnly?: { issues: string[] };
+};
+
+export function sameCycleSwapIndex(
+	schedules: Record<DailyCategory, ScheduleFile>,
+	fromDay: number,
+	day: number,
+	mixedId: string,
+	protocolsId: string | undefined,
+	applicationsId: string | undefined,
+): { cycle: Cycle; index: number } | undefined {
+	const cycle = cycleForDay(schedules.mixed, day);
+	if (!cycle) {
+		return undefined;
+	}
+	// Later days first, then earlier days that are still movable.
+	const lastDay = cycle.startDay + cycle.order.length - 1;
+	const earliest = Math.max(fromDay, cycle.startDay);
+	const candidates = [
+		...Array.from({ length: lastDay - day }, (_, step) => day + 1 + step),
+		...Array.from({ length: day - earliest }, (_, step) => day - 1 - step),
+	];
+	for (const other of candidates) {
+		const candidate = cycle.order[other - cycle.startDay];
+		const otherP = idOnDay(schedules.protocols, other);
+		const otherA = idOnDay(schedules.applications, other);
+		const candidateFitsToday =
+			candidate !== protocolsId && candidate !== applicationsId;
+		const mixedFitsThere = mixedId !== otherP && mixedId !== otherA;
+		if (candidateFitsToday && mixedFitsThere) {
+			return { cycle, index: other - cycle.startDay };
+		}
+	}
+	return undefined;
+}
+
 function resolveDistinctness(
 	schedules: Record<DailyCategory, ScheduleFile>,
 	fromDay: number,
 	mixedEligible: Set<string>,
+	makeRandom: RandomFactory,
+	options: DistinctnessOptions = {},
 ): void {
 	let day = Math.max(fromDay, 0);
 	const mixed = schedules.mixed;
@@ -226,7 +277,7 @@ function resolveDistinctness(
 		day <= lastAssignedDay(schedules.applications)
 	) {
 		if (!cycleForDay(mixed, day)) {
-			appendCycle(mixed, "mixed", [...mixedEligible]);
+			appendCycle(mixed, "mixed", [...mixedEligible], makeRandom);
 		}
 		const mixedId = idOnDay(mixed, day);
 		const protocolsId = idOnDay(schedules.protocols, day);
@@ -235,6 +286,28 @@ function resolveDistinctness(
 			mixedId !== undefined &&
 			(mixedId === protocolsId || mixedId === applicationsId)
 		) {
+			if (options.sameCycleOnly) {
+				const swap = sameCycleSwapIndex(
+					schedules,
+					Math.max(fromDay, 0),
+					day,
+					mixedId,
+					protocolsId,
+					applicationsId,
+				);
+				if (swap) {
+					const { cycle } = swap;
+					const laterId = cycle.order[swap.index];
+					cycle.order[swap.index] = mixedId;
+					cycle.order[day - cycle.startDay] = laterId as string;
+				} else {
+					options.sameCycleOnly.issues.push(
+						`mixed collision on ${addUtcDays(mixed.epoch, day)} has no swap`,
+					);
+				}
+				day += 1;
+				continue;
+			}
 			const swap = laterMixedSwapIndex(
 				schedules,
 				day,
@@ -261,7 +334,7 @@ function resolveDistinctness(
 					if (unused) {
 						setIdOnDay(mixed, day, unused);
 					} else {
-						appendCycle(mixed, "mixed", [...mixedEligible]);
+						appendCycle(mixed, "mixed", [...mixedEligible], makeRandom);
 						continue;
 					}
 				}
@@ -351,8 +424,9 @@ export function generateSchedules(input: {
 		const eligible = new Set(
 			poolIds(category, input.protocols, input.applications),
 		);
-		applyA2(schedules[category], category, input.utcToday, eligible);
-		coverThrough(schedules[category], category, input.utcToday, ids);
+		const todayIndex = utcDayIndex(input.utcToday, current.epoch);
+		applyA2(schedules[category], category, todayIndex, eligible, defaultRandom);
+		coverThrough(schedules[category], category, todayIndex, ids, defaultRandom);
 	}
 	const todayIndex = utcDayIndex(input.utcToday, schedules.mixed.epoch);
 	const mixedWasEmpty = input.current.mixed.cycles.length === 0;
@@ -367,6 +441,7 @@ export function generateSchedules(input: {
 		schedules,
 		fromDay,
 		new Set(poolIds("mixed", input.protocols, input.applications)),
+		defaultRandom,
 	);
 	const identity = recordIdentity(
 		input.identity,
@@ -377,11 +452,15 @@ export function generateSchedules(input: {
 	return { schedules, identity };
 }
 
+// With `stored`, issue text names categories and days only, never entry ids
+// (a future answer must not reach a log), and the unknown-id check starts at
+// `fromDay`: a frozen answer whose catalog kind changed cannot stop the run.
 export function validateSchedules(input: {
 	utcToday: string;
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
 	schedules: Record<DailyCategory, ScheduleFile>;
+	stored?: { fromDay: number };
 }): string[] {
 	const issues: string[] = [];
 	const protocolIssues = validateCatalog(input.protocols);
@@ -395,7 +474,9 @@ export function validateSchedules(input: {
 		...unionIssues,
 	]) {
 		issues.push(
-			`${issue.kind}:${issue.kind === "duplicate-name" ? issue.name : issue.id}`,
+			input.stored
+				? issue.kind
+				: `${issue.kind}:${issue.kind === "duplicate-name" ? issue.name : issue.id}`,
 		);
 	}
 	if (answerPool(input.protocols).length < 40) {
@@ -418,9 +499,14 @@ export function validateSchedules(input: {
 			if (cycle.startDay < 0) {
 				issues.push(`${category} assigns a negative day`);
 			}
-			for (const id of cycle.order) {
-				if (!ids.has(id)) {
-					issues.push(`${category} unknown id ${id}`);
+			for (const [offset, id] of cycle.order.entries()) {
+				const day = cycle.startDay + offset;
+				if (!ids.has(id) && (!input.stored || day >= input.stored.fromDay)) {
+					issues.push(
+						input.stored
+							? `${category} unknown entry on ${addUtcDays(schedule.epoch, day)}`
+							: `${category} unknown id ${id}`,
+					);
 				}
 			}
 		}
@@ -515,4 +601,189 @@ export function checkSchedules(input: {
 		}),
 	);
 	return issues;
+}
+
+export type StoredRow = {
+	category: DailyCategory;
+	day: string;
+	entryId: string;
+	cycleStart: string;
+};
+
+function rowsToSchedule(
+	category: DailyCategory,
+	rows: StoredRow[],
+	issues: string[],
+): ScheduleFile {
+	const schedule: ScheduleFile = { epoch: SCHEDULE_EPOCH, cycles: [] };
+	const mine = rows
+		.filter((row) => row.category === category)
+		.sort((left, right) =>
+			left.day < right.day ? -1 : left.day > right.day ? 1 : 0,
+		);
+	let current: Cycle | undefined;
+	for (const [position, row] of mine.entries()) {
+		const dayIndex = utcDayIndex(row.day, SCHEDULE_EPOCH);
+		const startDay = utcDayIndex(row.cycleStart, SCHEDULE_EPOCH);
+		if (dayIndex !== position) {
+			issues.push(`${category} stored rows are not one range at ${row.day}`);
+			return schedule;
+		}
+		if (!current || current.startDay !== startDay) {
+			if (startDay !== dayIndex) {
+				issues.push(
+					`${category} cycle does not start on its first row at ${row.day}`,
+				);
+				return schedule;
+			}
+			current = { startDay, order: [] };
+			schedule.cycles.push(current);
+		}
+		current.order.push(row.entryId);
+	}
+	return schedule;
+}
+
+function scheduleToRows(
+	category: DailyCategory,
+	schedule: ScheduleFile,
+	issues: string[],
+): StoredRow[] {
+	const rows: StoredRow[] = [];
+	const last = lastAssignedDay(schedule);
+	for (let dayIndex = 0; dayIndex <= last; dayIndex += 1) {
+		const cycle = cycleForDay(schedule, dayIndex);
+		const entryId = cycle?.order[dayIndex - cycle.startDay];
+		if (!cycle || entryId === undefined) {
+			issues.push(
+				`${category} has no entry on ${addUtcDays(SCHEDULE_EPOCH, dayIndex)}`,
+			);
+			return rows;
+		}
+		rows.push({
+			category,
+			day: addUtcDays(SCHEDULE_EPOCH, dayIndex),
+			entryId,
+			cycleStart: addUtcDays(SCHEDULE_EPOCH, cycle.startDay),
+		});
+	}
+	return rows;
+}
+
+// Plans the Schedule from the stored rows. Nothing on or before
+// `frozenThrough` changes; days missing up to it are inserted, rows after it
+// are replaced when the plan differs. Issue text names categories and days,
+// never entry ids. With issues, the caller writes nothing.
+export function generateFromRows(input: {
+	frozenThrough: string;
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+	rows: StoredRow[];
+	random: RandomFactory;
+}): { insert: StoredRow[]; remove: StoredRow[]; issues: string[] } {
+	const issues: string[] = [];
+	const frozenIndex = utcDayIndex(input.frozenThrough, SCHEDULE_EPOCH);
+	if (frozenIndex < 0) {
+		issues.push("frozen-through day is before the epoch");
+	}
+	const schedules = {
+		mixed: rowsToSchedule("mixed", input.rows, issues),
+		protocols: rowsToSchedule("protocols", input.rows, issues),
+		applications: rowsToSchedule("applications", input.rows, issues),
+	} satisfies Record<DailyCategory, ScheduleFile>;
+	const fail = () => ({ insert: [], remove: [], issues });
+	if (issues.length > 0) {
+		return fail();
+	}
+	const storedLast = {
+		mixed: lastAssignedDay(schedules.mixed),
+		protocols: lastAssignedDay(schedules.protocols),
+		applications: lastAssignedDay(schedules.applications),
+	};
+	for (const category of DAILY_CATEGORIES) {
+		const schedule = schedules[category];
+		const ids = poolIds(category, input.protocols, input.applications);
+		const lengthBefore = new Map(
+			schedule.cycles.map((cycle) => [cycle.startDay, cycle.order.length]),
+		);
+		const changed = applyA2(
+			schedule,
+			category,
+			Math.min(frozenIndex, storedLast[category]),
+			new Set(ids),
+			input.random,
+		);
+		// Later cycles only move when the changed cycle's length changes.
+		if (
+			changed &&
+			changed.order.length !== lengthBefore.get(changed.startDay)
+		) {
+			schedule.cycles = schedule.cycles.filter(
+				(cycle) => cycle.startDay <= changed.startDay,
+			);
+		}
+		coverThrough(schedule, category, frozenIndex, ids, input.random);
+	}
+	resolveDistinctness(
+		schedules,
+		Math.min(frozenIndex, storedLast.mixed) + 1,
+		new Set(poolIds("mixed", input.protocols, input.applications)),
+		input.random,
+		{ sameCycleOnly: { issues } },
+	);
+	issues.push(
+		...validateSchedules({
+			utcToday: input.frozenThrough,
+			protocols: input.protocols,
+			applications: input.applications,
+			schedules,
+			stored: { fromDay: frozenIndex + 1 },
+		}),
+	);
+
+	const planned = new Map<string, StoredRow>();
+	for (const category of DAILY_CATEGORIES) {
+		for (const row of scheduleToRows(category, schedules[category], issues)) {
+			planned.set(dailyKey(row.category, row.day), row);
+		}
+	}
+	const stored = new Map(
+		input.rows.map((row) => [dailyKey(row.category, row.day), row]),
+	);
+	const same = (left: StoredRow | undefined, right: StoredRow) =>
+		left?.entryId === right.entryId && left.cycleStart === right.cycleStart;
+	const insert: StoredRow[] = [];
+	const remove: StoredRow[] = [];
+	for (const [key, old] of stored) {
+		if (same(planned.get(key), old)) {
+			continue;
+		}
+		if (old.day <= input.frozenThrough) {
+			issues.push(`the plan changes ${old.category} on ${old.day}`);
+			continue;
+		}
+		remove.push(old);
+	}
+	for (const [key, next] of planned) {
+		if (!same(stored.get(key), next)) {
+			insert.push(next);
+		}
+	}
+	for (const row of insert) {
+		if (row.day > input.frozenThrough) {
+			continue;
+		}
+		for (const other of DAILY_CATEGORIES) {
+			if (
+				other !== row.category &&
+				planned.get(dailyKey(other, row.day))?.entryId === row.entryId
+			) {
+				issues.push(`same-day collision on ${row.day}`);
+			}
+		}
+	}
+	if (issues.length > 0) {
+		return fail();
+	}
+	return { insert, remove, issues };
 }
