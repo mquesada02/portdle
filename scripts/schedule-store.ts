@@ -116,17 +116,18 @@ export async function runGenerator(
 			);
 		}
 		await client.query("commit");
-		return Object.fromEntries(
-			DAILY_CATEGORIES.map((category) => [
-				category,
-				{
-					inserted: plan.insert.filter((row) => row.category === category)
-						.length,
-					removed: plan.remove.filter((row) => row.category === category)
-						.length,
-				},
-			]),
-		) as RunSummary;
+		const summary: RunSummary = {
+			mixed: { inserted: 0, removed: 0 },
+			protocols: { inserted: 0, removed: 0 },
+			applications: { inserted: 0, removed: 0 },
+		};
+		for (const row of plan.insert) {
+			summary[row.category].inserted += 1;
+		}
+		for (const row of plan.remove) {
+			summary[row.category].removed += 1;
+		}
+		return summary;
 	} catch (error) {
 		// A failed rollback must not hide the error that caused it.
 		await client.query("rollback").catch(() => undefined);

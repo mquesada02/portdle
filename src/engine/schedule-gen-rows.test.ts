@@ -5,6 +5,7 @@ import applicationsSchedule from "../catalogs/schedules/applications.json";
 import mixedSchedule from "../catalogs/schedules/mixed.json";
 import protocolsSchedule from "../catalogs/schedules/protocols.json";
 import { answerPool, catalogFor } from "./catalog";
+import { dailyKey } from "./daily-key";
 import { hashSeed, mulberry32 } from "./rng";
 import {
 	generateFromRows,
@@ -57,7 +58,7 @@ function day(index: number): string {
 }
 
 function key(row: StoredRow): string {
-	return `${row.category}|${row.day}`;
+	return dailyKey(row.category, row.day);
 }
 
 function run(

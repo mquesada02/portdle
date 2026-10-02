@@ -1,4 +1,5 @@
 import { answerPool, catalogFor, validateCatalog } from "./catalog";
+import { dailyKey } from "./daily-key";
 import { hashSeed, mulberry32 } from "./rng";
 import {
 	type CatalogEntry,
@@ -754,17 +755,18 @@ export function generateFromRows(input: {
 	const planned = new Map<string, StoredRow>();
 	for (const category of DAILY_CATEGORIES) {
 		for (const row of scheduleToRows(category, schedules[category], issues)) {
-			planned.set(`${row.category}|${row.day}`, row);
+			planned.set(dailyKey(row.category, row.day), row);
 		}
 	}
 	const stored = new Map(
-		input.rows.map((row) => [`${row.category}|${row.day}`, row]),
+		input.rows.map((row) => [dailyKey(row.category, row.day), row]),
 	);
+	const same = (left: StoredRow | undefined, right: StoredRow) =>
+		left?.entryId === right.entryId && left.cycleStart === right.cycleStart;
 	const insert: StoredRow[] = [];
 	const remove: StoredRow[] = [];
 	for (const [key, old] of stored) {
-		const next = planned.get(key);
-		if (next?.entryId === old.entryId && next.cycleStart === old.cycleStart) {
+		if (same(planned.get(key), old)) {
 			continue;
 		}
 		if (old.day <= input.frozenThrough) {
@@ -774,12 +776,7 @@ export function generateFromRows(input: {
 		remove.push(old);
 	}
 	for (const [key, next] of planned) {
-		const old = stored.get(key);
-		if (
-			!old ||
-			old.entryId !== next.entryId ||
-			old.cycleStart !== next.cycleStart
-		) {
+		if (!same(stored.get(key), next)) {
 			insert.push(next);
 		}
 	}
@@ -790,7 +787,7 @@ export function generateFromRows(input: {
 		for (const other of DAILY_CATEGORIES) {
 			if (
 				other !== row.category &&
-				planned.get(`${other}|${row.day}`)?.entryId === row.entryId
+				planned.get(dailyKey(other, row.day))?.entryId === row.entryId
 			) {
 				issues.push(`same-day collision on ${row.day}`);
 			}
