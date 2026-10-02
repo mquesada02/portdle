@@ -97,3 +97,7 @@ export async function loaded() {
 		expect(screen.queryByText("Loading...")).toBeNull();
 	});
 }
+
+// Lets every pending promise step and zero-delay timer run.
+export const flush = () =>
+	new Promise<void>((resolve) => setTimeout(resolve, 0));

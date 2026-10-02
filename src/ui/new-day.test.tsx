@@ -11,9 +11,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
+import { dailyOn, padToAnswer, sameEntry, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
 import {
+	flush,
 	loaded,
 	memoryStore,
 	portDigits,
@@ -70,19 +71,24 @@ function focusLater(ms = FOCUS_READ_THROTTLE_MS) {
 // count moves when a read starts.
 async function readApplied(remote: FakeRemote, calls: number) {
 	await waitFor(() => expect(remote.dailiesCalls).toBe(calls));
-	await act(async () => {
-		await new Promise((resolve) => setTimeout(resolve, 0));
-	});
+	await act(flush);
 }
 
 function heading(name: string) {
 	return screen.getByRole("heading", { level: 1, name });
 }
 
-async function guess(user: ReturnType<typeof userEvent.setup>, port: number) {
+async function submit(
+	user: ReturnType<typeof userEvent.setup>,
+	digits: string,
+) {
 	await user.click(portDigits());
-	await user.keyboard(String(port));
+	await user.keyboard(digits);
 	await user.click(screen.getByRole("button", { name: "Submit" }));
+}
+
+async function guess(user: ReturnType<typeof userEvent.setup>, port: number) {
+	await submit(user, String(port));
 }
 
 async function wrongGuess(
@@ -90,13 +96,12 @@ async function wrongGuess(
 	answer: CatalogEntry,
 ) {
 	const port = answer.port === 1 ? 2 : 1;
-	await user.click(portDigits());
-	await user.keyboard(padToAnswer(port, answer));
-	await user.click(screen.getByRole("button", { name: "Submit" }));
+	await submit(user, padToAnswer(port, answer));
 }
 
-function newEntry(): CatalogEntry {
-	return {
+// The server's next day is an entry that was added after the app loaded.
+function serveBrandNewDaily(remote: FakeRemote) {
+	const added: CatalogEntry = {
 		id: "brand-new",
 		name: "Brand New",
 		port: 4242,
@@ -104,6 +109,12 @@ function newEntry(): CatalogEntry {
 		description: "d",
 		answerEligible: true,
 	};
+	remote.catalog = {
+		...remote.catalog,
+		protocols: [...remote.catalog.protocols, added],
+	};
+	remote.entryIds = sameEntry(added.id);
+	remote.today = NEXT_DAY;
 }
 
 test("the two Dailies differ, so the tests tell the days apart", () => {
@@ -213,11 +224,7 @@ test("an untouched Daily that moves to a day with a stored try stays there at th
 test("the same day with another entry id moves nothing", async () => {
 	const remote = createFakeRemote();
 	await open(remote);
-	remote.entryIds = {
-		mixed: tomorrow.id,
-		protocols: tomorrow.id,
-		applications: tomorrow.id,
-	};
+	remote.entryIds = sameEntry(tomorrow.id);
 	focusLater();
 	await readApplied(remote, 2);
 	expect(heading(today.name)).toBeTruthy();
@@ -283,16 +290,7 @@ test("the timer reads at the server's midnight, never by the device date", async
 test("a new catalog entry is read once when the new Daily needs it", async () => {
 	const remote = createFakeRemote();
 	await open(remote);
-	remote.catalog = {
-		...remote.catalog,
-		protocols: [...remote.catalog.protocols, newEntry()],
-	};
-	remote.entryIds = {
-		mixed: "brand-new",
-		protocols: "brand-new",
-		applications: "brand-new",
-	};
-	remote.today = NEXT_DAY;
+	serveBrandNewDaily(remote);
 	focusLater();
 	expect(
 		await screen.findByRole("heading", { level: 1, name: "Brand New" }),
@@ -323,17 +321,7 @@ test("a device date that disagrees with the server's moves nothing on focus", as
 test("a failed catalog reload keeps the shown Daily, and the next focus moves it", async () => {
 	const remote = createFakeRemote();
 	await open(remote);
-	const fixture = remote.catalog;
-	remote.catalog = {
-		...fixture,
-		protocols: [...fixture.protocols, newEntry()],
-	};
-	remote.entryIds = {
-		mixed: "brand-new",
-		protocols: "brand-new",
-		applications: "brand-new",
-	};
-	remote.today = NEXT_DAY;
+	serveBrandNewDaily(remote);
 	remote.failCatalog = true;
 	focusLater();
 	await readApplied(remote, 2);

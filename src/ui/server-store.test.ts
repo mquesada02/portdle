@@ -4,14 +4,13 @@ import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import type { Catalog, CurrentDailies, Remote } from "../remote/remote";
 import { createSync, PULL_THROTTLE_MS } from "../sync/sync";
-import { UTC_TODAY } from "../test/dailies";
+import { sameEntry, UTC_TODAY } from "../test/dailies";
 import { createFakeClock } from "../test/fake-clock";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
-import { memoryStore } from "../test/helpers";
+import { flush, memoryStore } from "../test/helpers";
 import { createServerStore, FOCUS_READ_THROTTLE_MS } from "./server-store";
 
 const MINUTE = 60_000;
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const at = (iso: string) => Date.parse(iso);
 
 const detachers: Array<() => void> = [];
@@ -399,11 +398,7 @@ test("a Dailies read with an entry the catalog lacks reads the catalog once", as
 		...fixture,
 		protocols: [...fixture.protocols, entry("brand-new")],
 	};
-	remote.entryIds = {
-		mixed: "brand-new",
-		protocols: "brand-new",
-		applications: "brand-new",
-	};
+	remote.entryIds = sameEntry("brand-new");
 	remote.today = "2026-09-10";
 	await store.refreshDailies();
 	expect(remote.catalogCalls).toBe(before + 1);
@@ -426,11 +421,7 @@ test("with every entry in the catalog no second catalog read happens", async () 
 test("a failed catalog reload keeps the shown Daily, leaves the timer and the throttle alone", async () => {
 	const { remote, clock, store } = await start();
 	const before = store.getSnapshot();
-	remote.entryIds = {
-		mixed: "missing",
-		protocols: "missing",
-		applications: "missing",
-	};
+	remote.entryIds = sameEntry("missing");
 	remote.today = "2026-09-10";
 	remote.failCatalog = true;
 	clock.advance(FOCUS_READ_THROTTLE_MS);
@@ -444,11 +435,7 @@ test("a failed catalog reload keeps the shown Daily, leaves the timer and the th
 
 test("a failed catalog reload on a timer-fired read leaves no timer", async () => {
 	const { remote, clock } = await start();
-	remote.entryIds = {
-		mixed: "missing",
-		protocols: "missing",
-		applications: "missing",
-	};
+	remote.entryIds = sameEntry("missing");
 	remote.failCatalog = true;
 	clock.advance(24 * 60 * MINUTE);
 	await flush();
@@ -458,11 +445,7 @@ test("a failed catalog reload on a timer-fired read leaves no timer", async () =
 test("with the catalog still loading the Dailies apply and no catalog read is added", async () => {
 	const remote = createFakeRemote();
 	remote.holdCatalog();
-	remote.entryIds = {
-		mixed: "missing",
-		protocols: "missing",
-		applications: "missing",
-	};
+	remote.entryIds = sameEntry("missing");
 	const { store } = setup(remote);
 	store.load();
 	await flush();
@@ -473,11 +456,7 @@ test("with the catalog still loading the Dailies apply and no catalog read is ad
 test("with the catalog failed the Dailies apply and no catalog read is added", async () => {
 	const remote = createFakeRemote();
 	remote.failCatalog = true;
-	remote.entryIds = {
-		mixed: "missing",
-		protocols: "missing",
-		applications: "missing",
-	};
+	remote.entryIds = sameEntry("missing");
 	const { store } = setup(remote);
 	store.load();
 	await flush();
