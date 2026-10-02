@@ -4,8 +4,9 @@
 -- Schedule Action needs and no more, and a role migration that is safe to run
 -- twice. It cannot assert "no password": postgres cannot read pg_authid on
 -- Supabase, and the local stack sets a password. That is checked by reading
--- the migration. The \i path is relative to the repository root, where
--- scripts/run-sql-tests.sh runs psql.
+-- the migration. The idempotent-migration half uses psql's \i, so it runs
+-- only through psql (scripts/run-sql-tests.sh, from the repository root), not
+-- in the SQL editor.
 
 begin;
 

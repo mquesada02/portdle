@@ -4,7 +4,8 @@
 -- grant below is explicit.
 --
 -- catalog_entries: one row per catalog entry; the id is permanent. Anyone
--- reads; nobody writes except the owner's dashboard role. It has no row-level
+-- reads; nobody writes except the owner's dashboard role (service_role keeps
+-- Supabase's default grants, as in Spec 4; the triggers stop its writes). It has no row-level
 -- security (owner call); the protections are in 20261001000010.
 -- schedule: one row per Daily category and UTC day. Visitors and players read
 -- only rows up to the server's UTC date, so no future answer is readable. Only
