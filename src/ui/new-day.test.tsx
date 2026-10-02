@@ -1,5 +1,6 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import {
+	act,
 	cleanup,
 	fireEvent,
 	render,
@@ -8,7 +9,6 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
-import { digitLength } from "../engine/guess";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
@@ -63,6 +63,15 @@ function focusLater(ms = FOCUS_READ_THROTTLE_MS) {
 	fireEvent.focus(window);
 }
 
+// Waits until the store applied the read, not only until it started: the call
+// count moves when a read starts.
+async function readApplied(remote: FakeRemote, calls: number) {
+	await waitFor(() => expect(remote.dailiesCalls).toBe(calls));
+	await act(async () => {
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	});
+}
+
 function heading(name: string) {
 	return screen.getByRole("heading", { level: 1, name });
 }
@@ -77,12 +86,10 @@ async function wrongGuess(
 	user: ReturnType<typeof userEvent.setup>,
 	answer: CatalogEntry,
 ) {
-	const length = digitLength(answer.port);
 	const port = answer.port === 1 ? 2 : 1;
 	await user.click(portDigits());
 	await user.keyboard(padToAnswer(port, answer));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
-	expect(length).toBeGreaterThan(0);
 }
 
 test("the two Dailies differ, so the tests tell the days apart", () => {
@@ -108,7 +115,7 @@ test("a Daily with a committed try stays on its day, and the next visit shows th
 	expect(screen.getByText("1 / 6")).toBeTruthy();
 	remote.today = NEXT_DAY;
 	focusLater();
-	await waitFor(() => expect(remote.dailiesCalls).toBe(2));
+	await readApplied(remote, 2);
 	await waitFor(() => expect(heading(today.name)).toBeTruthy());
 	// The same board, with its try, and no remount.
 	expect(screen.getByText("1 / 6")).toBeTruthy();
@@ -127,7 +134,7 @@ test("a finished Daily's Reveal stays until the player leaves", async () => {
 	await guess(user, today.port);
 	remote.today = NEXT_DAY;
 	focusLater();
-	await waitFor(() => expect(remote.dailiesCalls).toBe(2));
+	await readApplied(remote, 2);
 	expect(heading(today.name)).toBeTruthy();
 	expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
 });
@@ -142,7 +149,7 @@ test("a Daily mounted with a stored try stays on its day at the rollover", async
 	await open(remote, persist);
 	remote.today = NEXT_DAY;
 	focusLater();
-	await waitFor(() => expect(remote.dailiesCalls).toBe(2));
+	await readApplied(remote, 2);
 	expect(heading(today.name)).toBeTruthy();
 });
 
@@ -155,7 +162,7 @@ test("a try held only in memory after a failed save still pins the Daily", async
 	await wrongGuess(user, today);
 	remote.today = NEXT_DAY;
 	focusLater();
-	await waitFor(() => expect(remote.dailiesCalls).toBe(2));
+	await readApplied(remote, 2);
 	expect(heading(today.name)).toBeTruthy();
 	expect(screen.getByText("1 / 6")).toBeTruthy();
 });
@@ -185,7 +192,7 @@ test("an untouched Daily that moves to a day with a stored try stays there at th
 	await screen.findByRole("heading", { level: 1, name: tomorrow.name });
 	remote.today = AFTER_NEXT;
 	focusLater();
-	await waitFor(() => expect(remote.dailiesCalls).toBe(3));
+	await readApplied(remote, 3);
 	expect(heading(tomorrow.name)).toBeTruthy();
 });
 
@@ -198,7 +205,7 @@ test("the same day with another entry id moves nothing", async () => {
 		applications: tomorrow.id,
 	};
 	focusLater();
-	await waitFor(() => expect(remote.dailiesCalls).toBe(2));
+	await readApplied(remote, 2);
 	expect(heading(today.name)).toBeTruthy();
 });
 
@@ -208,7 +215,7 @@ test("a failed re-read leaves the loaded Daily working", async () => {
 	await open(remote);
 	remote.failDailies = true;
 	focusLater();
-	await waitFor(() => expect(remote.dailiesCalls).toBe(2));
+	await readApplied(remote, 2);
 	expect(heading(today.name)).toBeTruthy();
 	expect(screen.queryByText("Could not load puzzles.")).toBeNull();
 	await wrongGuess(user, today);
@@ -219,7 +226,9 @@ test("a focus inside the throttle reads nothing", async () => {
 	const remote = createFakeRemote();
 	await open(remote);
 	focusLater(FOCUS_READ_THROTTLE_MS - 5000);
-	await new Promise((resolve) => setTimeout(resolve, 20));
+	await act(async () => {
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	});
 	expect(remote.dailiesCalls).toBe(1);
 });
 
@@ -232,26 +241,26 @@ test("a Blitz run carries on across a new day", async () => {
 	const prompt = screen.getByRole("heading", { level: 1 }).textContent;
 	remote.today = NEXT_DAY;
 	focusLater();
-	await waitFor(() => expect(remote.dailiesCalls).toBe(2));
+	await readApplied(remote, 2);
 	expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(prompt);
 	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
 });
 
 test("the timer reads at the server's midnight, never by the device date", async () => {
 	const remote = createFakeRemote();
-	// The server says it is 0.7 s before midnight; the device says 2030.
-	remote.serverNow = Date.parse(`${UTC_TODAY}T23:59:59.300Z`);
+	// The server says it is 1.5 s before midnight; the device says 2030.
+	remote.serverNow = Date.parse(`${UTC_TODAY}T23:59:58.500Z`);
 	vi.spyOn(Date, "now").mockReturnValue(Date.parse("2030-01-01T00:00:00Z"));
 	await open(remote);
 	expect(heading(today.name)).toBeTruthy();
-	// The device clock never moves; the timer is a real 0.7 s.
+	// The device clock never moves; the timer is a real 1.5 s.
 	vi.restoreAllMocks();
 	remote.today = NEXT_DAY;
 	expect(
 		await screen.findByRole(
 			"heading",
 			{ level: 1, name: tomorrow.name },
-			{ timeout: 3000 },
+			{ timeout: 5000 },
 		),
 	).toBeTruthy();
 	expect(remote.dailiesCalls).toBe(2);

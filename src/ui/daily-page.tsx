@@ -284,15 +284,15 @@ function PinnedDaily({
 	current: CurrentDailies;
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
-	const [shown, setShown] = useState(() => ({
-		daily: current,
-		started: hasTry(persist.readDaily(category, current.today)),
-	}));
+	function showing(daily: CurrentDailies) {
+		return {
+			daily,
+			started: hasTry(persist.readDaily(category, daily.today)),
+		};
+	}
+	const [shown, setShown] = useState(() => showing(current));
 	if (current.today !== shown.daily.today && !shown.started) {
-		setShown({
-			daily: current,
-			started: hasTry(persist.readDaily(category, current.today)),
-		});
+		setShown(showing(current));
 	}
 	const puzzle = entryById(
 		protocols,

@@ -11,7 +11,7 @@ import { memoryStore } from "../test/helpers";
 import { createServerStore, FOCUS_READ_THROTTLE_MS } from "./server-store";
 
 const MINUTE = 60_000;
-const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const at = (iso: string) => Date.parse(iso);
 
 const detachers: Array<() => void> = [];
@@ -33,7 +33,7 @@ async function start(remote?: FakeRemote) {
 	const parts = setup(remote);
 	detachers.push(parts.store.attach());
 	parts.store.load();
-	await settle();
+	await flush();
 	return parts;
 }
 
@@ -47,7 +47,7 @@ function dailiesOf(store: ReturnType<typeof createServerStore>) {
 
 async function focus() {
 	window.dispatchEvent(new Event("focus"));
-	await settle();
+	await flush();
 }
 
 test("the timer reads at the next UTC midnight by the server's time", async () => {
@@ -59,10 +59,10 @@ test("the timer reads at the next UTC midnight by the server's time", async () =
 	remote.today = "2026-09-10";
 	remote.serverNow = at("2026-09-10T00:00:00.500Z");
 	clock.advance(59 * MINUTE + 59_999);
-	await settle();
+	await flush();
 	expect(remote.dailiesCalls).toBe(1);
 	clock.advance(1);
-	await settle();
+	await flush();
 	expect(remote.dailiesCalls).toBe(2);
 	expect(dailiesOf(store).today).toBe("2026-09-10");
 });
@@ -81,7 +81,7 @@ test("a timer that fires early re-arms for the rest", async () => {
 	remote.serverNow = at("2026-09-09T23:59:59Z");
 	const { clock } = await start(remote);
 	clock.advance(1000);
-	await settle();
+	await flush();
 	// The server still answers with a stale time before midnight.
 	expect(remote.dailiesCalls).toBe(2);
 	expect(clock.pending()).toBe(1);
@@ -92,7 +92,7 @@ test("a failed read keeps what is loaded and arms no timer", async () => {
 	const before = store.getSnapshot();
 	remote.failDailies = true;
 	clock.advance(12 * 60 * MINUTE);
-	await settle();
+	await flush();
 	expect(remote.dailiesCalls).toBe(2);
 	expect(store.getSnapshot()).toBe(before);
 	expect(clock.pending()).toBe(0);
@@ -122,7 +122,7 @@ test("a hidden tab reads nothing, a visible one does", async () => {
 			value,
 		});
 		document.dispatchEvent(new Event("visibilitychange"));
-		await settle();
+		await flush();
 		expect(remote.dailiesCalls).toBe(value === "hidden" ? 1 : 2);
 	}
 });
@@ -172,7 +172,7 @@ test("a focus is skipped while a read is in flight, a first failure is retried b
 	await focus();
 	expect(remote.dailiesCalls).toBe(1);
 	release();
-	await settle();
+	await flush();
 	expect(store.getSnapshot().dailies.status).toBe("failed");
 	remote.failDailies = false;
 	await focus();
@@ -184,7 +184,7 @@ test("the disposer stops the listeners and the timer", async () => {
 	const parts = setup();
 	const detach = parts.store.attach();
 	parts.store.load();
-	await settle();
+	await flush();
 	expect(parts.clock.pending()).toBe(1);
 	detach();
 	expect(parts.clock.pending()).toBe(0);
@@ -201,7 +201,7 @@ test("a read that ends after dispose arms nothing, and attach arms it", async ()
 	store.load();
 	detach();
 	release();
-	await settle();
+	await flush();
 	expect(store.getSnapshot().dailies.status).toBe("ready");
 	expect(clock.pending()).toBe(0);
 	detachers.push(store.attach());
@@ -218,7 +218,7 @@ test("attach before any applied read arms nothing, the first read arms one timer
 	store.load();
 	expect(clock.pending()).toBe(0);
 	release();
-	await settle();
+	await flush();
 	expect(clock.pending()).toBe(1);
 });
 
@@ -235,16 +235,16 @@ test("attach arms from the server's time plus the clock time since the read", as
 	const parts = setup(remote);
 	const detach = parts.store.attach();
 	parts.store.load();
-	await settle();
+	await flush();
 	detach();
 	parts.clock.advance(30 * MINUTE);
 	detachers.push(parts.store.attach());
 	remote.serverNow = at("2026-09-10T00:00:00Z");
 	parts.clock.advance(29 * MINUTE + 59_999);
-	await settle();
+	await flush();
 	expect(remote.dailiesCalls).toBe(1);
 	parts.clock.advance(1);
-	await settle();
+	await flush();
 	expect(remote.dailiesCalls).toBe(2);
 });
 
@@ -254,12 +254,12 @@ test("an attach after the midnight has passed reads at once", async () => {
 	const parts = setup(remote);
 	const detach = parts.store.attach();
 	parts.store.load();
-	await settle();
+	await flush();
 	detach();
 	parts.clock.advance(2 * 60 * MINUTE);
 	detachers.push(parts.store.attach());
 	parts.clock.advance(0);
-	await settle();
+	await flush();
 	expect(remote.dailiesCalls).toBe(2);
 });
 
@@ -273,7 +273,7 @@ test("with no remote nothing runs", async () => {
 	expect(clock.pending()).toBe(0);
 });
 
-// A Remote whose reads wait for the test to settle them.
+// A Remote whose reads wait for the test to flush them.
 function scriptedRemote() {
 	type Pending<T> = {
 		resolve(value: T): void;
@@ -321,15 +321,15 @@ const CATALOG: Catalog = {
 	applications: [],
 };
 
-test("only the newest read applies, whichever order they settle in", async () => {
+test("only the newest read applies, whichever order they flush in", async () => {
 	const { remote, dailies } = scriptedRemote();
 	const store = createServerStore(remote, createFakeClock());
 	void store.refreshDailies();
 	void store.refreshDailies();
 	dailies[1]?.resolve(daily("2026-09-10"));
-	await settle();
+	await flush();
 	dailies[0]?.resolve(daily("2026-09-09"));
-	await settle();
+	await flush();
 	expect(dailiesOf(store).today).toBe("2026-09-10");
 });
 
@@ -339,10 +339,10 @@ test("a dropped older success then a newer failure sets failed; the reverse chan
 	void store.refreshDailies();
 	void store.refreshDailies();
 	first.dailies[0]?.resolve(daily("2026-09-09"));
-	await settle();
+	await flush();
 	expect(store.getSnapshot().dailies.status).toBe("loading");
 	first.dailies[1]?.reject();
-	await settle();
+	await flush();
 	expect(store.getSnapshot().dailies.status).toBe("failed");
 
 	const second = scriptedRemote();
@@ -350,9 +350,9 @@ test("a dropped older success then a newer failure sets failed; the reverse chan
 	void other.refreshDailies();
 	void other.refreshDailies();
 	second.dailies[1]?.reject();
-	await settle();
+	await flush();
 	second.dailies[0]?.resolve(daily("2026-09-09"));
-	await settle();
+	await flush();
 	expect(other.getSnapshot().dailies.status).toBe("failed");
 });
 
@@ -363,7 +363,7 @@ test("an older read settling does not clear the guard of a newer one", async () 
 	void store.refreshDailies();
 	void store.refreshDailies();
 	dailies[0]?.reject();
-	await settle();
+	await flush();
 	await focus();
 	expect(dailies).toHaveLength(2);
 });
@@ -375,19 +375,19 @@ test("a timer's read starts while another is in flight and the older result is d
 	detachers.push(store.attach());
 	void store.refreshDailies();
 	dailies[0]?.resolve(daily("2026-09-09"));
-	await settle();
+	await flush();
 	expect(clock.pending()).toBe(1);
 	// A focus read is in flight when the timer fires.
 	clock.advance(FOCUS_READ_THROTTLE_MS);
 	await focus();
 	expect(dailies).toHaveLength(2);
 	clock.advance(24 * 60 * MINUTE);
-	await settle();
+	await flush();
 	expect(dailies).toHaveLength(3);
 	dailies[2]?.resolve(daily("2026-09-10"));
-	await settle();
+	await flush();
 	dailies[1]?.resolve(daily("2026-09-09"));
-	await settle();
+	await flush();
 	expect(dailiesOf(store).today).toBe("2026-09-10");
 });
 
@@ -451,7 +451,7 @@ test("a failed catalog reload on a timer-fired read leaves no timer", async () =
 	};
 	remote.failCatalog = true;
 	clock.advance(24 * 60 * MINUTE);
-	await settle();
+	await flush();
 	expect(clock.pending()).toBe(0);
 });
 
@@ -465,7 +465,7 @@ test("with the catalog still loading the Dailies apply and no catalog read is ad
 	};
 	const { store } = setup(remote);
 	store.load();
-	await settle();
+	await flush();
 	expect(remote.catalogCalls).toBe(1);
 	expect(dailiesOf(store).today).toBe(UTC_TODAY);
 });
@@ -480,7 +480,7 @@ test("with the catalog failed the Dailies apply and no catalog read is added", a
 	};
 	const { store } = setup(remote);
 	store.load();
-	await settle();
+	await flush();
 	expect(remote.catalogCalls).toBe(1);
 	expect(dailiesOf(store).today).toBe(UTC_TODAY);
 });
@@ -492,20 +492,20 @@ test("a read superseded during its catalog fetch applies neither the catalog nor
 	store.load();
 	catalogs[0]?.resolve(CATALOG);
 	dailies[0]?.resolve(daily("2026-09-09"));
-	await settle();
+	await flush();
 	// Read two lacks an entry, so it waits for the catalog; read three passes.
 	void store.refreshDailies();
 	dailies[1]?.resolve(daily("2026-09-10", ["x", "x", "x"]));
-	await settle();
+	await flush();
 	void store.refreshDailies();
 	dailies[2]?.resolve(daily("2026-09-11"));
-	await settle();
+	await flush();
 	expect(dailiesOf(store).today).toBe("2026-09-11");
 	catalogs[1]?.resolve({
 		protocols: [entry("a"), entry("x")],
 		applications: [],
 	});
-	await settle();
+	await flush();
 	expect(dailiesOf(store).today).toBe("2026-09-11");
 	const { catalog } = store.getSnapshot();
 	expect(catalog.status === "ready" && catalog.value).toEqual(CATALOG);
