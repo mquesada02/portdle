@@ -229,3 +229,14 @@ test("invalid and duplicate do not produce persist", () => {
 		status: "duplicate",
 	});
 });
+
+test("a retired answer is still correct when the catalog no longer holds it", () => {
+	expect(
+		evaluateDefaultGuess({
+			digits: "80",
+			answer: { ...http, retired: true },
+			previousPorts: [],
+			catalog: [vite],
+		}),
+	).toEqual({ status: "correct", port: 80 });
+});

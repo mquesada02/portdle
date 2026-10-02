@@ -67,7 +67,9 @@ function groupCards(
 	map: CodexMap,
 	sort: "name" | "port",
 ): CodexCard[] {
-	return [...entries]
+	// A retired entry stays only when the player has seen it.
+	return entries
+		.filter((entry) => !entry.retired || map[entry.id] !== undefined)
 		.sort((a, b) => compareEntries(a, b, sort))
 		.map((entry) => {
 			const record = map[entry.id];

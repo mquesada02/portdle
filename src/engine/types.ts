@@ -5,6 +5,9 @@ export const DAILY_CATEGORIES: DailyCategory[] = [
 	"protocols",
 	"applications",
 ];
+export function isDailyCategory(value: string): value is DailyCategory {
+	return (DAILY_CATEGORIES as string[]).includes(value);
+}
 export type Orientation = "default" | "inverted";
 export type BlitzMode = "sprint" | "marathon" | "survival";
 export type Transport = "tcp" | "udp" | "both";
@@ -22,6 +25,13 @@ export type CatalogEntry = {
 	answerEligible: boolean;
 	retired?: boolean;
 	sources?: Source[];
+};
+
+// One Schedule row: the entry that is the Daily of a category on a UTC day.
+export type ScheduleRow = {
+	category: DailyCategory;
+	date: string;
+	entryId: string;
 };
 
 export type Cycle = { startDay: number; order: string[] };

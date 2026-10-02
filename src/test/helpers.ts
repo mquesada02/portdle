@@ -1,4 +1,5 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { expect } from "vitest";
 import type { KeyValueStore } from "../persist/storage";
 
 export function memoryStore(
@@ -87,4 +88,12 @@ export function stubViewTransitions() {
 			window.CSS.supports = originalSupports;
 		},
 	};
+}
+
+// Waits until the server reads of the Daily, Blitz, and the Codex have
+// settled: no screen shows the loading line any more.
+export async function loaded() {
+	await waitFor(() => {
+		expect(screen.queryByText("Loading...")).toBeNull();
+	});
 }

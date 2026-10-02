@@ -82,10 +82,11 @@ async function openLeaderboards(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(screen.getByRole("tab", { name: "Leaderboards" }));
 }
 
-test("without a Remote the Blitz screen has no tabs and stays the arena", async () => {
+test("without a Remote the Blitz screen has no tabs and its Play side shows the failure line", async () => {
 	await mountBlitz();
 	expect(screen.queryByRole("tablist")).toBeNull();
-	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+	expect(await screen.findByText("Could not load puzzles.")).toBeTruthy();
+	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
 });
 
 test("with a Remote the idle arena has a Play tab selected and the arena in it", async () => {

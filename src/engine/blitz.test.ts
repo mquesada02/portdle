@@ -8,7 +8,7 @@ import {
 } from "./blitz";
 import { digitLength } from "./guess";
 import { chargen, http, telnet, vite } from "./test-fixtures";
-import type { BlitzRun, BlitzState, CatalogEntry, ScheduleFile } from "./types";
+import type { BlitzRun, BlitzState, CatalogEntry } from "./types";
 
 const entries: CatalogEntry[] = ["a", "b", "c", "d"].map((id, index) => ({
 	id,
@@ -27,18 +27,8 @@ const ssh: CatalogEntry = {
 	answerEligible: true,
 };
 
-const schedules: Record<"mixed" | "protocols" | "applications", ScheduleFile> =
-	{
-		mixed: { epoch: "2026-09-09", cycles: [{ startDay: 0, order: ["a"] }] },
-		protocols: {
-			epoch: "2026-09-09",
-			cycles: [{ startDay: 0, order: ["http"] }],
-		},
-		applications: {
-			epoch: "2026-09-09",
-			cycles: [{ startDay: 0, order: ["b"] }],
-		},
-	};
+// Today's three Daily answers, as the server's current Dailies name them.
+const dailyIds = ["a", "http", "b"];
 
 const rng = () => 0;
 let nowMs = 0;
@@ -53,10 +43,9 @@ function startMixed() {
 		category: "mixed",
 		orientation: "default",
 		mode: "sprint",
-		utcToday: "2026-09-09",
 		protocols: [http, chargen, telnet],
 		applications: entries,
-		schedules,
+		dailyIds,
 		rng,
 		now,
 	});
@@ -90,10 +79,9 @@ test("empty filtered pool returns empty-pool", () => {
 			category: "protocols",
 			orientation: "default",
 			mode: "sprint",
-			utcToday: "2026-09-09",
 			protocols: [http],
 			applications: entries,
-			schedules,
+			dailyIds,
 			rng,
 			now,
 		}),
@@ -268,10 +256,9 @@ test("applications miss of a protocols-only port is unidentified", () => {
 		category: "applications",
 		orientation: "default",
 		mode: "sprint",
-		utcToday: "2026-09-09",
 		protocols: [http, chargen, telnet],
 		applications: entries,
-		schedules,
+		dailyIds,
 		rng,
 		now,
 	});
@@ -294,10 +281,9 @@ test("protocols miss of an applications-only port is unidentified", () => {
 		category: "protocols",
 		orientation: "default",
 		mode: "sprint",
-		utcToday: "2026-09-09",
 		protocols: [http, chargen, telnet, ssh],
 		applications: [...entries, vite],
-		schedules,
+		dailyIds,
 		rng,
 		now,
 	});
@@ -325,10 +311,9 @@ function startMixedInverted() {
 		category: "mixed",
 		orientation: "inverted",
 		mode: "sprint",
-		utcToday: "2026-09-09",
 		protocols: [http, chargen, telnet],
 		applications: entries,
-		schedules,
+		dailyIds,
 		rng,
 		now,
 	});
@@ -519,10 +504,9 @@ test("same-port inverted pick still appends a picked round", () => {
 		category: "applications",
 		orientation: "inverted",
 		mode: "sprint",
-		utcToday: "2026-09-09",
 		protocols: [],
 		applications: [portA, portB],
-		schedules,
+		dailyIds,
 		rng,
 		now,
 	});
@@ -699,10 +683,9 @@ function startTimed(
 		category: "mixed",
 		orientation,
 		mode,
-		utcToday: "2026-09-09",
 		protocols: [http, chargen, telnet],
 		applications: entries,
-		schedules,
+		dailyIds,
 		rng,
 		now,
 	});
@@ -836,4 +819,30 @@ test("replacesBest follows the Best replacement rule", () => {
 	for (const [name, input, expected] of cases) {
 		expect(replacesBest(input), name).toBe(expected);
 	}
+});
+
+test("a retired entry is never a miss identification in a Blitz round", () => {
+	const old: CatalogEntry = { ...ssh, id: "old", port: 4003, retired: true };
+	const started = startBlitz({
+		category: "applications",
+		orientation: "default",
+		mode: "sprint",
+		dailyIds: [],
+		protocols: [],
+		applications: [entries[0] as CatalogEntry, old],
+		rng,
+		now,
+	});
+	if ("error" in started) {
+		throw new Error("empty");
+	}
+	const { guess } = reduceBlitz({
+		state: started,
+		event: { type: "default-guess", digits: "4003" },
+		protocols: [],
+		applications: [entries[0] as CatalogEntry, old],
+		rng,
+		now,
+	});
+	expect(guess).toEqual({ status: "miss", port: 4003, identified: null });
 });

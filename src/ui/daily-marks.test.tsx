@@ -4,7 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
-import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
+import { createFakeRemote } from "../test/fake-remote";
+import {
+	loaded,
+	memoryStore,
+	portDigits,
+	stubMatchMedia,
+} from "../test/helpers";
 import { App } from "./app";
 
 // Fixture: dailyOn("mixed") on UTC_TODAY is Nuxt, port 3000. A miss on port
@@ -17,8 +23,16 @@ async function renderDaily() {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App
+			persist={persist}
+			remote={createFakeRemote()}
+			history={history}
+			utcToday={UTC_TODAY}
+		/>,
+	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 

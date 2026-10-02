@@ -13,6 +13,7 @@ import { CodexPage } from "./ui/codex-page";
 import { DailyPage } from "./ui/daily-page";
 import { HistoryPage } from "./ui/history-page";
 import { screenFor } from "./ui/nav";
+import type { ServerStore } from "./ui/server-store";
 import { Shell } from "./ui/shell";
 
 // Absent on a build with no hosted backend; present, it holds both halves.
@@ -22,7 +23,10 @@ export type RouterContext = {
 	persist: Persist;
 	backend?: Backend;
 	remount: () => void;
+	// The device-clock day, for the shell's streak-gap step only; the Daily,
+	// Blitz, and History use the server's today from `serverStore`.
 	utcToday: string;
+	serverStore: ServerStore;
 };
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -108,6 +112,7 @@ export function createAppRouter(options: {
 	remount: () => void;
 	history?: RouterHistory;
 	utcToday: string;
+	serverStore: ServerStore;
 }) {
 	return createRouter({
 		routeTree,
@@ -116,6 +121,7 @@ export function createAppRouter(options: {
 			backend: options.backend,
 			remount: options.remount,
 			utcToday: options.utcToday,
+			serverStore: options.serverStore,
 		},
 		basepath: "/portdle",
 		history: options.history,
