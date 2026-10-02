@@ -8,11 +8,16 @@ function readValue(text: string, key: string): string {
 	return line.slice(prefix.length, -1);
 }
 
-export type StackEnv = { apiUrl: string; publishableKey: string };
+export type StackEnv = {
+	apiUrl: string;
+	dbUrl: string;
+	publishableKey: string;
+};
 
 export function parseStackEnv(text: string): StackEnv {
 	return {
 		apiUrl: readValue(text, "API_URL"),
+		dbUrl: readValue(text, "DB_URL"),
 		publishableKey: readValue(text, "PUBLISHABLE_KEY"),
 	};
 }
