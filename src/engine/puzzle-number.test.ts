@@ -8,6 +8,7 @@ test("the first Daily is #1", () => {
 
 test("a later day counts the days since the epoch plus one", () => {
 	expect(puzzleNumber("2026-09-30")).toBe(22);
+	expect(puzzleNumber("2026-10-01")).toBe(23);
 	expect(puzzleNumber("2026-10-02")).toBe(24);
 });
 

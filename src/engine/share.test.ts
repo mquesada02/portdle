@@ -120,3 +120,15 @@ test("a late win and a late loss end with late", () => {
 		}),
 	).toBe("Portdle #22 · Mixed · X/6 · late\n\n⬜");
 });
+
+test("a four-digit puzzle number has no thousands separator", () => {
+	expect(
+		formatShare({
+			category: "mixed",
+			date: "2029-06-04",
+			status: "won",
+			rows: [["placed"]],
+			late: false,
+		}),
+	).toBe("Portdle #1000 · Mixed · 1/6\n\n🟩");
+});
