@@ -17,6 +17,11 @@ export function addUtcDays(date: string, days: number): string {
 	return utcDateString(new Date(utcMidnightMs(date) + days * 86_400_000));
 }
 
+// The first UTC midnight strictly after the instant `ms` (epoch milliseconds).
+export function nextUtcMidnightMs(ms: number): number {
+	return (Math.floor(ms / 86_400_000) + 1) * 86_400_000;
+}
+
 export function yesterdayUtc(date: string): string {
 	return addUtcDays(date, -1);
 }

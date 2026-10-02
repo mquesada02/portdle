@@ -1,5 +1,11 @@
 import { expect, test } from "vitest";
-import { addUtcDays, utcDateString, utcDayIndex, yesterdayUtc } from "./utc";
+import {
+	addUtcDays,
+	nextUtcMidnightMs,
+	utcDateString,
+	utcDayIndex,
+	yesterdayUtc,
+} from "./utc";
 
 test("utcDateString uses UTC calendar date", () => {
 	expect(utcDateString(new Date("2026-09-09T00:30:00Z"))).toBe("2026-09-09");
@@ -16,4 +22,13 @@ test("utcDayIndex is 0 on epoch", () => {
 test("yesterdayUtc and addUtcDays", () => {
 	expect(yesterdayUtc("2026-09-09")).toBe("2026-09-08");
 	expect(addUtcDays("2026-09-09", 7)).toBe("2026-09-16");
+});
+
+test("nextUtcMidnightMs is strictly after the instant", () => {
+	const midnight = Date.parse("2026-09-10T00:00:00.000Z");
+	expect(nextUtcMidnightMs(midnight - 1)).toBe(midnight);
+	expect(nextUtcMidnightMs(midnight)).toBe(midnight + 86_400_000);
+	expect(nextUtcMidnightMs(Date.parse("2026-09-10T13:30:00Z"))).toBe(
+		midnight + 86_400_000,
+	);
 });
