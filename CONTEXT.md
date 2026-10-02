@@ -294,4 +294,4 @@ The Name | Port control on the Codex that orders cards within each catalog kind.
 _Avoid_: Filter, view switch
 
 **Error panel**:
-The shared panel the Daily, the Archive, the Blitz Play tab, and the Codex show in place of their content while the catalog or the Schedule has not loaded. History never shows it.
+The shared panel the Daily, the Archive, the Blitz Play tab, and the Codex show in place of their content while the catalog or the current Dailies (on the Archive, also the Schedule) has not loaded. History never shows it.

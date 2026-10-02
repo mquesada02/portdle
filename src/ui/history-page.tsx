@@ -1,15 +1,25 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { HistoryRow } from "../engine/history";
-import { groupBlitzRunsByDate, historyRows } from "../engine/history";
+import {
+	groupBlitzRunsByDate,
+	historyRows,
+	savedFinishedRows,
+} from "../engine/history";
 import { CATEGORY_LABEL } from "../engine/share";
 import type { BlitzRun, DailyPersist, ScheduleRow } from "../engine/types";
+import { DAILY_CATEGORIES } from "../engine/types";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { RoundLog } from "./round-log";
-import { LoadStatus, useServerData } from "./server-data";
-import { allReady, type Loadable, settle } from "./server-store";
+import { useServerData } from "./server-data";
+import {
+	allReady,
+	attachRetryTriggers,
+	type Loadable,
+	settle,
+} from "./server-store";
 
 const HEADING_ID = "history-heading";
 
@@ -22,9 +32,13 @@ function isFinished(status: DailyPersist["status"] | undefined): boolean {
 	return status === "won" || status === "lost";
 }
 
-type HistoryGroup = { date: string; rows: HistoryRow[] };
+// A row has no name or port until the catalog and the Schedule rows load.
+type ListRow = Pick<HistoryRow, "date" | "category"> &
+	Partial<Pick<HistoryRow, "name" | "port">>;
 
-function groupByDate(rows: HistoryRow[]): HistoryGroup[] {
+type HistoryGroup = { date: string; rows: ListRow[] };
+
+function groupByDate(rows: ListRow[]): HistoryGroup[] {
 	const groups: HistoryGroup[] = [];
 	for (const row of rows) {
 		const current = groups.at(-1);
@@ -37,47 +51,87 @@ function groupByDate(rows: HistoryRow[]): HistoryGroup[] {
 	return groups;
 }
 
-// The past Schedule rows, read when History mounts. With no remote the read
-// counts as failed.
-function useScheduleRows(remote: Remote | undefined): Loadable<ScheduleRow[]> {
-	const [rows, setRows] = useState<Loadable<ScheduleRow[]>>(
-		remote ? { status: "loading" } : { status: "failed" },
-	);
+// The past Schedule rows, read when History mounts and read again by the
+// returned `retry` when the read has failed. With no remote the read counts as
+// failed.
+function useScheduleRows(remote: Remote | undefined): {
+	rows: Loadable<ScheduleRow[]>;
+	retry: () => void;
+} {
+	const [state, setState] = useState<{
+		rows: Loadable<ScheduleRow[]>;
+		attempt: number;
+	}>({
+		rows: remote ? { status: "loading" } : { status: "failed" },
+		attempt: 0,
+	});
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `state.attempt` changes on a retry, which must read again.
 	useEffect(() => {
 		if (!remote) {
 			return;
 		}
-		return settle(remote.readSchedule(), setRows);
+		return settle(remote.readSchedule(), (rows) =>
+			setState((current) => ({ ...current, rows })),
+		);
+	}, [remote, state.attempt]);
+	const retry = useCallback(() => {
+		setState((current) =>
+			remote && current.rows.status === "failed"
+				? { rows: { status: "loading" }, attempt: current.attempt + 1 }
+				: current,
+		);
 	}, [remote]);
-	return rows;
+	return { rows: state.rows, retry };
+}
+
+function savedDailyRows(persist: Persist): ListRow[] {
+	return savedFinishedRows(
+		DAILY_CATEGORIES.flatMap((category) =>
+			persist.listDailyDates(category).flatMap((date) => {
+				const record = persist.readDaily(category, date);
+				return record ? [{ date, category, status: record.status }] : [];
+			}),
+		),
+	);
 }
 
 function DailySegmentList({ persist }: { persist: Persist }) {
-	const { backend } = useRouteContext({ from: "__root__" });
+	const { backend, serverStore } = useRouteContext({ from: "__root__" });
 	const { catalog, dailies } = useServerData();
-	const schedule = useScheduleRows(backend?.remote);
+	const { rows: schedule, retry: retrySchedule } = useScheduleRows(
+		backend?.remote,
+	);
+	useEffect(() => {
+		serverStore.retry();
+		return attachRetryTriggers(retrySchedule);
+	}, [serverStore, retrySchedule]);
 	const data = allReady(catalog, dailies, schedule);
-	if (data.status !== "ready") {
-		// Interim: the Daily rows need the Schedule rows, so there is nothing to
-		// list until they load, or after a failed read. Tickets #187 and #191
-		// own the end state.
-		return data.status === "loading" ? <LoadStatus state="loading" /> : null;
+	// Until every read has succeeded, list what the device saved, with no
+	// names. Read once per status change, not on every render.
+	const saved = useMemo(
+		() => (data.status === "ready" ? [] : savedDailyRows(persist)),
+		[data.status, persist],
+	);
+	let rows: ListRow[];
+	if (data.status === "ready") {
+		const [{ protocols, applications }, { today: utcToday }, fromServer] =
+			data.value;
+		rows = historyRows({
+			utcToday,
+			schedule: fromServer,
+			protocols,
+			applications,
+			finishedToday: {
+				mixed: isFinished(persist.readDaily("mixed", utcToday)?.status),
+				protocols: isFinished(persist.readDaily("protocols", utcToday)?.status),
+				applications: isFinished(
+					persist.readDaily("applications", utcToday)?.status,
+				),
+			},
+		});
+	} else {
+		rows = saved;
 	}
-	const [{ protocols, applications }, { today: utcToday }, rowsFromServer] =
-		data.value;
-	const rows = historyRows({
-		utcToday,
-		schedule: rowsFromServer,
-		protocols,
-		applications,
-		finishedToday: {
-			mixed: isFinished(persist.readDaily("mixed", utcToday)?.status),
-			protocols: isFinished(persist.readDaily("protocols", utcToday)?.status),
-			applications: isFinished(
-				persist.readDaily("applications", utcToday)?.status,
-			),
-		},
-	});
 	const groups = groupByDate(rows);
 	return (
 		<ul
@@ -96,8 +150,13 @@ function DailySegmentList({ persist }: { persist: Persist }) {
 								<li key={`${row.date}:${row.category}`}>
 									<span className="mr-2 inline-block rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
 										{CATEGORY_LABEL[row.category]}
-									</span>{" "}
-									{row.name} <span className="font-mono">{row.port}</span>
+									</span>
+									{row.name !== undefined && (
+										<>
+											{" "}
+											{row.name} <span className="font-mono">{row.port}</span>
+										</>
+									)}
 								</li>
 							))}
 						</ul>

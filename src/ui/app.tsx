@@ -6,7 +6,7 @@ import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { type Backend, createAppRouter } from "../router";
 import { createSync } from "../sync/sync";
-import { createServerStore } from "./server-store";
+import { attachRetryTriggers, createServerStore } from "./server-store";
 
 export function App({
 	persist,
@@ -38,7 +38,10 @@ export function App({
 		[persist, remote],
 	);
 	const serverStore = useMemo(() => createServerStore(remote), [remote]);
-	useEffect(() => serverStore.load(), [serverStore]);
+	useEffect(() => {
+		serverStore.load();
+		return attachRetryTriggers(serverStore.retry);
+	}, [serverStore]);
 	const sync = backend?.sync;
 	useEffect(() => {
 		if (!sync) {

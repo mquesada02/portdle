@@ -299,7 +299,7 @@ test("Blitz segment contains no links", async () => {
 	expect(within(list).queryAllByRole("link").length).toBe(0);
 });
 
-test("a failed past-rows read lists no Daily rows", async () => {
+test("a failed past-rows read lists no Daily rows when nothing is saved", async () => {
 	const remote = createFakeRemote();
 	remote.failSchedule = true;
 	await renderHistory(undefined, "/portdle/history", remote);
@@ -309,21 +309,26 @@ test("a failed past-rows read lists no Daily rows", async () => {
 	expect(screen.queryByText("Loading...")).toBeNull();
 });
 
-test("History shows loading until the past rows arrive", async () => {
+test("History lists the saved rows until the past rows arrive, with no loading line", async () => {
 	const remote = createFakeRemote();
 	const release = remote.holdSchedule();
 	stubMatchMedia();
 	remote.today = UTC_TODAY;
+	const persist = createPersist(memoryStore());
+	persist.writeDaily("mixed", YESTERDAY, { status: "won", guesses: [] });
 	render(
 		<App
-			persist={createPersist(memoryStore())}
+			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: ["/portdle/history"] })}
 		/>,
 	);
-	expect(await screen.findByText("Loading...")).toBeTruthy();
+	const list = await screen.findByRole("list", { name: YESTERDAY });
+	expect(within(list).getByText("Mixed")).toBeTruthy();
+	expect(list.textContent).not.toContain(dailyOn("mixed", YESTERDAY).name);
+	expect(screen.queryByText("Loading...")).toBeNull();
 	release();
-	await screen.findByRole("list", { name: YESTERDAY });
+	await screen.findByText(dailyOn("mixed", YESTERDAY).name);
 });
 
 test("answers resolve by id in the whole catalog: a retired entry and an entry of another kind", async () => {
