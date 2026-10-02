@@ -5,7 +5,8 @@
 		"lib": ["ES2023"],
 		"types": ["node"],
 		"skipLibCheck": true,
-		"module": "nodenext",
+		"module": "esnext",
+		"moduleResolution": "bundler",
 		"allowImportingTsExtensions": true,
 		"verbatimModuleSyntax": true,
 		"moduleDetection": "force",
@@ -17,5 +18,12 @@
 		"erasableSyntaxOnly": true,
 		"noFallthroughCasesInSwitch": true
 	},
-	"include": ["vite.config.ts", "scripts/smoke-backend.ts"]
+	"include": [
+		"vite.config.ts",
+		"scripts/smoke-backend.ts",
+		"scripts/hmac-random.ts",
+		"scripts/schedule-store.ts",
+		"scripts/schedule-generator.ts",
+		"scripts/fill-local-schedule.ts"
+	]
 }

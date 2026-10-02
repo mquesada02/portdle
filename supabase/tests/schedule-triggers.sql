@@ -3,9 +3,9 @@
 -- Schedule triggers: only the generator role writes; no change to a row on or
 -- before the frozen-through day; no move into the frozen past; a missing past
 -- day may be inserted; no truncate. It inserts its own rows (a day before the
--- epoch, and server date plus 30 days) and rolls back, so it depends on no
--- live rows past the import. The second transaction moves the switch-over day
--- past the server's date.
+-- epoch, and days 30 or more after the last stored Schedule day) and rolls
+-- back, so it depends on no live rows past the import. The second
+-- transaction moves the switch-over day past the server's date.
 
 -- Runs a statement as a role and asserts it fails with a message like the
 -- pattern, so a trigger error is told apart from "permission denied".
@@ -31,7 +31,7 @@ begin;
 
 do $$
 declare
-	future_day date := public.server_utc_date() + 30;
+	future_day date := greatest((select max(day) from public.schedule), public.server_utc_date()) + 30;
 begin
 	grant schedule_generator to postgres;
 	insert into public.catalog_entries (id, kind, name, port, transport, description, answer_eligible)
@@ -76,22 +76,26 @@ rollback;
 -- The switch-over day after the server's date: it must come first in the
 -- transaction, before anything uses the function. A row between the two dates
 -- is then frozen, although it is in the server's future. The days are beyond
--- the generator's seven-day horizon, so no live row collides.
+-- the last stored Schedule day (the generator fills whole cycles past
+-- the server's date), so no stored row collides.
 begin;
 
-create or replace function public.switch_over_day()
-returns date
-language sql
-immutable
-set search_path = ''
-as $$ select (now() at time zone 'utc')::date + 30 $$;
+do $$
+begin
+	execute format(
+		'create or replace function public.switch_over_day() returns date language sql immutable set search_path = %L as %L',
+		'', format('select date %L', greatest((select max(day) from public.schedule), public.server_utc_date()) + 30)
+	);
+end
+$$;
 
 do $$
 declare
-	frozen_future date := public.server_utc_date() + 20;
-	open_future date := public.server_utc_date() + 40;
+	last_day date := greatest((select max(day) from public.schedule), public.server_utc_date());
+	frozen_future date := last_day + 20;
+	open_future date := last_day + 40;
 begin
-	assert public.schedule_frozen_through() = public.server_utc_date() + 30, 'frozen through is the later date';
+	assert public.schedule_frozen_through() = last_day + 30, 'frozen through is the later date';
 	grant schedule_generator to postgres;
 	insert into public.catalog_entries (id, kind, name, port, transport, description, answer_eligible)
 	values ('t184-trg2', 'protocol', 'Trg2', 80, 'tcp', 'd', true);
