@@ -264,7 +264,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 			puzzle={puzzle}
 			protocols={protocols}
 			applications={applications}
-			utcToday={today}
+			date={today}
 			serverToday={today}
 		/>
 	);
@@ -290,7 +290,7 @@ function DailyBoard({
 	puzzle,
 	protocols,
 	applications,
-	utcToday,
+	date,
 	serverToday,
 }: {
 	category: DailyCategory;
@@ -298,7 +298,7 @@ function DailyBoard({
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
 	// The Daily's own day, and the server's latest today.
-	utcToday: string;
+	date: string;
 	serverToday: string;
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
@@ -307,7 +307,7 @@ function DailyBoard({
 	const catalog = playableCatalogFor(category, protocols, applications);
 	const wholeCatalog = catalogFor("mixed", protocols, applications);
 	const [board, setBoard] = useState<DailyPersist | null>(() =>
-		persist.readDaily(category, utcToday),
+		persist.readDaily(category, date),
 	);
 	const [digits, setDigits] = useState("");
 	const [message, setMessage] = useState("");
@@ -331,7 +331,7 @@ function DailyBoard({
 	}
 
 	function submitGuess() {
-		const stored = persist.readDaily(category, utcToday);
+		const stored = persist.readDaily(category, date);
 		if (stored?.status === "won" || stored?.status === "lost") {
 			setBoard(stored);
 			return;
@@ -351,7 +351,7 @@ function DailyBoard({
 		const next = applyCommittedGuess(
 			current,
 			result,
-			isLate(utcToday, serverToday),
+			isLate(date, serverToday),
 		);
 		if (next.status === "invalid") {
 			setMessage(
@@ -368,7 +368,7 @@ function DailyBoard({
 		setDigits("");
 		setMessage("");
 		setBoard(next);
-		noteWrite(persist.writeDaily(category, utcToday, next));
+		noteWrite(persist.writeDaily(category, date, next));
 		if (result.status === "miss" && result.identified) {
 			noteWrite(
 				recordEncounter({ state: "identified", id: result.identified.id }),
@@ -452,7 +452,7 @@ function DailyBoard({
 						puzzle={puzzle}
 						board={board}
 						stats={stats}
-						utcToday={utcToday}
+						utcToday={date}
 						finishedThisSession={finishedThisSession}
 					/>
 				) : null}

@@ -57,6 +57,7 @@ export function applyCommittedGuess(
 					identified: result.identified,
 				};
 	const nextGuesses = [...guesses, nextGuess];
+	// An absent `late` on a stored record stays absent: it reads as on-day.
 	const mark = current ? current.late : late;
 	const withMark = mark === undefined ? {} : { late: mark };
 	if (result.status === "correct") {

@@ -99,6 +99,7 @@ function mergeLate(a: boolean | undefined, b: boolean | undefined) {
 }
 
 export function mergeDaily(a: DailyPersist, b: DailyPersist): DailyPersist {
+	// The picked record's own `late` is dropped; the merged one replaces it.
 	const { late: _late, ...picked } = dailyBeats(b, a) ? b : a;
 	const late = mergeLate(a.late, b.late);
 	return late === undefined ? picked : { ...picked, late };
