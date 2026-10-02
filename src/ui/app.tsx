@@ -6,6 +6,7 @@ import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { type Backend, createAppRouter } from "../router";
 import { createSync } from "../sync/sync";
+import { createServerStore } from "./server-store";
 
 export function App({
 	persist,
@@ -50,6 +51,8 @@ export function App({
 			},
 		[persist, remote],
 	);
+	const serverStore = useMemo(() => createServerStore(remote), [remote]);
+	useEffect(() => serverStore.load(), [serverStore]);
 	const sync = backend?.sync;
 	useEffect(() => {
 		if (!sync) {
@@ -71,8 +74,9 @@ export function App({
 				remount,
 				history,
 				utcToday: clockToday,
+				serverStore,
 			}),
-		[persist, backend, remount, history, clockToday],
+		[persist, backend, remount, history, clockToday, serverStore],
 	);
 	// The router moves to the Daily before the remount, so the remount opens
 	// the Daily, not the screen the player deleted from, and no screen mounts

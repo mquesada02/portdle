@@ -1,12 +1,15 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { applications, protocols, schedules } from "../catalogs/production";
+import { useEffect, useState } from "react";
 import type { HistoryRow } from "../engine/history";
 import { groupBlitzRunsByDate, historyRows } from "../engine/history";
 import { CATEGORY_LABEL } from "../engine/share";
-import type { BlitzRun, DailyPersist } from "../engine/types";
+import type { BlitzRun, DailyPersist, ScheduleRow } from "../engine/types";
 import type { Persist } from "../persist/storage";
+import type { Remote } from "../remote/remote";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { RoundLog } from "./round-log";
+import { useServerData } from "./server-data";
+import { type Loadable, loadState } from "./server-store";
 
 const HEADING_ID = "history-heading";
 
@@ -34,18 +37,58 @@ function groupByDate(rows: HistoryRow[]): HistoryGroup[] {
 	return groups;
 }
 
-function DailySegmentList({
-	persist,
-	utcToday,
-}: {
-	persist: Persist;
-	utcToday: string;
-}) {
+// The past Schedule rows, read when History mounts. With no remote the read
+// counts as failed.
+function useScheduleRows(remote: Remote | undefined): Loadable<ScheduleRow[]> {
+	const [rows, setRows] = useState<Loadable<ScheduleRow[]>>(
+		remote ? { status: "loading" } : { status: "failed" },
+	);
+	useEffect(() => {
+		if (!remote) {
+			return;
+		}
+		let cancelled = false;
+		remote.readSchedule().then(
+			(value) => {
+				if (!cancelled) {
+					setRows({ status: "ready", value });
+				}
+			},
+			() => {
+				if (!cancelled) {
+					setRows({ status: "failed" });
+				}
+			},
+		);
+		return () => {
+			cancelled = true;
+		};
+	}, [remote]);
+	return rows;
+}
+
+function DailySegmentList({ persist }: { persist: Persist }) {
+	const { backend } = useRouteContext({ from: "__root__" });
+	const { catalog, dailies } = useServerData();
+	const schedule = useScheduleRows(backend?.remote);
+	const state = loadState(catalog, dailies, schedule);
+	if (
+		state !== "ready" ||
+		catalog.status !== "ready" ||
+		dailies.status !== "ready" ||
+		schedule.status !== "ready"
+	) {
+		// Interim: the Daily rows need the Schedule rows, so there is nothing to
+		// list until they load, or after a failed read. Tickets #187 and #191
+		// own the end state.
+		return state === "loading" ? <p role="status">Loading...</p> : null;
+	}
+	const utcToday = dailies.value.today;
 	const rows = historyRows({
 		utcToday,
-		schedules,
-		protocols,
-		applications,
+		schedule: schedule.value,
+		protocols: catalog.value.protocols,
+		applications: catalog.value.applications,
 		finishedToday: {
 			mixed: isFinished(persist.readDaily("mixed", utcToday)?.status),
 			protocols: isFinished(persist.readDaily("protocols", utcToday)?.status),
@@ -173,13 +216,13 @@ function HistorySwitcher({ segment }: { segment: "daily" | "blitz" }) {
 }
 
 export function HistoryPage({ segment }: { segment: "daily" | "blitz" }) {
-	const { persist, utcToday } = useRouteContext({ from: "__root__" });
+	const { persist } = useRouteContext({ from: "__root__" });
 	return (
 		<main>
 			<h1 id={HEADING_ID}>History</h1>
 			<HistorySwitcher segment={segment} />
 			{segment === "daily" ? (
-				<DailySegmentList persist={persist} utcToday={utcToday} />
+				<DailySegmentList persist={persist} />
 			) : (
 				<BlitzSegmentList runs={persist.readBlitzRuns()} />
 			)}

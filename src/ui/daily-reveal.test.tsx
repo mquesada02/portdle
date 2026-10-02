@@ -5,7 +5,13 @@ import { afterEach, expect, test } from "vitest";
 import { digitLength } from "../engine/guess";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
-import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
+import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
+import {
+	loaded,
+	memoryStore,
+	portDigits,
+	stubMatchMedia,
+} from "../test/helpers";
 import { App } from "./app";
 
 const mixedAnswer = dailyOn("mixed");
@@ -14,20 +20,27 @@ async function renderDaily(
 	options: {
 		persist?: ReturnType<typeof createPersist>;
 		utcToday?: string;
+		remote?: FakeRemote;
 	} = {},
 ) {
 	stubMatchMedia();
 	const persist = options.persist ?? createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
+	const remote = options.remote ?? createFakeRemote();
+	if (options.utcToday !== undefined) {
+		remote.today = options.utcToday;
+	}
 	render(
 		<App
 			persist={persist}
+			remote={remote}
 			history={history}
 			utcToday={options.utcToday ?? UTC_TODAY}
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 

@@ -5,7 +5,8 @@ import { afterEach, expect, test } from "vitest";
 import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { dailyOn } from "../test/dailies";
-import { memoryStore, stubMatchMedia } from "../test/helpers";
+import { createFakeRemote } from "../test/fake-remote";
+import { loaded, memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
 
 const UTC_TODAY = "2026-09-11";
@@ -15,13 +16,23 @@ const EPOCH = "2026-09-09";
 async function renderHistory(
 	persist: ReturnType<typeof createPersist> = createPersist(memoryStore()),
 	path = "/portdle/history",
+	remote = createFakeRemote(),
 ) {
 	stubMatchMedia();
+	remote.today = UTC_TODAY;
 	const history = createMemoryHistory({
 		initialEntries: [path],
 	});
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App
+			persist={persist}
+			remote={remote}
+			history={history}
+			utcToday={UTC_TODAY}
+		/>,
+	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 }
 
 function fakeRun(overrides: Partial<BlitzRun> = {}): BlitzRun {
@@ -293,4 +304,72 @@ test("Blitz segment contains no links", async () => {
 	await renderHistory(persist, "/portdle/history/blitz");
 	const list = screen.getByRole("list", { name: "History" });
 	expect(within(list).queryAllByRole("link").length).toBe(0);
+});
+
+test("a failed past-rows read lists no Daily rows", async () => {
+	const remote = createFakeRemote();
+	remote.failSchedule = true;
+	await renderHistory(undefined, "/portdle/history", remote);
+	expect(
+		screen.queryByRole("list", { name: "History" })?.children.length ?? 0,
+	).toBe(0);
+	expect(screen.queryByText("Loading...")).toBeNull();
+});
+
+test("History shows loading until the past rows arrive", async () => {
+	const remote = createFakeRemote();
+	const release = remote.holdSchedule();
+	stubMatchMedia();
+	remote.today = UTC_TODAY;
+	render(
+		<App
+			persist={createPersist(memoryStore())}
+			remote={remote}
+			history={createMemoryHistory({ initialEntries: ["/portdle/history"] })}
+			utcToday={UTC_TODAY}
+		/>,
+	);
+	expect(await screen.findByText("Loading...")).toBeTruthy();
+	release();
+	await screen.findByRole("list", { name: YESTERDAY });
+});
+
+test("answers resolve by id in the whole catalog: a retired entry and an entry of another kind", async () => {
+	const remote = createFakeRemote();
+	remote.catalog = {
+		protocols: [
+			{
+				id: "old",
+				name: "Old Proto",
+				port: 1111,
+				transport: "tcp",
+				description: "d",
+				answerEligible: true,
+				retired: true,
+			},
+		],
+		applications: [
+			{
+				id: "moved",
+				name: "Moved App",
+				port: 2222,
+				transport: "tcp",
+				description: "d",
+				answerEligible: true,
+			},
+		],
+	};
+	remote.scheduleRows = [
+		{ category: "protocols", date: YESTERDAY, entryId: "old" },
+		{ category: "protocols", date: EPOCH, entryId: "moved" },
+	];
+	await renderHistory(undefined, "/portdle/history", remote);
+	expect(
+		within(screen.getByRole("list", { name: YESTERDAY })).getByText(
+			/Old Proto/,
+		),
+	).toBeTruthy();
+	expect(
+		within(screen.getByRole("list", { name: EPOCH })).getByText(/Moved App/),
+	).toBeTruthy();
 });

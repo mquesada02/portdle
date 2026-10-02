@@ -11,6 +11,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { createPersist } from "../persist/storage";
 import { catalog, currentEntry, missThree } from "../test/blitz";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
+import { createFakeRemote } from "../test/fake-remote";
 import {
 	memoryStore,
 	portDigits,
@@ -31,7 +32,14 @@ async function renderBlitz(
 	const history = createMemoryHistory({
 		initialEntries: ["/portdle/blitz"],
 	});
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App
+			persist={persist}
+			remote={createFakeRemote()}
+			history={history}
+			utcToday={UTC_TODAY}
+		/>,
+	);
 	await screen.findByRole("navigation", { name: "Main" });
 	return persist;
 }
@@ -570,7 +578,14 @@ test("history still has heading History", async () => {
 	const history = createMemoryHistory({
 		initialEntries: ["/portdle/history"],
 	});
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App
+			persist={persist}
+			remote={createFakeRemote()}
+			history={history}
+			utcToday={UTC_TODAY}
+		/>,
+	);
 	await screen.findByRole("heading", { level: 1, name: "History" });
 });
 
@@ -666,7 +681,14 @@ test("visiting History leaves the codex store unchanged", async () => {
 	const history = createMemoryHistory({
 		initialEntries: ["/portdle/history"],
 	});
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App
+			persist={persist}
+			remote={createFakeRemote()}
+			history={history}
+			utcToday={UTC_TODAY}
+		/>,
+	);
 	await screen.findByRole("heading", { level: 1, name: "History" });
 	expect(persist.readCodex()).toEqual({
 		http: { state: "correct", fresh: false },

@@ -2,8 +2,10 @@ import { expect, test } from "vitest";
 import {
 	answerPool,
 	catalogFor,
+	entryById,
 	invertedBlurb,
 	isCrowdedPort,
+	playableCatalogFor,
 	validateCatalog,
 } from "./catalog";
 import { chargen, http, jenkins, telnet, tomcat, vite } from "./test-fixtures";
@@ -115,4 +117,23 @@ test("invertedBlurb is that entry's blurb when crowded else null", () => {
 		"Java servlet container",
 	);
 	expect(invertedBlurb(http, [http, vite])).toBeNull();
+});
+
+test("playableCatalogFor drops retired entries", () => {
+	const old = { ...http, id: "old", retired: true };
+	expect(
+		playableCatalogFor("mixed", [http, old], [vite]).map((entry) => entry.id),
+	).toEqual(["http", "vite"]);
+	expect(
+		playableCatalogFor("applications", [http, old], [vite]).map(
+			(entry) => entry.id,
+		),
+	).toEqual(["vite"]);
+});
+
+test("entryById finds an entry in either catalog kind, retired or not", () => {
+	const old = { ...vite, id: "old", retired: true };
+	expect(entryById([http], [old], "old")).toBe(old);
+	expect(entryById([http], [old], "http")).toBe(http);
+	expect(entryById([http], [old], "nope")).toBeUndefined();
 });

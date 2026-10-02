@@ -214,6 +214,7 @@ test("a pulled Codex sort shows the next time the Codex screen mounts, not on th
 	render(
 		<App
 			persist={persist}
+			remote={createFakeRemote()}
 			history={createMemoryHistory({ initialEntries: ["/portdle/codex"] })}
 			utcToday="2026-09-09"
 		/>,

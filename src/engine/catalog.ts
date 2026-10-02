@@ -22,6 +22,28 @@ export function catalogFor(
 	return [...protocols, ...applications];
 }
 
+// The entries still in play: a retired entry is never a prompt, a pick, or a
+// miss identification.
+export function playableCatalogFor(
+	category: DailyCategory,
+	protocols: CatalogEntry[],
+	applications: CatalogEntry[],
+): CatalogEntry[] {
+	return catalogFor(category, protocols, applications).filter(
+		(entry) => !entry.retired,
+	);
+}
+
+// An answer resolves by id in the whole catalog, whatever its category,
+// catalog kind, or retired flag.
+export function entryById(
+	protocols: CatalogEntry[],
+	applications: CatalogEntry[],
+	id: string,
+): CatalogEntry | undefined {
+	return [...protocols, ...applications].find((entry) => entry.id === id);
+}
+
 export function answerPool(catalog: CatalogEntry[]): CatalogEntry[] {
 	return catalog.filter((entry) => entry.answerEligible && !entry.retired);
 }

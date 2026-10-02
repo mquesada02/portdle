@@ -1,11 +1,18 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, expect, test } from "vitest";
 import { digitLength } from "../engine/guess";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
-import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
+import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
+import {
+	loaded,
+	memoryStore,
+	portDigits,
+	stubMatchMedia,
+} from "../test/helpers";
 import { App } from "./app";
 
 const mixedAnswer = dailyOn("mixed");
@@ -14,6 +21,7 @@ async function renderDaily(
 	options: {
 		persist?: ReturnType<typeof createPersist>;
 		utcToday?: string;
+		remote?: FakeRemote;
 		path?: string;
 	} = {},
 ) {
@@ -23,14 +31,20 @@ async function renderDaily(
 	const history = createMemoryHistory({
 		initialEntries: [options.path ?? "/portdle/"],
 	});
+	const remote = options.remote ?? createFakeRemote();
+	if (options.utcToday !== undefined) {
+		remote.today = options.utcToday;
+	}
 	render(
 		<App
 			persist={persist}
+			remote={remote}
 			history={history}
 			utcToday={options.utcToday ?? UTC_TODAY}
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 
@@ -62,7 +76,14 @@ test("first slot regains focus after Got it closes How-to", async () => {
 	stubMatchMedia();
 	const persist = createPersist(memoryStore());
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App
+			persist={persist}
+			remote={createFakeRemote()}
+			history={history}
+			utcToday={UTC_TODAY}
+		/>,
+	);
 	await screen.findByRole("dialog", { name: "How-to" });
 	const user = userEvent.setup();
 	await user.click(screen.getByRole("button", { name: "Got it" }));
@@ -332,21 +353,124 @@ test("how-to still appears on first mixed visit", async () => {
 	stubMatchMedia();
 	const persist = createPersist(memoryStore());
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App
+			persist={persist}
+			remote={createFakeRemote()}
+			history={history}
+			utcToday={UTC_TODAY}
+		/>,
+	);
 	expect(await screen.findByRole("dialog", { name: "How-to" })).toBeTruthy();
 	expect(
 		screen.getByRole("heading", { level: 1, name: mixedAnswer.name }),
 	).toBeTruthy();
 });
 
-test("uncovered date is puzzle unavailable with a Play Blitz link", async () => {
-	await renderDaily({ utcToday: "2026-08-01" });
+test("a failed current Dailies read shows the failure line and keeps the Daily switcher", async () => {
+	const remote = createFakeRemote();
+	remote.failDailies = true;
+	const persist = await renderDaily({ remote });
+	expect(screen.getByText("Could not load puzzles.")).toBeTruthy();
 	expect(
-		screen.getByRole("heading", { level: 1, name: "Puzzle unavailable" }),
-	).toBeTruthy();
+		within(
+			screen.getByRole("navigation", { name: "Daily switcher" }),
+		).getAllByRole("link"),
+	).toHaveLength(3);
+	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
+});
+
+test("a failed catalog read shows the failure line", async () => {
+	const remote = createFakeRemote();
+	remote.failCatalog = true;
+	await renderDaily({ remote });
+	expect(screen.getByText("Could not load puzzles.")).toBeTruthy();
+});
+
+test("a Daily whose entry id is not in the catalog shows the failure line", async () => {
+	const remote = createFakeRemote();
+	remote.entryIds = { mixed: "nope", protocols: "nope", applications: "nope" };
+	await renderDaily({ remote });
+	expect(screen.getByText("Could not load puzzles.")).toBeTruthy();
+});
+
+test("a build with no backend shows the failure line", async () => {
+	stubMatchMedia();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	render(
+		<App
+			persist={persist}
+			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
+			utcToday={UTC_TODAY}
+		/>,
+	);
+	expect(await screen.findByText("Could not load puzzles.")).toBeTruthy();
+});
+
+test("the Daily shows loading until both reads arrive", async () => {
+	const remote = createFakeRemote();
+	const release = remote.holdDailies();
+	stubMatchMedia();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	render(
+		<App
+			persist={persist}
+			remote={remote}
+			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
+			utcToday={UTC_TODAY}
+		/>,
+	);
+	expect(await screen.findByText("Loading...")).toBeTruthy();
+	release();
 	expect(
-		within(screen.getByRole("main")).getByRole("link", { name: "Play Blitz" }),
+		await screen.findByRole("heading", { level: 1, name: mixedAnswer.name }),
 	).toBeTruthy();
+});
+
+test("the Daily is the server's date, not the device clock's, and tries are saved under it", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote();
+	remote.today = "2026-09-12";
+	const answer = dailyOn("mixed", "2026-09-12");
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	render(
+		<App
+			persist={persist}
+			remote={remote}
+			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
+			utcToday={UTC_TODAY}
+		/>,
+	);
+	await screen.findByRole("heading", { level: 1, name: answer.name });
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readDaily("mixed", "2026-09-12")?.status).toBe("won");
+	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
+	expect(persist.readLastPlayed("mixed")).toBe("2026-09-12");
+	expect(persist.readLastSeenUtc()).toBe("2026-09-12");
+});
+
+test("the store loads each read once under StrictMode's double effect", async () => {
+	const remote = createFakeRemote();
+	stubMatchMedia();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	render(
+		<StrictMode>
+			<App
+				persist={persist}
+				remote={remote}
+				history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
+				utcToday={UTC_TODAY}
+			/>
+		</StrictMode>,
+	);
+	await screen.findByRole("heading", { level: 1, name: mixedAnswer.name });
+	expect(remote.catalogCalls).toBe(1);
+	expect(remote.dailiesCalls).toBe(1);
 });
 
 test("protocols and applications are independent dailies with distinct ids", async () => {
