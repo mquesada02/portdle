@@ -65,13 +65,13 @@ export function createServerStore(remote?: Remote): ServerStore {
 	};
 }
 
-// The state of the reads a screen needs: failed if any failed, else loading if
-// any is still loading.
-export function loadState(
+// Why a screen cannot show yet, from the reads it needs: failed if any failed,
+// else loading if any is still loading, else null.
+export function notReady(
 	...needs: Array<Loadable<unknown>>
-): "loading" | "failed" | "ready" {
+): "loading" | "failed" | null {
 	if (needs.some((need) => need.status === "failed")) {
 		return "failed";
 	}
-	return needs.some((need) => need.status === "loading") ? "loading" : "ready";
+	return needs.some((need) => need.status === "loading") ? "loading" : null;
 }

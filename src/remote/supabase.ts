@@ -165,7 +165,7 @@ type CatalogDbRow = {
 	sources: CatalogEntry["sources"];
 };
 
-type ScheduleDbRow = { category: DailyCategory; day: string; entry_id: string };
+type ScheduleDbRow = { category: string; day: string; entry_id: string };
 
 type CurrentDailiesDbRow = {
 	utc_date: string;
@@ -517,11 +517,13 @@ export function createSupabaseRemote(
 			const rows = await fetchAllRows<ScheduleDbRow>(
 				"schedule?select=category,day,entry_id&order=day,category",
 			);
-			return rows.map((row) => ({
-				category: row.category,
-				date: row.day,
-				entryId: row.entry_id,
-			}));
+			return rows.map((row) => {
+				const category = DAILY_CATEGORIES.find((c) => c === row.category);
+				if (!category) {
+					throw new Error(`Unknown Schedule category: ${row.category}`);
+				}
+				return { category, date: row.day, entryId: row.entry_id };
+			});
 		},
 		redirectError: () => pendingError,
 		clearRedirectError() {

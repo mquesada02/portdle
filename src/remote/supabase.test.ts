@@ -1056,3 +1056,11 @@ test("readCurrentDailies rejects a null id, a missing row, and a repeated catego
 		).rejects.toThrow("incomplete");
 	}
 });
+
+test("readSchedule rejects an unknown category", async () => {
+	await expect(
+		publicRemote([
+			{ body: [{ category: "other", day: "d", entry_id: "x" }] },
+		]).remote.readSchedule(),
+	).rejects.toThrow("Unknown Schedule category");
+});

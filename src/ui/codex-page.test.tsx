@@ -15,6 +15,7 @@ import { createPersist } from "../persist/storage";
 import { UTC_TODAY } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
 import {
+	loaded,
 	memoryStore,
 	stubMatchMedia,
 	stubViewTransitions,
@@ -50,6 +51,7 @@ async function renderCodex(
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 

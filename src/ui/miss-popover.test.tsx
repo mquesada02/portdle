@@ -15,7 +15,12 @@ import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
-import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
+import {
+	loaded,
+	memoryStore,
+	portDigits,
+	stubMatchMedia,
+} from "../test/helpers";
 import { App } from "./app";
 import { MissPopover } from "./miss-popover";
 
@@ -49,6 +54,7 @@ async function renderDaily() {
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 }
 
 async function missOn(user: ReturnType<typeof userEvent.setup>, port: number) {

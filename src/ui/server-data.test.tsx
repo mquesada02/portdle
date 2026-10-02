@@ -1,6 +1,7 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, expect, test } from "vitest";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
@@ -196,4 +197,24 @@ test("the Codex shows the failure line, and leaves the stored Codex alone, when 
 	expect(persist.readCodex()).toEqual({
 		http: { state: "identified", fresh: true },
 	});
+});
+
+test("the store loads each read once under StrictMode's double effect", async () => {
+	const remote = createFakeRemote();
+	stubMatchMedia();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	render(
+		<StrictMode>
+			<App
+				persist={persist}
+				remote={remote}
+				history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
+				utcToday={UTC_TODAY}
+			/>
+		</StrictMode>,
+	);
+	await loaded();
+	expect(remote.catalogCalls).toBe(1);
+	expect(remote.dailiesCalls).toBe(1);
 });

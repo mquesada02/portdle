@@ -1,7 +1,6 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
 import { afterEach, expect, test } from "vitest";
 import { digitLength } from "../engine/guess";
 import { createPersist } from "../persist/storage";
@@ -451,26 +450,6 @@ test("the Daily is the server's date, not the device clock's, and tries are save
 	expect(persist.readDaily("mixed", UTC_TODAY)).toBeNull();
 	expect(persist.readLastPlayed("mixed")).toBe("2026-09-12");
 	expect(persist.readLastSeenUtc()).toBe("2026-09-12");
-});
-
-test("the store loads each read once under StrictMode's double effect", async () => {
-	const remote = createFakeRemote();
-	stubMatchMedia();
-	const persist = createPersist(memoryStore());
-	persist.writeHowToSeen();
-	render(
-		<StrictMode>
-			<App
-				persist={persist}
-				remote={remote}
-				history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-				utcToday={UTC_TODAY}
-			/>
-		</StrictMode>,
-	);
-	await screen.findByRole("heading", { level: 1, name: mixedAnswer.name });
-	expect(remote.catalogCalls).toBe(1);
-	expect(remote.dailiesCalls).toBe(1);
 });
 
 test("protocols and applications are independent dailies with distinct ids", async () => {

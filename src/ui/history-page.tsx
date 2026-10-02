@@ -8,8 +8,8 @@ import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { RoundLog } from "./round-log";
-import { useServerData } from "./server-data";
-import { type Loadable, loadState } from "./server-store";
+import { LoadStatus, useServerData } from "./server-data";
+import { type Loadable, notReady } from "./server-store";
 
 const HEADING_ID = "history-heading";
 
@@ -71,9 +71,9 @@ function DailySegmentList({ persist }: { persist: Persist }) {
 	const { backend } = useRouteContext({ from: "__root__" });
 	const { catalog, dailies } = useServerData();
 	const schedule = useScheduleRows(backend?.remote);
-	const state = loadState(catalog, dailies, schedule);
+	const waiting = notReady(catalog, dailies, schedule);
 	if (
-		state !== "ready" ||
+		waiting ||
 		catalog.status !== "ready" ||
 		dailies.status !== "ready" ||
 		schedule.status !== "ready"
@@ -81,7 +81,7 @@ function DailySegmentList({ persist }: { persist: Persist }) {
 		// Interim: the Daily rows need the Schedule rows, so there is nothing to
 		// list until they load, or after a failed read. Tickets #187 and #191
 		// own the end state.
-		return state === "loading" ? <p role="status">Loading...</p> : null;
+		return waiting === "loading" ? <LoadStatus state="loading" /> : null;
 	}
 	const utcToday = dailies.value.today;
 	const rows = historyRows({

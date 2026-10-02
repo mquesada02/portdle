@@ -1,6 +1,6 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
-import { entryById, playableCatalogFor } from "../engine/catalog";
+import { catalogFor, entryById, playableCatalogFor } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
 import {
 	applyCommittedGuess,
@@ -24,7 +24,7 @@ import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { LoadStatus, useServerData } from "./server-data";
-import { loadState } from "./server-store";
+import { notReady } from "./server-store";
 import { categoryStreakGap } from "./sync-utc";
 
 const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
@@ -249,19 +249,15 @@ function TrackerStrip({
 
 export function DailyPage({ category }: { category: DailyCategory }) {
 	const { catalog, dailies } = useServerData();
-	const state = loadState(catalog, dailies);
+	const waiting = notReady(catalog, dailies);
 	const entryId =
 		dailies.status === "ready" ? dailies.value.entryIds[category] : undefined;
 	const puzzle =
 		catalog.status === "ready" && entryId !== undefined
 			? entryById(catalog.value.protocols, catalog.value.applications, entryId)
 			: undefined;
-	if (
-		state !== "ready" ||
-		catalog.status !== "ready" ||
-		dailies.status !== "ready"
-	) {
-		return <DailyLoading category={category} state={state} />;
+	if (waiting || catalog.status !== "ready" || dailies.status !== "ready") {
+		return <DailyLoading category={category} state={waiting ?? "failed"} />;
 	}
 	if (!puzzle) {
 		return <DailyLoading category={category} state="failed" />;
@@ -282,12 +278,12 @@ function DailyLoading({
 	state,
 }: {
 	category: DailyCategory;
-	state: "loading" | "failed" | "ready";
+	state: "loading" | "failed";
 }) {
 	return (
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
 			<DailySwitcher category={category} />
-			<LoadStatus state={state === "loading" ? "loading" : "failed"} />
+			<LoadStatus state={state} />
 		</main>
 	);
 }
@@ -309,7 +305,7 @@ function DailyBoard({
 	// Misses identify only entries still in play; a saved identification
 	// resolves in the whole catalog.
 	const catalog = playableCatalogFor(category, protocols, applications);
-	const wholeCatalog = [...protocols, ...applications];
+	const wholeCatalog = catalogFor("mixed", protocols, applications);
 	const [board, setBoard] = useState<DailyPersist | null>(() =>
 		persist.readDaily(category, utcToday),
 	);

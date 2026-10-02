@@ -5,7 +5,12 @@ import { afterEach, expect, test } from "vitest";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
-import { memoryStore, portDigits, stubMatchMedia } from "../test/helpers";
+import {
+	loaded,
+	memoryStore,
+	portDigits,
+	stubMatchMedia,
+} from "../test/helpers";
 import { App } from "./app";
 
 // Fixture: dailyOn("mixed") on UTC_TODAY is Nuxt, port 3000. A miss on port
@@ -27,6 +32,7 @@ async function renderDaily() {
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 

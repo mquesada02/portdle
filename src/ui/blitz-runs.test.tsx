@@ -7,7 +7,7 @@ import { createPersist } from "../persist/storage";
 import { missThree } from "../test/blitz";
 import { UTC_TODAY } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
-import { memoryStore, stubMatchMedia } from "../test/helpers";
+import { loaded, memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
 
 async function renderBlitz(
@@ -28,6 +28,7 @@ async function renderBlitz(
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 

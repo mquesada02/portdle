@@ -8,6 +8,7 @@ import { currentEntry, missThree } from "../test/blitz";
 import { padToAnswer, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
 import {
+	loaded,
 	memoryStore,
 	portDigits,
 	stubMatchMedia,
@@ -36,6 +37,7 @@ async function renderBlitz(
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 
