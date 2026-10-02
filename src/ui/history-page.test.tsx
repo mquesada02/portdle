@@ -128,6 +128,19 @@ test("a Daily finished today is listed and links to its Archive board", async ()
 	).toBe(`/portdle/archive/protocols/${UTC_TODAY}`);
 });
 
+test("a finished Daily with no Schedule row stays listed and links to the no-Daily note", async () => {
+	const remote = createFakeRemote();
+	remote.scheduleRows = [];
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	save(persist, "mixed", YESTERDAY, "won", 2);
+	await renderHistory(persist, "/portdle/history", remote);
+	const [row] = dateRows(YESTERDAY);
+	expect(row?.textContent).toBe("Mixed#2 · Won 2/6");
+	await userEvent.setup().click(within(row as HTMLElement).getByRole("link"));
+	expect(await screen.findByText("No Daily on this day.")).toBeTruthy();
+});
+
 test("an unfinished or unplayed Daily is not listed, today or before", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();

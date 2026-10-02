@@ -1,35 +1,15 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useEffect } from "react";
+import type { ReactNode } from "react";
 import { archiveRows, boardEntryId } from "../engine/archive";
 import { entryById } from "../engine/catalog";
 import { isDailyCategory } from "../engine/types";
 import { isValidUtcDate } from "../engine/utc";
 import { DailyBoard, DailyLoading, MissingPuzzle } from "./daily-page";
 import { DailyRowLink, groupByDate } from "./daily-row";
-import { useScheduleRows } from "./schedule-rows";
-import { LoadStatus, useServerData } from "./server-data";
-import { allReady, attachRetryTriggers } from "./server-store";
+import { useScheduleReads } from "./schedule-rows";
+import { LoadStatus } from "./server-data";
 
 const HEADING_ID = "archive-heading";
-
-// The three reads every Archive address needs: the catalog, the current
-// Dailies, and the past Schedule rows. `retry` reloads those that failed.
-function useArchiveData() {
-	const { backend, serverStore } = useRouteContext({ from: "__root__" });
-	const { catalog, dailies } = useServerData();
-	const { rows: schedule, retry: retrySchedule } = useScheduleRows(
-		backend?.remote,
-	);
-	useEffect(() => {
-		serverStore.retry();
-		return attachRetryTriggers(retrySchedule);
-	}, [serverStore, retrySchedule]);
-	const retry = useCallback(() => {
-		serverStore.retry();
-		retrySchedule();
-	}, [serverStore, retrySchedule]);
-	return { data: allReady(catalog, dailies, schedule), retry };
-}
 
 function BackLink() {
 	return (
@@ -43,7 +23,7 @@ function BackLink() {
 
 export function ArchivePage() {
 	const { persist } = useRouteContext({ from: "__root__" });
-	const { data, retry } = useArchiveData();
+	const { data, retry } = useScheduleReads();
 	if (data.status !== "ready") {
 		return (
 			<main>
@@ -113,17 +93,17 @@ export function ArchiveBoardPage({
 	category: string;
 	date: string;
 }) {
-	const { data, retry } = useArchiveData();
+	const { data, retry } = useScheduleReads();
 	const top = <BackLink />;
 	if (data.status !== "ready") {
 		return <DailyLoading top={top} state={data.status} onRetry={retry} />;
 	}
 	const [{ protocols, applications }, current, schedule] = data.value;
-	const entryId =
-		isDailyCategory(category) && isValidUtcDate(date)
-			? boardEntryId(schedule, category, date, current.today)
-			: null;
-	if (!isDailyCategory(category) || entryId === null) {
+	if (!isDailyCategory(category) || !isValidUtcDate(date)) {
+		return <NoDaily top={top} />;
+	}
+	const entryId = boardEntryId(schedule, category, date, current.today);
+	if (entryId === null) {
 		return <NoDaily top={top} />;
 	}
 	const puzzle = entryById(protocols, applications, entryId);

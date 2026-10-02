@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import {
 	groupBlitzRunsByDate,
 	historyRows,
@@ -11,9 +11,7 @@ import type { Persist } from "../persist/storage";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { DailyRowLink, groupByDate } from "./daily-row";
 import { RoundLog } from "./round-log";
-import { useScheduleRows } from "./schedule-rows";
-import { useServerData } from "./server-data";
-import { allReady, attachRetryTriggers } from "./server-store";
+import { useScheduleReads } from "./schedule-rows";
 
 const HEADING_ID = "history-heading";
 
@@ -41,31 +39,20 @@ function savedDailyRows(persist: Persist): SavedDaily[] {
 }
 
 function DailySegmentList({ persist }: { persist: Persist }) {
-	const { backend, serverStore } = useRouteContext({ from: "__root__" });
-	const { catalog, dailies } = useServerData();
-	const { rows: schedule, retry: retrySchedule } = useScheduleRows(
-		backend?.remote,
-	);
-	useEffect(() => {
-		serverStore.retry();
-		return attachRetryTriggers(retrySchedule);
-	}, [serverStore, retrySchedule]);
-	const data = allReady(catalog, dailies, schedule);
+	const { data } = useScheduleReads();
 	// The player's finished Dailies are listed at once. Their names join in
-	// once every read has succeeded; until then the rows carry none. Read once
-	// per status change, not on every render.
-	const names = data.status === "ready" ? data.value : undefined;
-	const catalogValue = names?.[0];
-	const scheduleValue = names?.[2];
+	// once every read has succeeded; until then the rows carry none. Read again
+	// when the loaded reads change, not on every render.
+	const [catalog, , schedule] = data.status === "ready" ? data.value : [];
 	const rows = useMemo(
 		() =>
 			historyRows({
 				saved: savedDailyRows(persist),
-				schedule: scheduleValue ?? [],
-				protocols: catalogValue?.protocols ?? [],
-				applications: catalogValue?.applications ?? [],
+				schedule: schedule ?? [],
+				protocols: catalog?.protocols ?? [],
+				applications: catalog?.applications ?? [],
 			}),
-		[persist, catalogValue, scheduleValue],
+		[persist, catalog, schedule],
 	);
 	const groups = groupByDate(rows);
 	return (

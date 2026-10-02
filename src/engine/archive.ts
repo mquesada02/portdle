@@ -57,6 +57,7 @@ export function boardEntryId(
 	);
 }
 
+// How a Daily reads on the Archive and in History.
 export function resultLabel(result: DailyResult | null): string {
 	if (result?.status === "won") {
 		return `Won ${result.tries}/6`;

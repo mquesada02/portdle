@@ -196,6 +196,14 @@ test("the Daily screen links to the Archive only once loaded", async () => {
 	).toBe("/portdle/archive");
 });
 
+test("the Daily screen shows no Archive link while its reads fail", async () => {
+	const remote = createFakeRemote();
+	remote.failDailies = true;
+	await open("/portdle/", { remote });
+	await screen.findByText(SERVER_MESSAGE);
+	expect(screen.queryByRole("link", { name: "Archive" })).toBeNull();
+});
+
 test("addresses with no Daily show the note and a link back", async () => {
 	const addresses = [
 		"/portdle/archive/nope/2026-09-10",
@@ -310,6 +318,7 @@ test("a finished Daily opens read-only with its Reveal and global stats", async 
 		expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
 		expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
 		expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
+		expect(stat("Played")).toBe("1");
 		expect(
 			await screen.findByRole("heading", { name: "Global stats" }),
 		).toBeTruthy();
