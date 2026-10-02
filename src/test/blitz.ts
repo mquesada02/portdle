@@ -1,11 +1,11 @@
 import { screen } from "@testing-library/react";
 import type userEvent from "@testing-library/user-event";
-import { applications, protocols } from "../catalogs/production";
 import { catalogFor } from "../engine/catalog";
 import type { CatalogEntry } from "../engine/types";
-import { padToAnswer } from "./dailies";
+import { fixtureCatalog, padToAnswer } from "./dailies";
 import { portDigits } from "./helpers";
 
+const { protocols, applications } = fixtureCatalog();
 export const catalog = catalogFor("mixed", protocols, applications);
 
 // The entry the Blitz Default prompt heading names.

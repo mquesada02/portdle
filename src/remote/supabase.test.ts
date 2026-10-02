@@ -889,3 +889,178 @@ test("readLeaderboard rejects with the library's error", async () => {
 	});
 	await expect(remote.readLeaderboard(QUERY)).rejects.toBe(error);
 });
+
+function publicRemote(replies: Array<{ ok?: boolean; body: unknown }>) {
+	const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+	const loadLibrary = vi.fn(async () => {
+		throw new Error("the library must stay lazy");
+	});
+	const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+		calls.push({ url, init });
+		const reply = replies[calls.length - 1] ?? { body: [] };
+		return {
+			ok: reply.ok ?? true,
+			status: reply.ok === false ? 500 : 200,
+			json: async () => reply.body,
+		} as Response;
+	}) as unknown as typeof globalThis.fetch;
+	const remote = createSupabaseRemote(
+		{ url: URL, anonKey: "anon" },
+		{
+			storage: { getItem: () => null, removeItem: () => {} },
+			location: {
+				pathname: "/",
+				search: "",
+				hash: "",
+				origin: "https://x.example",
+			},
+			history: { replaceState: () => {} },
+			baseUrl: "/",
+			loadLibrary,
+			fetch,
+		},
+	);
+	return { remote, calls, loadLibrary };
+}
+
+function catalogRow(id: string, kind: string, overrides = {}) {
+	return {
+		id,
+		kind,
+		name: id.toUpperCase(),
+		aliases: [],
+		port: 80,
+		transport: "tcp",
+		description: "d",
+		blurb: null,
+		answer_eligible: true,
+		retired: false,
+		sources: [],
+		...overrides,
+	};
+}
+
+test("readCatalog splits entries by kind, maps fields, and never loads the library", async () => {
+	const { remote, calls, loadLibrary } = publicRemote([
+		{
+			body: [
+				catalogRow("http", "protocol", { blurb: "b", retired: true }),
+				catalogRow("vite", "application"),
+			],
+		},
+	]);
+	const catalog = await remote.readCatalog();
+	expect(catalog.protocols).toEqual([
+		{
+			id: "http",
+			name: "HTTP",
+			aliases: [],
+			port: 80,
+			transport: "tcp",
+			description: "d",
+			blurb: "b",
+			answerEligible: true,
+			retired: true,
+			sources: [],
+		},
+	]);
+	expect(catalog.applications.map((entry) => entry.id)).toEqual(["vite"]);
+	expect("blurb" in (catalog.applications[0] ?? {})).toBe(false);
+	expect(calls[0]?.url).toBe(
+		`${URL}/rest/v1/catalog_entries?select=*&order=id&limit=1000&offset=0`,
+	);
+	expect(calls[0]?.init?.headers).toEqual({ apikey: "anon" });
+	expect(loadLibrary).not.toHaveBeenCalled();
+});
+
+test("readCatalog rejects an unknown kind and a non-ok reply", async () => {
+	await expect(
+		publicRemote([{ body: [catalogRow("x", "other")] }]).remote.readCatalog(),
+	).rejects.toThrow("Unknown catalog kind");
+	await expect(
+		publicRemote([{ ok: false, body: null }]).remote.readCatalog(),
+	).rejects.toThrow("500");
+});
+
+test("readSchedule pages until a short page and maps the rows", async () => {
+	const full = Array.from({ length: 1000 }, (_, index) => ({
+		category: "mixed",
+		day: `d${index}`,
+		entry_id: "http",
+	}));
+	const { remote, calls } = publicRemote([
+		{ body: full },
+		{ body: [{ category: "protocols", day: "z", entry_id: "ssh" }] },
+	]);
+	const rows = await remote.readSchedule();
+	expect(rows).toHaveLength(1001);
+	expect(rows.at(-1)).toEqual({
+		category: "protocols",
+		date: "z",
+		entryId: "ssh",
+	});
+	expect(calls.map((call) => call.url)).toEqual([
+		`${URL}/rest/v1/schedule?select=category,day,entry_id&order=day,category&limit=1000&offset=0`,
+		`${URL}/rest/v1/schedule?select=category,day,entry_id&order=day,category&limit=1000&offset=1000`,
+	]);
+});
+
+const DAILY_ROWS = [
+	{
+		server_time: "t",
+		utc_date: "2026-10-02",
+		category: "mixed",
+		entry_id: "a",
+	},
+	{
+		server_time: "t",
+		utc_date: "2026-10-02",
+		category: "protocols",
+		entry_id: "b",
+	},
+	{
+		server_time: "t",
+		utc_date: "2026-10-02",
+		category: "applications",
+		entry_id: "c",
+	},
+];
+
+test("readCurrentDailies posts to the function and returns the date and ids", async () => {
+	const { remote, calls } = publicRemote([{ body: DAILY_ROWS }]);
+	expect(await remote.readCurrentDailies()).toEqual({
+		today: "2026-10-02",
+		entryIds: { mixed: "a", protocols: "b", applications: "c" },
+	});
+	expect(calls[0]?.url).toBe(`${URL}/rest/v1/rpc/current_dailies`);
+	expect(calls[0]?.init?.method).toBe("POST");
+	expect(calls[0]?.init?.body).toBe("{}");
+	expect(calls[0]?.init?.headers).toEqual({
+		apikey: "anon",
+		"Content-Type": "application/json",
+	});
+});
+
+test("readCurrentDailies rejects a null id, a missing row, and a repeated category", async () => {
+	const nullId = DAILY_ROWS.map((row, index) =>
+		index === 1 ? { ...row, entry_id: null } : row,
+	);
+	for (const body of [
+		nullId,
+		DAILY_ROWS.slice(0, 2),
+		[...DAILY_ROWS.slice(0, 2), DAILY_ROWS[0]],
+		[],
+	]) {
+		await expect(
+			publicRemote([{ body }]).remote.readCurrentDailies(),
+		).rejects.toThrow("incomplete");
+	}
+});
+
+test("readSchedule rejects an unknown category", async () => {
+	await expect(
+		publicRemote([
+			{ body: [{ category: "other", day: "d", entry_id: "x" }] },
+		]).remote.readSchedule(),
+	).rejects.toThrow("Unknown Schedule category");
+});

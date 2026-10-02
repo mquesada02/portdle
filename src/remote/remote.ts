@@ -2,10 +2,12 @@ import type {
 	BlitzBests,
 	BlitzMode,
 	BlitzRun,
+	CatalogEntry,
 	CodexState,
 	DailyCategory,
 	DailyPersist,
 	Orientation,
+	ScheduleRow,
 } from "../engine/types";
 import type { Preferences } from "../persist/storage";
 
@@ -60,6 +62,18 @@ export type LeaderboardPage = {
 
 export const LEADERBOARD_TOP = 100;
 
+// The whole catalog, split by catalog kind.
+export type Catalog = {
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+};
+
+// The server's UTC date and each category's Daily entry id.
+export type CurrentDailies = {
+	today: string;
+	entryIds: Record<DailyCategory, string>;
+};
+
 // Any Remote call may reject with this when the account no longer exists.
 export class AccountGoneError extends Error {
 	constructor() {
@@ -81,6 +95,12 @@ export type Remote = {
 	// Rows go to the given account; a sign-in for another account is refused.
 	push(accountId: string, rows: SyncedRows): Promise<void>;
 	readLeaderboard(query: LeaderboardQuery): Promise<LeaderboardPage>;
+	// Public reads: no sign-in needed.
+	readCatalog(): Promise<Catalog>;
+	// Rejects when the server has no Daily for a category today.
+	readCurrentDailies(): Promise<CurrentDailies>;
+	// Every Schedule row the server shows: days up to the server's UTC date.
+	readSchedule(): Promise<ScheduleRow[]>;
 	redirectError(): string | null;
 	clearRedirectError(): void;
 	preload(): void;

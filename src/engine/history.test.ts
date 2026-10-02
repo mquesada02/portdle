@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { groupBlitzRunsByDate, historyRows } from "./history";
 import { http, vite } from "./test-fixtures";
-import type { BlitzRun, ScheduleFile } from "./types";
+import type { BlitzRun, CatalogEntry, ScheduleRow } from "./types";
 
 const unfinishedToday = {
 	mixed: false,
@@ -9,239 +9,104 @@ const unfinishedToday = {
 	applications: false,
 };
 
-const schedules: Record<"mixed" | "protocols" | "applications", ScheduleFile> =
-	{
-		mixed: {
-			epoch: "2026-09-09",
-			cycles: [{ startDay: 0, order: ["http", "vite"] }],
-		},
-		protocols: {
-			epoch: "2026-09-09",
-			cycles: [{ startDay: 0, order: ["http", "http"] }],
-		},
-		applications: {
-			epoch: "2026-09-09",
-			cycles: [{ startDay: 0, order: ["vite", "vite"] }],
-		},
-	};
+function day(
+	date: string,
+	ids: [string, string, string] = ["http", "http", "vite"],
+): ScheduleRow[] {
+	return [
+		{ category: "mixed", date, entryId: ids[0] },
+		{ category: "protocols", date, entryId: ids[1] },
+		{ category: "applications", date, entryId: ids[2] },
+	];
+}
 
 function rows(options: {
 	utcToday: string;
-	schedules?: typeof schedules;
+	schedule: ScheduleRow[];
 	finishedToday?: typeof unfinishedToday;
+	protocols?: CatalogEntry[];
+	applications?: CatalogEntry[];
 }) {
 	return historyRows({
 		utcToday: options.utcToday,
-		schedules: options.schedules ?? schedules,
-		protocols: [http],
-		applications: [vite],
+		schedule: options.schedule,
+		protocols: options.protocols ?? [http],
+		applications: options.applications ?? [vite],
 		finishedToday: options.finishedToday ?? unfinishedToday,
 	});
 }
 
 test("yesterday listed; today absent when unfinished", () => {
-	expect(rows({ utcToday: "2026-09-10" })).toEqual([
-		{
-			date: "2026-09-09",
-			category: "mixed",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
-	]);
-});
-
-test("today Mixed listed only when finishedToday.mixed", () => {
 	expect(
 		rows({
 			utcToday: "2026-09-10",
-			finishedToday: {
-				mixed: true,
-				protocols: false,
-				applications: false,
-			},
+			schedule: [...day("2026-09-09"), ...day("2026-09-10")],
 		}),
 	).toEqual([
-		{
-			date: "2026-09-10",
-			category: "mixed",
-			name: "Vite",
-			port: 5173,
-		},
-		{
-			date: "2026-09-09",
-			category: "mixed",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
+		{ date: "2026-09-09", category: "mixed", name: "HTTP", port: 80 },
+		{ date: "2026-09-09", category: "protocols", name: "HTTP", port: 80 },
+		{ date: "2026-09-09", category: "applications", name: "Vite", port: 5173 },
 	]);
 });
 
-test("no row has date after utcToday", () => {
+test("today's row of a category is listed only when that category is finished", () => {
 	expect(
-		rows({ utcToday: "2026-09-10" }).some((row) => row.date > "2026-09-10"),
-	).toBe(false);
+		rows({
+			utcToday: "2026-09-10",
+			schedule: day("2026-09-10", ["vite", "http", "vite"]),
+			finishedToday: { mixed: true, protocols: false, applications: false },
+		}),
+	).toEqual([
+		{ date: "2026-09-10", category: "mixed", name: "Vite", port: 5173 },
+	]);
 });
 
-test("unknown id is skipped", () => {
+test("a row dated after utcToday is not listed", () => {
+	expect(rows({ utcToday: "2026-09-10", schedule: day("2026-09-11") })).toEqual(
+		[],
+	);
+});
+
+test("a row whose entry is unknown is skipped", () => {
 	expect(
 		rows({
 			utcToday: "2026-09-11",
-			schedules: {
-				mixed: {
-					epoch: "2026-09-09",
-					cycles: [{ startDay: 0, order: ["missing", "http"] }],
-				},
-				protocols: {
-					epoch: "2026-09-09",
-					cycles: [{ startDay: 0, order: ["http", "http"] }],
-				},
-				applications: {
-					epoch: "2026-09-09",
-					cycles: [{ startDay: 0, order: ["vite", "vite"] }],
-				},
-			},
-		}),
-	).toEqual([
-		{
-			date: "2026-09-10",
-			category: "mixed",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-10",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-10",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
-		{
-			date: "2026-09-09",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
-	]);
+			schedule: day("2026-09-10", ["missing", "http", "vite"]),
+		}).map((row) => row.category),
+	).toEqual(["protocols", "applications"]);
 });
 
-test("day before epoch is not listed", () => {
-	expect(
-		rows({ utcToday: "2026-09-10" }).some((row) => row.date === "2026-09-08"),
-	).toBe(false);
-});
-
-test("later date's rows come before earlier date's rows", () => {
-	expect(rows({ utcToday: "2026-09-11" }).map((row) => row.date)).toEqual([
-		"2026-09-10",
-		"2026-09-10",
-		"2026-09-10",
-		"2026-09-09",
-		"2026-09-09",
-		"2026-09-09",
-	]);
-});
-
-test("two cycles both contribute past days", () => {
+test("later dates come first, categories in Daily order within a date", () => {
 	expect(
 		rows({
 			utcToday: "2026-09-11",
-			schedules: {
-				mixed: {
-					epoch: "2026-09-09",
-					cycles: [
-						{ startDay: 0, order: ["http"] },
-						{ startDay: 1, order: ["vite"] },
-					],
-				},
-				protocols: {
-					epoch: "2026-09-09",
-					cycles: [
-						{ startDay: 0, order: ["http"] },
-						{ startDay: 1, order: ["http"] },
-					],
-				},
-				applications: {
-					epoch: "2026-09-09",
-					cycles: [
-						{ startDay: 0, order: ["vite"] },
-						{ startDay: 1, order: ["vite"] },
-					],
-				},
-			},
-		}),
+			schedule: [...day("2026-09-09"), ...[...day("2026-09-10")].reverse()],
+		}).map((row) => `${row.date} ${row.category}`),
 	).toEqual([
-		{
-			date: "2026-09-10",
-			category: "mixed",
-			name: "Vite",
-			port: 5173,
-		},
-		{
-			date: "2026-09-10",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-10",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
-		{
-			date: "2026-09-09",
-			category: "mixed",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
+		"2026-09-10 mixed",
+		"2026-09-10 protocols",
+		"2026-09-10 applications",
+		"2026-09-09 mixed",
+		"2026-09-09 protocols",
+		"2026-09-09 applications",
 	]);
+});
+
+test("a retired entry and an entry of another catalog kind still resolve", () => {
+	const retired: CatalogEntry = {
+		...http,
+		id: "old",
+		name: "Old",
+		retired: true,
+	};
+	expect(
+		rows({
+			utcToday: "2026-09-10",
+			schedule: day("2026-09-09", ["old", "vite", "http"]),
+			protocols: [http, retired],
+			applications: [vite],
+		}).map((row) => row.name),
+	).toEqual(["Old", "Vite", "HTTP"]);
 });
 
 function fakeRun(endedAt: string, score: number): BlitzRun {

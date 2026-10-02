@@ -1,7 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+	type CatalogEntry,
+	DAILY_CATEGORIES,
+	type DailyCategory,
+	isDailyCategory,
+	type ScheduleRow,
+} from "../engine/types";
+import {
 	AccountGoneError,
 	type AccountState,
+	type Catalog,
+	type CurrentDailies,
 	LEADERBOARD_TOP,
 	type LeaderboardPage,
 	type LeaderboardQuery,
@@ -118,15 +127,28 @@ const CONFLICT_COLUMNS = {
 	preferences: "account_id",
 } as const;
 
+// Collects pages from `fetchPage(from)` until a page is short.
+async function readPages<T>(
+	fetchPage: (from: number) => Promise<T[]>,
+): Promise<T[]> {
+	const all: T[] = [];
+	for (let from = 0; ; from += PAGE_SIZE) {
+		const page = await fetchPage(from);
+		all.push(...page);
+		if (page.length < PAGE_SIZE) {
+			return all;
+		}
+	}
+}
+
 // Reads a whole table in pages, ordered by primary key so no page skips or
 // repeats a row.
-async function readAll<T>(
+function readAll<T>(
 	supabase: SupabaseClient,
 	table: string,
 	order: string[],
 ): Promise<T[]> {
-	const all: T[] = [];
-	for (let from = 0; ; from += PAGE_SIZE) {
+	return readPages(async (from) => {
 		let query = supabase.from(table).select("*");
 		for (const column of order) {
 			query = query.order(column);
@@ -135,12 +157,45 @@ async function readAll<T>(
 		if (error) {
 			throw error;
 		}
-		const page = (data ?? []) as T[];
-		all.push(...page);
-		if (page.length < PAGE_SIZE) {
-			return all;
-		}
-	}
+		return (data ?? []) as T[];
+	});
+}
+
+type CatalogDbRow = {
+	id: string;
+	kind: string;
+	name: string;
+	aliases: string[];
+	port: number;
+	transport: CatalogEntry["transport"];
+	description: string;
+	blurb: string | null;
+	answer_eligible: boolean;
+	retired: boolean;
+	sources: CatalogEntry["sources"];
+};
+
+type ScheduleDbRow = { category: string; day: string; entry_id: string };
+
+type CurrentDailiesDbRow = {
+	utc_date: string;
+	category: string;
+	entry_id: string | null;
+};
+
+function toCatalogEntry(row: CatalogDbRow): CatalogEntry {
+	return {
+		id: row.id,
+		name: row.name,
+		aliases: row.aliases,
+		port: row.port,
+		transport: row.transport,
+		description: row.description,
+		...(row.blurb === null ? {} : { blurb: row.blurb }),
+		answerEligible: row.answer_eligible,
+		retired: row.retired,
+		sources: row.sources,
+	};
 }
 
 type Library = typeof import("@supabase/supabase-js");
@@ -153,6 +208,7 @@ type Deps = {
 	history: Pick<History, "replaceState">;
 	baseUrl: string;
 	loadLibrary: () => Promise<Library>;
+	fetch: typeof fetch;
 };
 
 export function createSupabaseRemote(
@@ -166,6 +222,26 @@ export function createSupabaseRemote(
 	const baseUrl = deps.baseUrl ?? import.meta.env.BASE_URL;
 	const loadLibrary =
 		deps.loadLibrary ?? (() => import("@supabase/supabase-js"));
+	const fetchJson = deps.fetch ?? ((...args) => window.fetch(...args));
+
+	// The public reads call the REST API directly with the anon key, so the
+	// Supabase library stays lazy.
+	async function restJson<T>(path: string, init?: RequestInit): Promise<T> {
+		const response = await fetchJson(`${url}/rest/v1/${path}`, {
+			...init,
+			headers: { apikey: anonKey, ...init?.headers },
+		});
+		if (!response.ok) {
+			throw new Error(`Request failed: ${response.status}`);
+		}
+		return (await response.json()) as T;
+	}
+
+	function fetchAllRows<T>(path: string): Promise<T[]> {
+		return readPages((offset) =>
+			restJson<T[]>(`${path}&limit=${PAGE_SIZE}&offset=${offset}`),
+		);
+	}
 
 	const redirect = parseAuthRedirect(location.search, location.hash);
 	let pendingError = redirect.error;
@@ -395,6 +471,66 @@ export function createSupabaseRemote(
 				}),
 			);
 			return { rows, viewerId };
+		},
+		async readCatalog(): Promise<Catalog> {
+			const rows = await fetchAllRows<CatalogDbRow>(
+				"catalog_entries?select=*&order=id",
+			);
+			const catalog: Catalog = { protocols: [], applications: [] };
+			for (const row of rows) {
+				if (row.kind === "protocol") {
+					catalog.protocols.push(toCatalogEntry(row));
+				} else if (row.kind === "application") {
+					catalog.applications.push(toCatalogEntry(row));
+				} else {
+					throw new Error(`Unknown catalog kind: ${row.kind}`);
+				}
+			}
+			return catalog;
+		},
+		async readCurrentDailies(): Promise<CurrentDailies> {
+			const rows = await restJson<CurrentDailiesDbRow[]>(
+				"rpc/current_dailies",
+				{
+					method: "POST",
+					body: "{}",
+					headers: { "Content-Type": "application/json" },
+				},
+			);
+			const entryIds: Partial<Record<DailyCategory, string>> = {};
+			for (const row of rows) {
+				if (isDailyCategory(row.category) && row.entry_id !== null) {
+					entryIds[row.category] = row.entry_id;
+				}
+			}
+			// One row per category, each with an entry id.
+			const [first] = rows;
+			if (
+				!first ||
+				rows.length !== DAILY_CATEGORIES.length ||
+				DAILY_CATEGORIES.some((c) => !(c in entryIds))
+			) {
+				throw new Error("Current Dailies are incomplete");
+			}
+			return {
+				today: first.utc_date,
+				entryIds: entryIds as Record<DailyCategory, string>,
+			};
+		},
+		async readSchedule(): Promise<ScheduleRow[]> {
+			const rows = await fetchAllRows<ScheduleDbRow>(
+				"schedule?select=category,day,entry_id&order=day,category",
+			);
+			return rows.map((row) => {
+				if (!isDailyCategory(row.category)) {
+					throw new Error(`Unknown Schedule category: ${row.category}`);
+				}
+				return {
+					category: row.category,
+					date: row.day,
+					entryId: row.entry_id,
+				};
+			});
 		},
 		redirectError: () => pendingError,
 		clearRedirectError() {

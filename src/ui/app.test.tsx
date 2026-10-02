@@ -4,7 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { createPersist } from "../persist/storage";
 import { dailyOn } from "../test/dailies";
+import { createFakeRemote } from "../test/fake-remote";
 import {
+	loaded,
 	memoryStore,
 	stubMatchMedia,
 	stubViewTransitions,
@@ -22,14 +24,20 @@ async function renderApp(options: {
 	const persist = options.persist ?? createPersist(memoryStore());
 	const path = options.path ?? "/portdle/";
 	const history = createMemoryHistory({ initialEntries: [path] });
+	const remote = createFakeRemote();
+	if (options.utcToday !== undefined) {
+		remote.today = options.utcToday;
+	}
 	render(
 		<App
 			persist={persist}
+			remote={remote}
 			history={history}
 			utcToday={options.utcToday ?? "2026-09-09"}
 		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 

@@ -1,5 +1,4 @@
-import { answerPool, catalogFor } from "./catalog";
-import { getDaily } from "./daily";
+import { answerPool, catalogFor, playableCatalogFor } from "./catalog";
 import { evaluateDefaultGuess } from "./guess";
 import { evaluateInvertedGuess } from "./inverted";
 import type {
@@ -15,10 +14,8 @@ import type {
 	Orientation,
 	Round,
 	RoundOutcome,
-	ScheduleFile,
 	WrongAnswer,
 } from "./types";
-import { DAILY_CATEGORIES } from "./types";
 
 function shuffle<T>(items: T[], rng: () => number): T[] {
 	const next = [...items];
@@ -47,10 +44,10 @@ export function startBlitz(input: {
 	category: DailyCategory;
 	orientation: Orientation;
 	mode: BlitzMode;
-	utcToday: string;
+	// The ids of today's three Daily answers, which Blitz never prompts.
+	dailyIds: string[];
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
-	schedules: Record<DailyCategory, ScheduleFile>;
 	rng: () => number;
 	now: () => number;
 }): BlitzState | { error: "empty-pool" } {
@@ -59,19 +56,7 @@ export function startBlitz(input: {
 		input.protocols,
 		input.applications,
 	);
-	const excluded = new Set<string>();
-	for (const category of DAILY_CATEGORIES) {
-		const daily = getDaily(
-			category,
-			input.utcToday,
-			input.schedules[category],
-			input.protocols,
-			input.applications,
-		);
-		if (daily) {
-			excluded.add(daily.id);
-		}
-	}
+	const excluded = new Set(input.dailyIds);
 	const pool = answerPool(catalog)
 		.map((entry) => entry.id)
 		.filter((id) => !excluded.has(id));
@@ -161,7 +146,7 @@ export function reduceBlitz(input: {
 	if (event.type === "timeout") {
 		return { state: { ...state, ended: "timeout" } };
 	}
-	const catalog = catalogFor(state.category, protocols, applications);
+	const catalog = playableCatalogFor(state.category, protocols, applications);
 	const answer = catalog.find((entry) => entry.id === state.currentId);
 	if (!answer) {
 		return { state };

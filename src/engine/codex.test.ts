@@ -287,3 +287,20 @@ test("a card becoming seen keeps the position it held while unseen", () => {
 	expect(after[0]?.cards[1]).toEqual(before[0]?.cards[1]);
 	expect(after[0]?.cards[2]).toEqual(before[0]?.cards[2]);
 });
+
+test("codexGroups hides an unseen retired entry and keeps a seen one", () => {
+	const groups = codexGroups({
+		map: { seen: { state: "missed", fresh: false } },
+		protocols: [
+			entry({ id: "live" }),
+			entry({ id: "seen", retired: true }),
+			entry({ id: "gone", retired: true }),
+		],
+		applications: [],
+		sort: "name",
+	});
+	expect(groups[0]?.cards.map((card) => card.entry.id)).toEqual([
+		"live",
+		"seen",
+	]);
+});

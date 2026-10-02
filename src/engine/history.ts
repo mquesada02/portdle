@@ -1,12 +1,10 @@
-import { getDaily } from "./daily";
 import type {
 	BlitzRun,
 	CatalogEntry,
 	DailyCategory,
-	ScheduleFile,
+	ScheduleRow,
 } from "./types";
 import { DAILY_CATEGORIES } from "./types";
-import { addUtcDays } from "./utc";
 
 export type HistoryRow = {
 	date: string;
@@ -17,41 +15,35 @@ export type HistoryRow = {
 
 export function historyRows(input: {
 	utcToday: string;
-	schedules: Record<DailyCategory, ScheduleFile>;
+	schedule: ScheduleRow[];
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
 	finishedToday: Record<DailyCategory, boolean>;
 }): HistoryRow[] {
 	const rows: HistoryRow[] = [];
-	for (const category of DAILY_CATEGORIES) {
-		const schedule = input.schedules[category];
-		for (const cycle of schedule.cycles) {
-			for (let offset = 0; offset < cycle.order.length; offset++) {
-				const date = addUtcDays(schedule.epoch, cycle.startDay + offset);
-				if (date > input.utcToday) {
-					continue;
-				}
-				if (date === input.utcToday && !input.finishedToday[category]) {
-					continue;
-				}
-				const entry = getDaily(
-					category,
-					date,
-					schedule,
-					input.protocols,
-					input.applications,
-				);
-				if (!entry) {
-					continue;
-				}
-				rows.push({
-					date,
-					category,
-					name: entry.name,
-					port: entry.port,
-				});
-			}
+	const entries = new Map(
+		[...input.protocols, ...input.applications].map((entry) => [
+			entry.id,
+			entry,
+		]),
+	);
+	for (const { category, date, entryId } of input.schedule) {
+		if (date > input.utcToday) {
+			continue;
 		}
+		if (date === input.utcToday && !input.finishedToday[category]) {
+			continue;
+		}
+		const entry = entries.get(entryId);
+		if (!entry) {
+			continue;
+		}
+		rows.push({
+			date,
+			category,
+			name: entry.name,
+			port: entry.port,
+		});
 	}
 	rows.sort((a, b) => {
 		if (a.date !== b.date) {

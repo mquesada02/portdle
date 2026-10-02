@@ -1,9 +1,7 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
-import { applications, protocols, schedules } from "../catalogs/production";
-import { catalogFor } from "../engine/catalog";
+import { catalogFor, entryById, playableCatalogFor } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
-import { getDaily } from "../engine/daily";
 import {
 	applyCommittedGuess,
 	digitLength,
@@ -25,6 +23,8 @@ import { DigitSlots, SLOT_KEYS } from "./digit-slots";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
+import { LoadStatus, useServerData } from "./server-data";
+import { allReady } from "./server-store";
 import { categoryStreakGap } from "./sync-utc";
 
 const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
@@ -248,15 +248,60 @@ function TrackerStrip({
 }
 
 export function DailyPage({ category }: { category: DailyCategory }) {
-	const { persist, utcToday } = useRouteContext({ from: "__root__" });
-	const answer = getDaily(
-		category,
-		utcToday,
-		schedules[category],
-		protocols,
-		applications,
+	const { catalog, dailies } = useServerData();
+	const data = allReady(catalog, dailies);
+	if (data.status !== "ready") {
+		return <DailyLoading category={category} state={data.status} />;
+	}
+	const [{ protocols, applications }, { today, entryIds }] = data.value;
+	const puzzle = entryById(protocols, applications, entryIds[category]);
+	if (!puzzle) {
+		return <DailyLoading category={category} state="failed" />;
+	}
+	return (
+		<DailyBoard
+			category={category}
+			puzzle={puzzle}
+			protocols={protocols}
+			applications={applications}
+			utcToday={today}
+		/>
 	);
-	const catalog = catalogFor(category, protocols, applications);
+}
+
+function DailyLoading({
+	category,
+	state,
+}: {
+	category: DailyCategory;
+	state: "loading" | "failed";
+}) {
+	return (
+		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
+			<DailySwitcher category={category} />
+			<LoadStatus state={state} />
+		</main>
+	);
+}
+
+function DailyBoard({
+	category,
+	puzzle,
+	protocols,
+	applications,
+	utcToday,
+}: {
+	category: DailyCategory;
+	puzzle: CatalogEntry;
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+	utcToday: string;
+}) {
+	const { persist } = useRouteContext({ from: "__root__" });
+	// Misses identify only entries still in play; a saved identification
+	// resolves in the whole catalog.
+	const catalog = playableCatalogFor(category, protocols, applications);
+	const wholeCatalog = catalogFor("mixed", protocols, applications);
 	const [board, setBoard] = useState<DailyPersist | null>(() =>
 		persist.readDaily(category, utcToday),
 	);
@@ -266,28 +311,6 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 	const [saveWarning, setSaveWarning] = useState(false);
 	const [finishedThisSession, setFinishedThisSession] = useState(false);
 
-	if (!answer) {
-		return (
-			<main className="mx-auto max-w-md py-16 text-center">
-				<h1 className="text-2xl font-bold tracking-tight">
-					Puzzle unavailable
-				</h1>
-				<p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-					There is no Daily for this date yet.
-				</p>
-				<p className="mt-4">
-					<Link
-						to="/blitz"
-						className="text-sm font-medium underline underline-offset-4"
-					>
-						Play Blitz
-					</Link>
-				</p>
-			</main>
-		);
-	}
-
-	const puzzle = answer;
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
 	const stats: CategoryStats = persist.readStats(category) ?? emptyStats();
@@ -387,7 +410,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 							key={`${guess.port}-${guess.result}`}
 							guess={guess}
 							length={length}
-							catalog={catalog}
+							catalog={wholeCatalog}
 							answerPort={puzzle.port}
 						/>
 					))}
