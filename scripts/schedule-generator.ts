@@ -3,7 +3,7 @@
 // pooler in session mode, port 5432). SCHEDULE_SEED: the secret seed.
 
 import pg from "pg";
-import { runGenerator } from "./schedule-store.ts";
+import { formatSummary, runGenerator } from "./schedule-store.ts";
 
 const url = process.env.SCHEDULE_DATABASE_URL;
 const seed = process.env.SCHEDULE_SEED;
@@ -15,9 +15,8 @@ if (!url || !seed) {
 const client = new pg.Client({ connectionString: url });
 try {
 	await client.connect();
-	const { inserted, removed } = await runGenerator(client, seed);
 	console.log(
-		`Schedule updated: ${inserted} rows inserted, ${removed} removed.`,
+		`Schedule updated: ${formatSummary(await runGenerator(client, seed))}`,
 	);
 } catch (error) {
 	console.error(error instanceof Error ? error.message : error);

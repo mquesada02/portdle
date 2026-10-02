@@ -11,6 +11,7 @@ import {
 	type RandomFactory,
 	SCHEDULE_EPOCH,
 	type StoredRow,
+	sameCycleSwapIndex,
 } from "./schedule-gen";
 import { SWITCH_OVER_DAY } from "./switch-over";
 import {
@@ -616,4 +617,29 @@ test("the first run after the real import fills the cut cycles, each entry once"
 			);
 		}
 	}
+});
+
+test("a same-cycle swap is rejected when the displaced entry would collide on the partner day", () => {
+	const schedule = (order: string[]): ScheduleFile => ({
+		epoch: SCHEDULE_EPOCH,
+		cycles: [{ startDay: 0, order }],
+	});
+	// Day 2 collides: Mixed and Protocols both hold "x".
+	const schedules = {
+		mixed: schedule(["m0", "m1", "x"]),
+		protocols: schedule(["p0", "x", "x"]),
+		applications: schedule(["a0", "a1", "a2"]),
+	};
+	// Day 1: Protocols holds "x" there, so moving "x" to day 1 would collide.
+	// Day 0 is clear, so the swap goes to day 0.
+	expect(sameCycleSwapIndex(schedules, 0, 2, "x", "x", "a2")?.index).toBe(0);
+	// With only day 1 movable the swap is rejected.
+	expect(sameCycleSwapIndex(schedules, 1, 2, "x", "x", "a2")).toBeUndefined();
+	// A later day is used before an earlier one.
+	const withLater = {
+		mixed: schedule(["m0", "x", "m2", "m3"]),
+		protocols: schedule(["p0", "x", "p2", "p3"]),
+		applications: schedule(["a0", "a1", "a2", "a3"]),
+	};
+	expect(sameCycleSwapIndex(withLater, 0, 1, "x", "x", "a1")?.index).toBe(2);
 });

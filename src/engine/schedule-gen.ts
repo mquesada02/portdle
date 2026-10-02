@@ -228,7 +228,7 @@ type DistinctnessOptions = {
 	sameCycleOnly?: { issues: string[]; epoch: string };
 };
 
-function sameCycleSwapIndex(
+export function sameCycleSwapIndex(
 	schedules: Record<DailyCategory, ScheduleFile>,
 	fromDay: number,
 	day: number,

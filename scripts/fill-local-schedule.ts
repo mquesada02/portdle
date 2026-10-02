@@ -6,7 +6,11 @@
 
 import { pathToFileURL } from "node:url";
 import pg from "pg";
-import { runGenerator } from "./schedule-store.ts";
+import {
+	formatSummary,
+	type RunSummary,
+	runGenerator,
+} from "./schedule-store.ts";
 
 const GENERATOR_PASSWORD = "schedule-generator-local";
 const DEV_SEED = "portdle-dev-seed";
@@ -40,7 +44,7 @@ export function localConnection(databaseUrl: string): Connection {
 
 export async function fillLocalSchedule(
 	databaseUrl: string,
-): Promise<{ inserted: number; removed: number }> {
+): Promise<RunSummary> {
 	const admin = localConnection(databaseUrl);
 	const owner = new pg.Client(admin);
 	await owner.connect();
@@ -66,12 +70,10 @@ export async function fillLocalSchedule(
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
 	try {
-		const { inserted, removed } = await fillLocalSchedule(
+		const summary = await fillLocalSchedule(
 			process.env.DATABASE_URL ?? DEFAULT_URL,
 		);
-		console.log(
-			`Local Schedule updated: ${inserted} rows inserted, ${removed} removed.`,
-		);
+		console.log(`Local Schedule updated: ${formatSummary(summary)}`);
 	} catch (error) {
 		console.error(error instanceof Error ? error.message : error);
 		process.exitCode = 1;

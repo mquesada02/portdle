@@ -2,12 +2,25 @@ import {
 	generateFromRows,
 	type StoredRow,
 } from "../src/engine/schedule-gen.ts";
-import type {
-	CatalogEntry,
-	DailyCategory,
-	Source,
+import {
+	type CatalogEntry,
+	DAILY_CATEGORIES,
+	type DailyCategory,
+	type Source,
 } from "../src/engine/types.ts";
 import { hmacRandom } from "./hmac-random.ts";
+
+export type RunSummary = Record<
+	DailyCategory,
+	{ inserted: number; removed: number }
+>;
+
+export function formatSummary(summary: RunSummary): string {
+	return DAILY_CATEGORIES.map(
+		(category) =>
+			`${category} +${summary[category].inserted} -${summary[category].removed}`,
+	).join(", ");
+}
 
 export type Queryable = {
 	query(
@@ -57,7 +70,7 @@ function columns(rows: StoredRow[]) {
 export async function runGenerator(
 	client: Queryable,
 	secret: string,
-): Promise<{ inserted: number; removed: number }> {
+): Promise<RunSummary> {
 	const random = hmacRandom(secret);
 	await client.query("begin");
 	try {
@@ -103,7 +116,17 @@ export async function runGenerator(
 			);
 		}
 		await client.query("commit");
-		return { inserted: plan.insert.length, removed: plan.remove.length };
+		return Object.fromEntries(
+			DAILY_CATEGORIES.map((category) => [
+				category,
+				{
+					inserted: plan.insert.filter((row) => row.category === category)
+						.length,
+					removed: plan.remove.filter((row) => row.category === category)
+						.length,
+				},
+			]),
+		) as RunSummary;
 	} catch (error) {
 		// A failed rollback must not hide the error that caused it.
 		await client.query("rollback").catch(() => undefined);

@@ -8,6 +8,7 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import { fillLocalSchedule } from "./fill-local-schedule.ts";
+import { formatSummary } from "./schedule-store.ts";
 import { parseStackEnv, type StackEnv } from "./stack-env.ts";
 
 function supabase(args: string[]): string {
@@ -34,8 +35,9 @@ try {
 }
 
 try {
-	const { inserted, removed } = await fillLocalSchedule(env.dbUrl);
-	console.log(`Local Schedule: ${inserted} rows inserted, ${removed} removed.`);
+	console.log(
+		`Local Schedule: ${formatSummary(await fillLocalSchedule(env.dbUrl))}`,
+	);
 } catch (error) {
 	console.error(`Could not fill the local Schedule.\n${error}`);
 	process.exit(1);

@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { type Queryable, runGenerator, toEntry } from "./schedule-store.ts";
+import {
+	formatSummary,
+	type Queryable,
+	runGenerator,
+	toEntry,
+} from "./schedule-store.ts";
 
 type Reply = Record<string, unknown>[];
 
@@ -56,7 +61,13 @@ test("writes inside one transaction: lock first, then reads, then insert, then c
 		rows: [],
 	});
 	const result = await runGenerator(client, "secret");
-	expect(result.inserted).toBeGreaterThan(0);
+	for (const category of ["mixed", "protocols", "applications"] as const) {
+		expect(result[category].inserted).toBeGreaterThan(0);
+		expect(result[category].removed).toBe(0);
+	}
+	expect(formatSummary(result)).toMatch(
+		/^mixed \+\d+ -0, protocols \+\d+ -0, applications \+\d+ -0$/,
+	);
 	expect(statements[0]).toBe("begin");
 	expect(statements[1]).toContain("pg_advisory_xact_lock");
 	expect(statements.at(-1)).toBe("commit");
@@ -117,7 +128,9 @@ test("rows after the frozen day are deleted before the new rows are inserted", a
 		rows: stored,
 	});
 	const result = await runGenerator(second.client, "secret");
-	expect(result).toEqual({ inserted: 0, removed: 0 });
+	expect(formatSummary(result)).toBe(
+		"mixed +0 -0, protocols +0 -0, applications +0 -0",
+	);
 
 	// A retired entry in a stored future row forces a delete, sent before the insert.
 	const futureId = stored.find((row) => row.day === "2026-10-20")?.entry_id;
