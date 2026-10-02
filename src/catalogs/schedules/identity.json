@@ -206,5 +206,17 @@
 	"pgadmin": {
 		"name": "pgAdmin",
 		"port": 5050
+	},
+	"rdp": {
+		"name": "RDP",
+		"port": 3389
+	},
+	"vnc": {
+		"name": "VNC",
+		"port": 5900
+	},
+	"tomcat": {
+		"name": "Tomcat",
+		"port": 8080
 	}
 }
