@@ -150,11 +150,8 @@ test("confirming deletes the account, clears the device, and opens a fresh signe
 	expect(persist.readHowToSeen()).toBe(false);
 	expect(persist.readDaily("mixed", "2026-09-09")).toBeNull();
 	expect(persist.readSyncAccount()).toBeNull();
-	// The remounted shell writes only the last seen UTC day.
-	expect(store.data.size).toBeGreaterThan(0);
-	for (const key of store.data.keys()) {
-		expect(key).toMatch(/last.?seen/i);
-	}
+	// The remounted shell writes nothing.
+	expect(store.data.size).toBe(0);
 	expect(remote.rows).toEqual(emptyRows());
 	await user.click(accountButton());
 	expect(

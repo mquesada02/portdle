@@ -19,24 +19,6 @@ export function App({
 	history?: RouterHistory;
 	utcToday?: string;
 }) {
-	const [clockToday, setClockToday] = useState(
-		() => utcToday ?? utcDateString(new Date()),
-	);
-	useEffect(() => {
-		if (utcToday !== undefined) {
-			setClockToday(utcToday);
-			return;
-		}
-		function refresh() {
-			setClockToday(utcDateString(new Date()));
-		}
-		document.addEventListener("visibilitychange", refresh);
-		window.addEventListener("focus", refresh);
-		return () => {
-			document.removeEventListener("visibilitychange", refresh);
-			window.removeEventListener("focus", refresh);
-		};
-	}, [utcToday]);
 	const utcTodayRef = useRef(utcToday);
 	utcTodayRef.current = utcToday;
 	const backend = useMemo<Backend | undefined>(
@@ -52,7 +34,10 @@ export function App({
 		[persist, remote],
 	);
 	const serverStore = useMemo(() => createServerStore(remote), [remote]);
-	useEffect(() => serverStore.load(), [serverStore]);
+	useEffect(() => {
+		serverStore.load();
+		return serverStore.attach();
+	}, [serverStore]);
 	const sync = backend?.sync;
 	useEffect(() => {
 		if (!sync) {
@@ -73,10 +58,9 @@ export function App({
 				backend,
 				remount,
 				history,
-				utcToday: clockToday,
 				serverStore,
 			}),
-		[persist, backend, remount, history, clockToday, serverStore],
+		[persist, backend, remount, history, serverStore],
 	);
 	// The router moves to the Daily before the remount, so the remount opens
 	// the Daily, not the screen the player deleted from, and no screen mounts

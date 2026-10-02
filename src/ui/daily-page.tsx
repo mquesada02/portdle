@@ -18,6 +18,7 @@ import {
 	type DailyCategory,
 	type DailyPersist,
 } from "../engine/types";
+import type { CurrentDailies } from "../remote/remote";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
@@ -247,24 +248,73 @@ function TrackerStrip({
 	);
 }
 
+function hasTry(record: DailyPersist | null): boolean {
+	return (record?.guesses.length ?? 0) > 0;
+}
+
 export function DailyPage({ category }: { category: DailyCategory }) {
 	const { catalog, dailies } = useServerData();
 	const data = allReady(catalog, dailies);
 	if (data.status !== "ready") {
 		return <DailyLoading category={category} state={data.status} />;
 	}
-	const [{ protocols, applications }, { today, entryIds }] = data.value;
-	const puzzle = entryById(protocols, applications, entryIds[category]);
+	const [{ protocols, applications }, current] = data.value;
+	return (
+		<PinnedDaily
+			category={category}
+			protocols={protocols}
+			applications={applications}
+			current={current}
+		/>
+	);
+}
+
+// Shows one day's Daily for the life of the mount. A new server day replaces
+// it at once while the player has not committed a try on it; with a try
+// (unfinished, or finished with its Reveal) it stays until the player leaves.
+function PinnedDaily({
+	category,
+	protocols,
+	applications,
+	current,
+}: {
+	category: DailyCategory;
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+	current: CurrentDailies;
+}) {
+	const { persist } = useRouteContext({ from: "__root__" });
+	const [shown, setShown] = useState(() => ({
+		daily: current,
+		started: hasTry(persist.readDaily(category, current.today)),
+	}));
+	if (current.today !== shown.daily.today && !shown.started) {
+		setShown({
+			daily: current,
+			started: hasTry(persist.readDaily(category, current.today)),
+		});
+	}
+	const puzzle = entryById(
+		protocols,
+		applications,
+		shown.daily.entryIds[category],
+	);
 	if (!puzzle) {
 		return <DailyLoading category={category} state="failed" />;
 	}
 	return (
 		<DailyBoard
+			key={shown.daily.today}
 			category={category}
 			puzzle={puzzle}
 			protocols={protocols}
 			applications={applications}
-			utcToday={today}
+			utcToday={shown.daily.today}
+			onTry={() =>
+				setShown((previous) =>
+					previous.started ? previous : { ...previous, started: true },
+				)
+			}
 		/>
 	);
 }
@@ -290,12 +340,14 @@ function DailyBoard({
 	protocols,
 	applications,
 	utcToday,
+	onTry,
 }: {
 	category: DailyCategory;
 	puzzle: CatalogEntry;
 	protocols: CatalogEntry[];
 	applications: CatalogEntry[];
 	utcToday: string;
+	onTry: () => void;
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
 	// Misses identify only entries still in play; a saved identification
@@ -360,6 +412,7 @@ function DailyBoard({
 		setDigits("");
 		setMessage("");
 		setBoard(next);
+		onTry();
 		noteWrite(persist.writeDaily(category, utcToday, next));
 		if (result.status === "miss" && result.identified) {
 			noteWrite(
