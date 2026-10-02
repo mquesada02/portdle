@@ -46,7 +46,8 @@ export function foldStats(input: {
 	}
 	let run = 0;
 	let previous: string | null = null;
-	for (const date of [...winDays].sort()) {
+	// A Set iterates in insertion order, and the dates were added ascending.
+	for (const date of winDays) {
 		run = previous !== null && addUtcDays(previous, 1) === date ? run + 1 : 1;
 		stats.bestStreak = Math.max(stats.bestStreak, run);
 		previous = date;

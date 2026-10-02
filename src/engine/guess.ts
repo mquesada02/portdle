@@ -38,11 +38,12 @@ export function evaluateDefaultGuess(input: {
 	};
 }
 
-// `late` marks a new record; a stored record keeps the mark it has.
+// `lateIfNew` marks a record created by this try; a stored record keeps the
+// mark it has.
 export function applyCommittedGuess(
 	current: DailyPersist | null,
 	result: GuessResult,
-	late: boolean,
+	lateIfNew: boolean,
 ): DailyPersist | { status: "invalid" } | { status: "duplicate" } {
 	if (result.status === "invalid" || result.status === "duplicate") {
 		return { status: result.status };
@@ -58,7 +59,7 @@ export function applyCommittedGuess(
 				};
 	const nextGuesses = [...guesses, nextGuess];
 	// An absent `late` on a stored record stays absent: it reads as on-day.
-	const mark = current ? current.late : late;
+	const mark = current ? current.late : lateIfNew;
 	const withMark = mark === undefined ? {} : { late: mark };
 	if (result.status === "correct") {
 		return { status: "won", guesses: nextGuesses, ...withMark };
