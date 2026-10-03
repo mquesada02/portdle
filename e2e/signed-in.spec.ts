@@ -70,6 +70,8 @@ test("global stats appear after a signed-in on-day finish", async ({
 		})
 		.toBeGreaterThanOrEqual(1);
 	// The own result, a win in one try, is the highlighted bar.
-	await expect(page.locator('li[aria-current="true"]')).toContainText("1");
+	const highlighted = page.locator('li[aria-current="true"]');
+	await expect(highlighted).toHaveCount(1);
+	await expect(highlighted.locator("span").first()).toHaveText("1");
 	await context.close();
 });
