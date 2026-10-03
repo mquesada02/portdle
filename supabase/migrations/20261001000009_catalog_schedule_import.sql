@@ -14,7 +14,7 @@ returns date
 language sql
 immutable
 set search_path = ''
-as $$ select date '2026-10-01' $$;
+as $$ select date '2026-10-04' $$;
 
 revoke all on function public.switch_over_day() from public, anon, authenticated;
 grant execute on function public.switch_over_day() to schedule_generator;
@@ -119,6 +119,9 @@ insert into public.schedule (category, day, entry_id, cycle_start) values
 	('mixed', '2026-09-29', 'smb', '2026-09-09'),
 	('mixed', '2026-09-30', 'consul', '2026-09-09'),
 	('mixed', '2026-10-01', 'wireguard', '2026-09-09'),
+	('mixed', '2026-10-02', 'rdp', '2026-09-09'),
+	('mixed', '2026-10-03', 'ldap', '2026-09-09'),
+	('mixed', '2026-10-04', 'git', '2026-09-09'),
 	('protocols', '2026-09-09', 'syslog', '2026-09-09'),
 	('protocols', '2026-09-10', 'kerberos', '2026-09-09'),
 	('protocols', '2026-09-11', 'dhcp', '2026-09-09'),
@@ -142,6 +145,9 @@ insert into public.schedule (category, day, entry_id, cycle_start) values
 	('protocols', '2026-09-29', 'smtp', '2026-09-09'),
 	('protocols', '2026-09-30', 'pop3', '2026-09-09'),
 	('protocols', '2026-10-01', 'imap', '2026-09-09'),
+	('protocols', '2026-10-02', 'vnc', '2026-09-09'),
+	('protocols', '2026-10-03', 'http', '2026-09-09'),
+	('protocols', '2026-10-04', 'nfs', '2026-09-09'),
 	('applications', '2026-09-09', 'webpack', '2026-09-09'),
 	('applications', '2026-09-10', 'astro', '2026-09-09'),
 	('applications', '2026-09-11', 'svelte', '2026-09-09'),
@@ -164,4 +170,7 @@ insert into public.schedule (category, day, entry_id, cycle_start) values
 	('applications', '2026-09-28', 'next', '2026-09-09'),
 	('applications', '2026-09-29', 'storybook', '2026-09-09'),
 	('applications', '2026-09-30', 'docker', '2026-09-09'),
-	('applications', '2026-10-01', 'pgadmin', '2026-09-09');
+	('applications', '2026-10-01', 'pgadmin', '2026-09-09'),
+	('applications', '2026-10-02', 'tomcat', '2026-09-09'),
+	('applications', '2026-10-03', 'vault', '2026-09-09'),
+	('applications', '2026-10-04', 'kubernetes', '2026-10-04');
