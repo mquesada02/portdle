@@ -3,6 +3,7 @@
 // session. No spec uses a database URL, the generator role, or a service key.
 
 import {
+	type Browser,
 	type BrowserContext,
 	errors,
 	expect,
@@ -214,4 +215,20 @@ export async function openFinishedBoard(
 		await submitAnswer(page, port);
 	}
 	await expect(solved).toBeVisible();
+}
+
+// Runs a spec body on a page of a fresh context that holds the test user's
+// sign-in, and always closes the context.
+export async function withSignedInPage(
+	browser: Browser,
+	run: (page: Page, session: SignedIn) => Promise<void>,
+): Promise<void> {
+	const session = await signIn();
+	const context = await browser.newContext();
+	try {
+		await session.storeIn(context);
+		await run(await context.newPage(), session);
+	} finally {
+		await context.close();
+	}
 }
