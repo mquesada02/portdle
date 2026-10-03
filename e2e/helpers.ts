@@ -4,8 +4,7 @@
 
 import { type BrowserContext, expect, type Page } from "@playwright/test";
 import { authStorageKey } from "../scripts/e2e-env.ts";
-
-export type Category = "mixed" | "protocols" | "applications";
+import type { DailyCategory as Category } from "../src/engine/types.ts";
 
 const TEST_EMAIL = "test@portdle.local";
 // The fixed local password of the seeded user (supabase/seed.sql).
@@ -36,7 +35,7 @@ async function rest<T>(path: string, token?: string): Promise<T> {
 	return (await response.json()) as T;
 }
 
-export function apiUrl(): string {
+export function stackApiUrl(): string {
 	return stack().apiUrl;
 }
 
@@ -48,6 +47,9 @@ export async function serverToday(): Promise<string> {
 		headers: { apikey: key, "Content-Type": "application/json" },
 		body: "{}",
 	});
+	if (!response.ok) {
+		throw new Error(`current_dailies answered ${response.status}`);
+	}
 	const [first] = (await response.json()) as { utc_date: string }[];
 	if (!first) {
 		throw new Error("The current Dailies read answered no row.");
@@ -148,8 +150,9 @@ export async function signIn(): Promise<SignedIn> {
 	};
 }
 
-// The device's saved record of one Daily appears in local storage once the
-// sign-in pull has applied the account's rows. A first run on a fresh stack
+// The device's saved record of one Daily appears in local storage (the key
+// copies src/persist/storage.ts; a drift only slows the wait to its timeout)
+// once the sign-in pull has applied the account's rows. A first run on a fresh stack
 // pulls nothing, so the wait ends on its timeout.
 export async function waitForPulledDaily(
 	page: Page,

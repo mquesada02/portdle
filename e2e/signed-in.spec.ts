@@ -30,13 +30,10 @@ test("a signed-in late play syncs its late mark", async ({ browser }) => {
 
 	// The push runs after the finish, so the stored row is polled.
 	await expect
-		.poll(
-			async () =>
-				(await storedDaily(session.accessToken, "applications", yesterday))
-					?.late,
-			{ timeout: 15_000 },
-		)
-		.toBe(true);
+		.poll(() => storedDaily(session.accessToken, "applications", yesterday), {
+			timeout: 15_000,
+		})
+		.toMatchObject({ status: "won", late: true });
 	await context.close();
 });
 
@@ -64,11 +61,7 @@ test("global stats appear after a signed-in on-day finish", async ({
 	const players = page
 		.locator("dt", { hasText: "Players" })
 		.locator("xpath=following-sibling::dd");
-	await expect
-		.poll(async () => Number(await players.textContent()), {
-			timeout: 15_000,
-		})
-		.toBeGreaterThanOrEqual(1);
+	await expect(players).toHaveText(/^[1-9]\d*$/, { timeout: 15_000 });
 	// The own result, a win in one try, is the highlighted bar.
 	const highlighted = page.locator('li[aria-current="true"]');
 	await expect(highlighted).toHaveCount(1);
