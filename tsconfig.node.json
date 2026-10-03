@@ -24,6 +24,8 @@
 		"scripts/hmac-random.ts",
 		"scripts/schedule-store.ts",
 		"scripts/schedule-generator.ts",
-		"scripts/fill-local-schedule.ts"
+		"scripts/fill-local-schedule.ts",
+		"scripts/e2e.ts",
+		"scripts/e2e-env.ts"
 	]
 }
