@@ -1,6 +1,6 @@
-// Helpers shared by the end-to-end runner (scripts/e2e.ts) and its specs
-// (e2e/): the app's auth storage key and the check that the local stack can
-// serve a Daily.
+// Two helpers for the end-to-end suite: the app's auth storage key, which the
+// specs (e2e/) use, and the check that the local stack can serve a Daily,
+// which the runner (scripts/e2e.ts) uses.
 
 import { DAILY_CATEGORIES } from "../src/engine/types.ts";
 

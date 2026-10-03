@@ -162,8 +162,8 @@ export async function signIn(): Promise<SignedIn> {
 
 // The device's saved record of one Daily appears in local storage (the key
 // copies src/persist/storage.ts; a drift only slows the wait to its timeout)
-// once the sign-in pull has applied the account's rows. A first run on a fresh stack
-// pulls nothing, so the wait ends on its timeout.
+// once the sign-in pull has applied the account's rows. A first run on a
+// fresh stack pulls nothing, so the wait ends on its timeout.
 export async function waitForPulledDaily(
 	page: Page,
 	category: Category,
