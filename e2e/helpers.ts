@@ -2,7 +2,12 @@
 // public REST API with the publishable key, or with the seeded test user's own
 // session. No spec uses a database URL, the generator role, or a service key.
 
-import { type BrowserContext, expect, type Page } from "@playwright/test";
+import {
+	type BrowserContext,
+	errors,
+	expect,
+	type Page,
+} from "@playwright/test";
 import { authStorageKey } from "../scripts/e2e-env.ts";
 import type { DailyCategory as Category } from "../src/engine/types.ts";
 
@@ -12,7 +17,7 @@ const TEST_PASSWORD = "portdle-local-test";
 const FIRST_DAY = "2026-09-09";
 const DAY_MS = 86_400_000;
 
-function stack(): { apiUrl: string; key: string } {
+export function stack(): { apiUrl: string; key: string } {
 	const apiUrl = process.env.E2E_API_URL;
 	const key = process.env.E2E_PUBLISHABLE_KEY;
 	if (!apiUrl || !key) {
@@ -21,12 +26,18 @@ function stack(): { apiUrl: string; key: string } {
 	return { apiUrl, key };
 }
 
-async function rest<T>(path: string, token?: string): Promise<T> {
+async function rest<T>(
+	path: string,
+	token?: string,
+	init?: RequestInit,
+): Promise<T> {
 	const { apiUrl, key } = stack();
 	const response = await fetch(`${apiUrl}/rest/v1/${path}`, {
+		...init,
 		headers: {
 			apikey: key,
 			...(token && { Authorization: `Bearer ${token}` }),
+			...init?.headers,
 		},
 	});
 	if (!response.ok) {
@@ -35,42 +46,34 @@ async function rest<T>(path: string, token?: string): Promise<T> {
 	return (await response.json()) as T;
 }
 
-export function stackApiUrl(): string {
-	return stack().apiUrl;
-}
-
 // The server's date, from the current Dailies read; never the device clock.
 export async function serverToday(): Promise<string> {
-	const { apiUrl, key } = stack();
-	const response = await fetch(`${apiUrl}/rest/v1/rpc/current_dailies`, {
-		method: "POST",
-		headers: { apikey: key, "Content-Type": "application/json" },
-		body: "{}",
-	});
-	if (!response.ok) {
-		throw new Error(`current_dailies answered ${response.status}`);
-	}
-	const [first] = (await response.json()) as { utc_date: string }[];
+	const [first] = await rest<{ utc_date: string }[]>(
+		"rpc/current_dailies",
+		undefined,
+		{
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: "{}",
+		},
+	);
 	if (!first) {
 		throw new Error("The current Dailies read answered no row.");
 	}
 	return first.utc_date;
 }
 
+function dayMs(day: string): number {
+	return Date.parse(`${day}T00:00:00Z`);
+}
+
 export function dayBefore(day: string): string {
-	return new Date(Date.parse(`${day}T00:00:00Z`) - DAY_MS)
-		.toISOString()
-		.slice(0, 10);
+	return new Date(dayMs(day) - DAY_MS).toISOString().slice(0, 10);
 }
 
 // The public puzzle number, worked out here and not imported from the app.
 export function puzzleNumberFor(day: string): number {
-	return (
-		Math.round(
-			(Date.parse(`${day}T00:00:00Z`) - Date.parse(`${FIRST_DAY}T00:00:00Z`)) /
-				DAY_MS,
-		) + 1
-	);
+	return Math.round((dayMs(day) - dayMs(FIRST_DAY)) / DAY_MS) + 1;
 }
 
 // The answer of one Daily, from the Schedule row and the catalog entry.
@@ -93,6 +96,13 @@ export async function answerFor(
 	return entry;
 }
 
+// Only a wait that ran out is expected; any other failure is real.
+function ignoreTimeout(error: unknown): void {
+	if (!(error instanceof errors.TimeoutError)) {
+		throw error;
+	}
+}
+
 // The how-to dialog opens on every device that has not stored `howToSeen`,
 // in an effect after the first render, and covers the board. Press "Got it"
 // when it shows; a page that does not show it (a reload after a dismissal)
@@ -101,8 +111,7 @@ export async function dismissHowTo(page: Page): Promise<void> {
 	const gotIt = page.getByRole("button", { name: "Got it" });
 	await gotIt
 		.waitFor({ state: "visible", timeout: 5_000 })
-		.then(() => gotIt.click())
-		.catch(() => undefined);
+		.then(() => gotIt.click(), ignoreTimeout);
 	await expect(page.getByRole("dialog")).toBeHidden();
 }
 
@@ -165,7 +174,7 @@ export async function waitForPulledDaily(
 			`portdle:v1:daily:${category}:${day}`,
 			{ timeout: 10_000 },
 		)
-		.catch(() => undefined);
+		.catch(ignoreTimeout);
 }
 
 // The account's stored row of one Daily, read with the user's own session.
@@ -196,7 +205,8 @@ export async function openFinishedBoard(
 	await dismissHowTo(page);
 	await waitForPulledDaily(page, category, day);
 	await page.reload();
-	await dismissHowTo(page);
+	// The first dismissal stored `howToSeen`, so the dialog stays shut.
+	await expect(page.getByRole("dialog")).toBeHidden();
 	const solved = page.getByText("Solved", { exact: true });
 	const firstSlot = page.getByLabel(/^Digit 1 of \d+$/);
 	await expect(solved.or(firstSlot)).toBeVisible();

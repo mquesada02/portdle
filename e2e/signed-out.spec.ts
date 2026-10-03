@@ -5,7 +5,7 @@ import {
 	dismissHowTo,
 	puzzleNumberFor,
 	serverToday,
-	stackApiUrl,
+	stack,
 	submitAnswer,
 } from "./helpers.ts";
 
@@ -47,7 +47,7 @@ test("the error panel shows when the stack is unreachable and recovers", async (
 	const answer = await answerFor("mixed", today);
 	// "Stack stopped" is read as "stack unreachable" (owner decision): the
 	// browser cannot reach the stack's REST address.
-	const restRoutes = `${stackApiUrl()}/rest/v1/**`;
+	const restRoutes = `${stack().apiUrl}/rest/v1/**`;
 	await page.route(restRoutes, (route) => route.abort());
 
 	await page.goto("/portdle/");
