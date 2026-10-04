@@ -230,5 +230,13 @@
 	"vault": {
 		"name": "Vault",
 		"port": 8200
+	},
+	"git": {
+		"name": "Git",
+		"port": 9418
+	},
+	"nfs": {
+		"name": "NFS",
+		"port": 2049
 	}
 }
