@@ -291,3 +291,66 @@
 		animation: rise 150ms ease-out both;
 	}
 }
+
+/* PROTOTYPE — throwaway (ticket "Prototype: new motion", #220). Unlayered,
+   so it wins over the components layer. See src/ui/prototype-motion.tsx. */
+:root[data-proto-rounds="A"] details[open] > ul,
+:root[data-proto-rounds="B"] details[open] > ul,
+:root[data-proto-rounds="C"] details[open] > ul {
+	animation: none;
+}
+:root[data-proto-rounds="A"] details {
+	interpolate-size: allow-keywords;
+}
+:root[data-proto-rounds="A"] details::details-content {
+	height: 0;
+	overflow: clip;
+	transition:
+		height 200ms ease-out,
+		content-visibility 200ms allow-discrete;
+}
+:root[data-proto-rounds="A"] details[open]::details-content {
+	height: auto;
+}
+:root[data-proto-rounds="C"] details::details-content {
+	opacity: 0;
+	transition:
+		opacity 150ms ease-out,
+		content-visibility 150ms allow-discrete;
+}
+:root[data-proto-rounds="C"] details[open]::details-content {
+	opacity: 1;
+}
+:root[data-proto-theme] * {
+	view-transition-name: none !important;
+}
+:root[data-proto-theme="A"]::view-transition-old(root) {
+	animation: 250ms ease-out both proto-fade-out;
+}
+:root[data-proto-theme="A"]::view-transition-new(root) {
+	animation: 250ms ease-out both proto-fade-in;
+}
+:root[data-proto-theme="B"]::view-transition-old(root) {
+	z-index: 0;
+}
+:root[data-proto-theme="B"]::view-transition-new(root) {
+	z-index: 1;
+}
+@keyframes proto-fade-out {
+	to {
+		opacity: 0;
+	}
+}
+@keyframes proto-fade-in {
+	from {
+		opacity: 0;
+	}
+}
+.proto-theme-colors,
+.proto-theme-colors * {
+	transition:
+		background-color 250ms ease-out,
+		color 250ms ease-out,
+		border-color 250ms ease-out,
+		fill 250ms ease-out !important;
+}

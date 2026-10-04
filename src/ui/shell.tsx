@@ -6,10 +6,12 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import { useLayoutEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { AccountMenu } from "./account-menu";
 import { HowTo } from "./how-to";
 import { NAV, onScreen } from "./nav";
 import { ProgressNotice } from "./notice";
+import { changeThemeWithVariant, PrototypeMotionBar } from "./prototype-motion";
 import {
 	applyHtmlTheme,
 	effectiveTheme,
@@ -169,13 +171,18 @@ export function Shell() {
 							type="button"
 							aria-label="Toggle color theme"
 							className={ICON_BUTTON}
-							onClick={() => {
+							onClick={(e) => {
 								const next = oppositeTheme(effective);
 								const result = persist.writeTheme(next);
 								if (!result.ok) {
 									setSaveWarning(true);
 								}
-								setStoredTheme(next);
+								// PROTOTYPE (#220): wrap the change in the chosen variant;
+								// the html class flips in the layout effect, so apply it here too.
+								changeThemeWithVariant(() => {
+									flushSync(() => setStoredTheme(next));
+									applyHtmlTheme(next);
+								}, e.currentTarget);
 							}}
 						>
 							{effective === "dark" ? <MoonIcon /> : <SunIcon />}
@@ -196,6 +203,7 @@ export function Shell() {
 			<div className="mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-6 [view-transition-name:screen]">
 				<ProgressNotice show={saveWarning} />
 				<Outlet />
+				{import.meta.env.DEV && <PrototypeMotionBar />}
 			</div>
 			<HowTo open={howToOpen} onDismiss={dismissHowTo} />
 		</div>
