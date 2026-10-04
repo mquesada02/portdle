@@ -280,6 +280,16 @@ test("an empty category starts from the epoch", () => {
 	).toBe(SCHEDULE_EPOCH);
 });
 
+test("never writes a row or a cycle start before the epoch", () => {
+	const out = run([], 0);
+	expect(out.issues).toEqual([]);
+	expect(out.insert.length).toBeGreaterThan(0);
+	for (const row of out.insert) {
+		expect(row.day >= SCHEDULE_EPOCH).toBe(true);
+		expect(row.cycleStart >= SCHEDULE_EPOCH).toBe(true);
+	}
+});
+
 test("a broken row set writes nothing", () => {
 	const rows = fresh(10);
 	const gap = rows.filter(
