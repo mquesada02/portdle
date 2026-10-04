@@ -8,9 +8,7 @@
 -- "no row-level security (owner call)" note in 20261001000008. Writes stay
 -- blocked by the grants in 20261001000008 and the triggers in 20261001000010.
 --
--- The owner applied this SQL on the live project on 2026-10-04. Running it
--- again changes nothing: turning row-level security on twice is a no-op, and
--- the policy is dropped and created again in the same transaction.
+-- Applied on the live project on 2026-10-04; safe to run again.
 
 alter table public.catalog_entries enable row level security;
 drop policy if exists catalog_entries_read on public.catalog_entries;
