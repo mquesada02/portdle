@@ -8,7 +8,7 @@ Repository secrets the Action uses: `SCHEDULE_DATABASE_URL` and `SCHEDULE_SEED`.
 
 1. Open the Supabase dashboard, Table Editor, table `catalog_entries`.
 2. Edit the row. These fields stay editable on every entry: `retired`, `answer_eligible`, and the text fields (`aliases`, `description`, `blurb`, `sources`).
-3. For a new entry, insert a row. For an entry that must leave play, set `retired` to true. The database rejects a delete, a changed `id`, and a changed `name` or `port` of an entry that a Schedule row on or before today uses.
+3. For a new entry, insert a row. For an entry that must leave play, set `retired` to true. The database rejects every delete and every changed `id`. It also rejects a changed `name` or `port` of an entry that a Schedule row on or before today uses.
 4. Run the Schedule Action by hand (job 2), so a new or retired entry reaches the future days. Players read the catalog directly, so a text edit shows at once.
 
 ## 2. Run the Schedule Action by hand
@@ -21,7 +21,7 @@ A run fills every missing day, so this is also the fix after an outage. The Sche
 
 ## 3. Fix a real mistake in a past answer
 
-Use this only for a real mistake, for example a wrong port on an answer that players already saw. The database protects past rows on purpose.
+Use this only for a real mistake, for example a wrong port on an answer that players already saw. The database protects past rows on purpose. It also rejects every Schedule write by any role other than the generator role, so any hand edit of a Schedule row needs this procedure.
 
 1. Open the Supabase dashboard, SQL editor. It runs as the table owner (`postgres`).
 2. Disable the trigger:
