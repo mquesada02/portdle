@@ -1,6 +1,5 @@
 import { answerPool, catalogFor, validateCatalog } from "./catalog";
 import { dailyKey } from "./daily-key";
-import { hashSeed, mulberry32 } from "./rng";
 import {
 	type CatalogEntry,
 	type Cycle,
@@ -10,17 +9,9 @@ import {
 } from "./types";
 import { addUtcDays, utcDayIndex } from "./utc";
 
-export type FrozenIdentity = Record<string, { name: string; port: number }>;
-
 export const SCHEDULE_EPOCH = "2026-09-09";
 
 export type RandomFactory = (seedKey: string) => () => number;
-
-const defaultRandom: RandomFactory = (seedKey) => mulberry32(hashSeed(seedKey));
-
-function clone<T>(value: T): T {
-	return JSON.parse(JSON.stringify(value)) as T;
-}
 
 function shuffleSorted(
 	ids: string[],
@@ -344,114 +335,6 @@ function resolveDistinctness(
 	}
 }
 
-function frozenPrefixIds(
-	schedules: Record<DailyCategory, ScheduleFile>,
-	utcToday: string,
-): string[] {
-	const ids: string[] = [];
-	for (const category of DAILY_CATEGORIES) {
-		const schedule = schedules[category];
-		const todayIndex = utcDayIndex(utcToday, schedule.epoch);
-		for (const cycle of schedule.cycles) {
-			for (let offset = 0; offset < cycle.order.length; offset += 1) {
-				const day = cycle.startDay + offset;
-				if (day >= 0 && day <= todayIndex) {
-					const id = cycle.order[offset];
-					if (id !== undefined) {
-						ids.push(id);
-					}
-				}
-			}
-		}
-	}
-	return ids;
-}
-
-function recordIdentity(
-	identity: FrozenIdentity,
-	ids: string[],
-	protocols: CatalogEntry[],
-	applications: CatalogEntry[],
-): FrozenIdentity {
-	const next = { ...identity };
-	const catalog = catalogFor("mixed", protocols, applications);
-	for (const id of ids) {
-		if (next[id] !== undefined) {
-			continue;
-		}
-		const found = catalog.find((entry) => entry.id === id);
-		if (found) {
-			next[id] = { name: found.name, port: found.port };
-		}
-	}
-	return next;
-}
-
-export function schedulesEqual(
-	left: Record<DailyCategory, ScheduleFile>,
-	right: Record<DailyCategory, ScheduleFile>,
-): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
-}
-
-export function identityEqual(
-	left: FrozenIdentity,
-	right: FrozenIdentity,
-): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
-}
-
-export function generateSchedules(input: {
-	utcToday: string;
-	protocols: CatalogEntry[];
-	applications: CatalogEntry[];
-	current: Record<DailyCategory, ScheduleFile>;
-	identity: FrozenIdentity;
-}): {
-	schedules: Record<DailyCategory, ScheduleFile>;
-	identity: FrozenIdentity;
-} {
-	const schedules = clone(input.current);
-	for (const category of DAILY_CATEGORIES) {
-		const current = schedules[category];
-		if (!current.epoch) {
-			current.epoch = SCHEDULE_EPOCH;
-		}
-		if (!current.cycles) {
-			current.cycles = [];
-		}
-		const ids = poolIds(category, input.protocols, input.applications);
-		const eligible = new Set(
-			poolIds(category, input.protocols, input.applications),
-		);
-		const todayIndex = utcDayIndex(input.utcToday, current.epoch);
-		applyA2(schedules[category], category, todayIndex, eligible, defaultRandom);
-		coverThrough(schedules[category], category, todayIndex, ids, defaultRandom);
-	}
-	const todayIndex = utcDayIndex(input.utcToday, schedules.mixed.epoch);
-	const mixedWasEmpty = input.current.mixed.cycles.length === 0;
-	const originalLast = lastAssignedDay(input.current.mixed);
-	let fromDay = mixedWasEmpty || todayIndex < 0 ? 0 : todayIndex + 1;
-	for (const cycle of schedules.mixed.cycles) {
-		if (cycle.startDay > originalLast) {
-			fromDay = Math.min(fromDay, Math.max(cycle.startDay, 0));
-		}
-	}
-	resolveDistinctness(
-		schedules,
-		fromDay,
-		new Set(poolIds("mixed", input.protocols, input.applications)),
-		defaultRandom,
-	);
-	const identity = recordIdentity(
-		input.identity,
-		frozenPrefixIds(schedules, input.utcToday),
-		input.protocols,
-		input.applications,
-	);
-	return { schedules, identity };
-}
-
 // With `stored`, issue text names categories and days only, never entry ids
 // (a future answer must not reach a log), and the unknown-id check starts at
 // `fromDay`: a frozen answer whose catalog kind changed cannot stop the run.
@@ -532,74 +415,6 @@ export function validateSchedules(input: {
 			issues.push(`same-day collision on day ${day}`);
 		}
 	}
-	return issues;
-}
-
-export function validateFrozenIdentity(input: {
-	utcToday: string;
-	identity: FrozenIdentity;
-	protocols: CatalogEntry[];
-	applications: CatalogEntry[];
-	schedules: Record<DailyCategory, ScheduleFile>;
-}): string[] {
-	const issues: string[] = [];
-	const catalog = catalogFor("mixed", input.protocols, input.applications);
-	const byId = new Map(catalog.map((entry) => [entry.id, entry]));
-	for (const id of frozenPrefixIds(input.schedules, input.utcToday)) {
-		const entry = byId.get(id);
-		if (!entry) {
-			issues.push(`frozen id missing ${id}`);
-			continue;
-		}
-		const frozen = input.identity[id];
-		if (!frozen) {
-			issues.push(`frozen identity missing ${id}`);
-			continue;
-		}
-		if (frozen.name !== entry.name || frozen.port !== entry.port) {
-			issues.push(`frozen identity mismatch ${id}`);
-		}
-	}
-	return issues;
-}
-
-export function checkSchedules(input: {
-	utcToday: string;
-	protocols: CatalogEntry[];
-	applications: CatalogEntry[];
-	current: Record<DailyCategory, ScheduleFile>;
-	identity: FrozenIdentity;
-}): string[] {
-	const next = generateSchedules(input);
-	const issues: string[] = [];
-	if (!schedulesEqual(input.current, next.schedules)) {
-		issues.push("schedules would change");
-	}
-	if (!identityEqual(input.identity, next.identity)) {
-		issues.push("identity would change");
-	}
-	issues.push(
-		...validateSchedules({
-			utcToday: input.utcToday,
-			protocols: input.protocols,
-			applications: input.applications,
-			schedules: next.schedules,
-		}),
-		...validateFrozenIdentity({
-			utcToday: input.utcToday,
-			identity: input.identity,
-			protocols: input.protocols,
-			applications: input.applications,
-			schedules: input.current,
-		}),
-		...validateFrozenIdentity({
-			utcToday: input.utcToday,
-			identity: next.identity,
-			protocols: input.protocols,
-			applications: input.applications,
-			schedules: next.schedules,
-		}),
-	);
 	return issues;
 }
 

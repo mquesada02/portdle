@@ -9,10 +9,10 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import protocolsJson from "../catalogs/protocols.json";
 import type { CatalogEntry, CodexMap } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { createFakeRemote } from "../test/fake-remote";
+import protocolsJson from "../test/fixtures/protocols.json";
 import {
 	loaded,
 	memoryStore,

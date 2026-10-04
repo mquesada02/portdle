@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
-import applicationsJson from "../catalogs/applications.json";
-import protocolsJson from "../catalogs/protocols.json";
-import applicationsSchedule from "../catalogs/schedules/applications.json";
-import mixedSchedule from "../catalogs/schedules/mixed.json";
-import protocolsSchedule from "../catalogs/schedules/protocols.json";
+import applicationsJson from "../test/fixtures/applications.json";
+import protocolsJson from "../test/fixtures/protocols.json";
+import applicationsSchedule from "../test/fixtures/schedules/applications.json";
+import mixedSchedule from "../test/fixtures/schedules/mixed.json";
+import protocolsSchedule from "../test/fixtures/schedules/protocols.json";
 import { answerPool, catalogFor } from "./catalog";
 import { dailyKey } from "./daily-key";
 import { hashSeed, mulberry32 } from "./rng";
@@ -556,7 +556,7 @@ test("missing past days come with distinctness and coverage through frozen-throu
 	}
 });
 
-function committedRows(): StoredRow[] {
+function fixtureRows(): StoredRow[] {
 	const schedules: Record<DailyCategory, ScheduleFile> = {
 		mixed: mixedSchedule as ScheduleFile,
 		protocols: protocolsSchedule as ScheduleFile,
@@ -581,7 +581,7 @@ function committedRows(): StoredRow[] {
 }
 
 test("the first run after the real import fills the cut cycles, each entry once", () => {
-	const imported = committedRows();
+	const imported = fixtureRows();
 	const real = {
 		protocols: protocolsJson as CatalogEntry[],
 		applications: applicationsJson as CatalogEntry[],
