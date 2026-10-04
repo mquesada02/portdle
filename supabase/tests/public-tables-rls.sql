@@ -1,10 +1,8 @@
 -- Owner-run in the Supabase SQL editor, and run in CI. Raises on the first
 -- failed assertion; prints a notice on success.
 -- Every table in schema public has row-level security on, and every table that
--- anon or authenticated may read has a policy for that role. A project may turn
--- row-level security on for new tables by itself; a table that relies on it
--- being off then hides every row from its readers, as catalog_entries did on
--- 2026-10-04. This test makes each migration state its security explicitly.
+-- anon or authenticated may read has a policy for that role, so no table depends
+-- on the project's own row-level security setting (see 20261004000014).
 
 do $$
 declare

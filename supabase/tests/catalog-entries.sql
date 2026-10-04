@@ -79,9 +79,7 @@ begin
 	assert not has_table_privilege('anon', 'public.catalog_entries', 'insert, update, delete, truncate, references, trigger'), 'anon has no write grant on entries';
 	assert not has_table_privilege('authenticated', 'public.catalog_entries', 'insert, update, delete, truncate, references, trigger'), 'authenticated has no write grant on entries';
 	assert not has_table_privilege('schedule_generator', 'public.catalog_entries', 'insert, update, delete, truncate, references, trigger'), 'the generator has no write grant on entries';
-	-- Row-level security is on with a read policy, so a project that turns it
-	-- on for new tables cannot hide the catalog from its readers.
-	assert (select relrowsecurity from pg_class where oid = 'public.catalog_entries'::regclass), 'row-level security is on for entries';
+	-- Every reader sees rows through the read policy (20261004000014).
 	set local role anon;
 	assert (select count(*) from public.catalog_entries) > 0, 'anon reads the catalog';
 	reset role;
