@@ -5,12 +5,11 @@ import {
 	useRouteContext,
 	useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { AccountMenu } from "./account-menu";
 import { HowTo } from "./how-to";
-import { NAV } from "./nav";
+import { NAV, onScreen } from "./nav";
 import { ProgressNotice } from "./notice";
-import { syncUtcDay } from "./sync-utc";
 import {
 	applyHtmlTheme,
 	effectiveTheme,
@@ -80,7 +79,7 @@ const ICON_BUTTON =
 	"rounded-full p-2 text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800";
 
 export function Shell() {
-	const { persist, utcToday, backend, remount } = useRouteContext({
+	const { persist, backend, remount } = useRouteContext({
 		from: "__root__",
 	});
 	const [storedTheme, setStoredTheme] = useState(() => persist.readTheme());
@@ -105,13 +104,6 @@ export function Shell() {
 	useLayoutEffect(() => {
 		applyHtmlTheme(effective);
 	}, [effective]);
-
-	useEffect(() => {
-		const synced = syncUtcDay(persist, utcToday);
-		if (!synced.ok) {
-			setSaveWarning(true);
-		}
-	}, [persist, utcToday]);
 
 	function dismissHowTo() {
 		const result = persist.writeHowToSeen();
@@ -142,9 +134,7 @@ export function Shell() {
 						className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] [view-transition-name:shell-nav] md:static md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
 					>
 						{NAV.map((item) => {
-							const isActive = (item.matchPaths as readonly string[]).includes(
-								pathname,
-							);
+							const isActive = onScreen(item, pathname);
 							return (
 								<Link
 									key={item.to}

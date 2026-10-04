@@ -1,5 +1,4 @@
 import { afterEach, expect, test } from "vitest";
-import { applyDailyFinish, emptyStats } from "../engine/stats";
 import type { BlitzRun, DailyPersist } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import type { AccountState } from "../remote/remote";
@@ -25,7 +24,6 @@ const ACCOUNT: AccountState = {
 	nameConfirmed: true,
 };
 const UNCONFIRMED: AccountState = { ...ACCOUNT, nameConfirmed: false };
-const TODAY = "2026-09-29";
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -50,11 +48,11 @@ afterEach(() => {
 	}
 });
 
-function device(remote: FakeRemote, utcToday = TODAY) {
+function device(remote: FakeRemote) {
 	const store = memoryStore();
 	const persist = createPersist(store);
 	const clock = createFakeClock();
-	const sync = createSync({ persist, remote, clock, utcToday: () => utcToday });
+	const sync = createSync({ persist, remote, clock });
 	detachers.push(sync.attach());
 	return { store, persist, clock, sync, remote };
 }
@@ -171,8 +169,6 @@ test("the Codex fresh-flag clear and unsynced writes push nothing", async () => 
 	await d.sync.refresh();
 	remote.pushCalls.length = 0;
 	d.persist.writeCodex({ http: { state: "correct", fresh: false } });
-	d.persist.writeStats("mixed", emptyStats());
-	d.persist.writeLastSeenUtc(TODAY);
 	d.clock.advance(PUSH_DELAY_MS);
 	await settle();
 	expect(remote.pushCalls).toHaveLength(0);
@@ -278,7 +274,7 @@ test("progress made while signed out reaches the account at the next sign-in", a
 	expect(remote.rows.dailies).toEqual({ "mixed|2026-09-28": win(80) });
 });
 
-test("a pull that changed a Daily rebuilds stats and last played", async () => {
+test("a pull writes no stats keys", async () => {
 	const remote = createFakeRemote(ACCOUNT);
 	remote.rows.dailies = {
 		"mixed|2026-09-27": win(80),
@@ -286,25 +282,70 @@ test("a pull that changed a Daily rebuilds stats and last played", async () => {
 	};
 	const d = device(remote);
 	await d.sync.refresh();
-	let expected = applyDailyFinish({
-		stats: emptyStats(),
-		result: "won",
-		tries: 1,
-	});
-	expected = applyDailyFinish({ stats: expected, result: "won", tries: 2 });
-	expect(d.persist.readStats("mixed")).toEqual(expected);
-	expect(d.persist.readLastPlayed("mixed")).toBe("2026-09-28");
-	expect(d.persist.readStats("protocols")).toBeNull();
+	expect(d.persist.listDailyDates("mixed")).toEqual([
+		"2026-09-27",
+		"2026-09-28",
+	]);
+	expect(
+		[...d.store.data.keys()].filter((key) =>
+			/stats|lastPlayed|lastSeenUtc/.test(key),
+		),
+	).toEqual([]);
 });
 
-test("a pull that changed no Daily leaves stats alone", async () => {
+test("a Daily's late mark is pushed with the record", async () => {
 	const remote = createFakeRemote(ACCOUNT);
-	remote.rows.codex = { dns: "correct" };
 	const d = device(remote);
-	d.persist.writeDaily("mixed", "2026-09-28", win(80));
-	d.persist.writeStats("mixed", { ...emptyStats(), played: 7 });
 	await d.sync.refresh();
-	expect(d.persist.readStats("mixed")?.played).toBe(7);
+	d.persist.writeDaily("mixed", "2026-09-28", { ...win(80), late: true });
+	d.clock.advance(PUSH_DELAY_MS);
+	await settle();
+	expect(remote.rows.dailies).toEqual({
+		"mixed|2026-09-28": { ...win(80), late: true },
+	});
+});
+
+test("a late mark made while signed out reaches the account at sign-in", async () => {
+	const remote = createFakeRemote({ status: "signedOut" });
+	const d = device(remote);
+	await d.sync.refresh();
+	d.persist.writeDaily("mixed", "2026-09-28", { ...win(80), late: true });
+	remote.state = ACCOUNT;
+	await d.sync.refresh();
+	expect(remote.rows.dailies).toEqual({
+		"mixed|2026-09-28": { ...win(80), late: true },
+	});
+});
+
+test("a pulled Daily with no late stays without one, and reads as on-day", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.rows.dailies = { "mixed|2026-09-28": win(80) };
+	const d = device(remote);
+	await d.sync.refresh();
+	expect(d.persist.readDaily("mixed", "2026-09-28")?.late).toBeUndefined();
+});
+
+test("on-day wins when two devices disagree on late: the local record is rewritten and the account follows", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.rows.dailies = {
+		"mixed|2026-09-28": { ...win(80), late: true },
+	};
+	const d = device(remote);
+	d.persist.writeDaily("mixed", "2026-09-28", { ...win(80), late: false });
+	await d.sync.refresh();
+	expect(d.persist.readDaily("mixed", "2026-09-28")?.late).toBe(false);
+	expect(remote.rows.dailies["mixed|2026-09-28"]?.late).toBe(false);
+});
+
+test("a Daily that differs from the local copy only in late is written locally", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.rows.dailies = {
+		"mixed|2026-09-28": { ...win(80), late: false },
+	};
+	const d = device(remote);
+	d.persist.writeDaily("mixed", "2026-09-28", { ...win(80), late: true });
+	await d.sync.refresh();
+	expect(d.persist.readDaily("mixed", "2026-09-28")?.late).toBe(false);
 });
 
 test("hidden does not pull, visible after the throttle does", async () => {
@@ -990,7 +1031,6 @@ test("a new sync on the cleared device reads the signed-out account and does not
 		persist: d.persist,
 		remote,
 		clock: d.clock,
-		utcToday: () => TODAY,
 	});
 	detachers.push(next.attach());
 	const pulls = remote.pullCalls;

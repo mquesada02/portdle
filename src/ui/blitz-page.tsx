@@ -1,6 +1,5 @@
 import { useLocation, useRouteContext } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { applications, protocols, schedules } from "../catalogs/production";
 import {
 	buildRun,
 	prependRun,
@@ -8,7 +7,11 @@ import {
 	replacesBest,
 	startBlitz,
 } from "../engine/blitz";
-import { catalogFor, invertedBlurb } from "../engine/catalog";
+import {
+	catalogFor,
+	invertedBlurb,
+	playableCatalogFor,
+} from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
 import { digitLength } from "../engine/guess";
 import type {
@@ -31,6 +34,8 @@ import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
 import { type LeaderboardPicker, Leaderboards } from "./leaderboards";
 import { ProgressNotice } from "./notice";
 import { RoundLog } from "./round-log";
+import { LoadStatus, useServerData } from "./server-data";
+import { allReady } from "./server-store";
 import { Typeahead } from "./typeahead";
 import { runViewTransition } from "./view-transition";
 
@@ -86,7 +91,11 @@ function recordBest(
 	return { ok: true, newBest };
 }
 
-function currentEntry(state: BlitzState): CatalogEntry | undefined {
+function currentEntry(
+	state: BlitzState,
+	protocols: CatalogEntry[],
+	applications: CatalogEntry[],
+): CatalogEntry | undefined {
 	return catalogFor(state.category, protocols, applications).find(
 		(entry) => entry.id === state.currentId,
 	);
@@ -490,10 +499,23 @@ function SetupDialog({
 	);
 }
 
+const NO_ENTRIES: CatalogEntry[] = [];
+
 export function BlitzPage() {
-	const { persist, utcToday, backend } = useRouteContext({
+	const { persist, backend } = useRouteContext({
 		from: "__root__",
 	});
+	// The Play tab waits for the catalog and the current Dailies. A run starts
+	// only with both. A retry never reloads a ready read, and only the Daily
+	// screen marks the catalog failed, so a run always has its catalog. The
+	// Leaderboards tab needs neither.
+	const { catalog, dailies } = useServerData();
+	const data = allReady(catalog, dailies);
+	const [loadedCatalog, loadedDailies] =
+		data.status === "ready" ? data.value : [];
+	const protocols = loadedCatalog?.protocols ?? NO_ENTRIES;
+	const applications = loadedCatalog?.applications ?? NO_ENTRIES;
+	const dailyIds = loadedDailies ? Object.values(loadedDailies.entryIds) : [];
 	// Read once, at mount: the dialog preselects the last run's setup, or the
 	// fixed fallback when there is none.
 	const [initialSetup] = useState(() => {
@@ -576,7 +598,7 @@ export function BlitzPage() {
 			window.clearInterval(interval);
 			window.clearTimeout(timeout);
 		};
-	}, [deadline]);
+	}, [deadline, protocols, applications]);
 
 	useEffect(() => {
 		if (!run?.ended) {
@@ -607,10 +629,9 @@ export function BlitzPage() {
 			category,
 			orientation,
 			mode,
-			utcToday,
+			dailyIds,
 			protocols,
 			applications,
-			schedules,
 			rng: Math.random,
 			now: monotonicNow,
 		});
@@ -788,22 +809,25 @@ export function BlitzPage() {
 	if (!run) {
 		const lastRun = persist.readBlitzRuns()[0];
 		const bests = persist.readBlitzBests();
-		const arena = (
-			<>
-				<button
-					type="button"
-					className={`mt-4 ${PRIMARY_BUTTON}`}
-					onClick={() => setDialogOpen(true)}
-				>
-					New run
-				</button>
-				<section className="mt-8">
-					<h2 className="text-sm font-semibold">Last run</h2>
-					<LastRun run={lastRun} />
-				</section>
-				<BestsTable bests={bests} />
-			</>
-		);
+		const arena =
+			data.status === "ready" ? (
+				<>
+					<button
+						type="button"
+						className={`mt-4 ${PRIMARY_BUTTON}`}
+						onClick={() => setDialogOpen(true)}
+					>
+						New run
+					</button>
+					<section className="mt-8">
+						<h2 className="text-sm font-semibold">Last run</h2>
+						<LastRun run={lastRun} />
+					</section>
+					<BestsTable bests={bests} />
+				</>
+			) : (
+				<LoadStatus state={data.status} />
+			);
 		return (
 			<>
 				<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
@@ -894,7 +918,7 @@ export function BlitzPage() {
 		);
 	}
 
-	const puzzle = currentEntry(run);
+	const puzzle = currentEntry(run, protocols, applications);
 	if (!puzzle) {
 		return (
 			<main>
@@ -904,7 +928,11 @@ export function BlitzPage() {
 	}
 
 	const inverted = run.orientation === "inverted";
-	const categoryCatalog = catalogFor(run.category, protocols, applications);
+	const categoryCatalog = playableCatalogFor(
+		run.category,
+		protocols,
+		applications,
+	);
 	const blurb = inverted ? invertedBlurb(puzzle, categoryCatalog) : null;
 
 	return (

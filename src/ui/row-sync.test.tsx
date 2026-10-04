@@ -27,14 +27,7 @@ function mountApp(remote: FakeRemote) {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/"] });
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday="2026-09-09"
-		/>,
-	);
+	render(<App persist={persist} remote={remote} history={history} />);
 	return persist;
 }
 
@@ -79,7 +72,6 @@ test("an unconfirmed name syncs nothing until Continue, then imports the device"
 			persist={persist}
 			remote={remote}
 			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-			utcToday="2026-09-09"
 		/>,
 	);
 	await screen.findByRole("dialog", { name: "Confirm your display name" });
@@ -97,7 +89,6 @@ test("with no Remote nothing is pulled, pushed, or scheduled", () => {
 		<App
 			persist={persist}
 			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-			utcToday="2026-09-09"
 		/>,
 	);
 	expect(screen.queryByRole("button", { name: "Account" })).toBeNull();
@@ -182,7 +173,6 @@ test("a pulled theme shows the next time the shell mounts, not on the mounted sh
 		<App
 			persist={persist}
 			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-			utcToday="2026-09-09"
 		/>,
 	);
 	await screen.findByRole("button", { name: "Toggle color theme" });
@@ -198,14 +188,7 @@ test("a pulled Codex sort shows the next time the Codex screen mounts, not on th
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/codex"] });
 	const release = remote.holdPull();
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday="2026-09-09"
-		/>,
-	);
+	render(<App persist={persist} remote={remote} history={history} />);
 	const name = await screen.findByRole("radio", { name: "Name" });
 	release();
 	await waitFor(() => expect(persist.readCodexSort()).toBe("port"));
@@ -214,8 +197,8 @@ test("a pulled Codex sort shows the next time the Codex screen mounts, not on th
 	render(
 		<App
 			persist={persist}
+			remote={createFakeRemote()}
 			history={createMemoryHistory({ initialEntries: ["/portdle/codex"] })}
-			utcToday="2026-09-09"
 		/>,
 	);
 	const port = await screen.findByRole("radio", { name: "Port" });

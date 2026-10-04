@@ -5,8 +5,10 @@ import { afterEach, expect, test } from "vitest";
 import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { currentEntry, missThree } from "../test/blitz";
-import { padToAnswer, UTC_TODAY } from "../test/dailies";
+import { padToAnswer } from "../test/dailies";
+import { createFakeRemote } from "../test/fake-remote";
 import {
+	loaded,
 	memoryStore,
 	portDigits,
 	stubMatchMedia,
@@ -26,8 +28,11 @@ async function renderBlitz(
 	const history = createMemoryHistory({
 		initialEntries: ["/portdle/blitz"],
 	});
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
+	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 
@@ -390,15 +395,6 @@ test("a nav tap on Blitz from the end card returns to the Arena with the phase m
 	} finally {
 		restore();
 	}
-});
-
-test("with no Remote a nav tap on the end card returns to the Arena with no tabs", async () => {
-	const user = userEvent.setup();
-	await renderBlitz();
-	await endRunByLives(user);
-	await tapBlitzNav(user);
-	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
-	expect(screen.queryByRole("tablist")).toBeNull();
 });
 
 test("a nav tap on Blitz returns to the Arena from every end card, not only the first", async () => {

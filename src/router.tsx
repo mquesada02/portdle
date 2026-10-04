@@ -8,11 +8,13 @@ import {
 import type { Persist } from "./persist/storage";
 import type { Remote } from "./remote/remote";
 import type { Sync } from "./sync/sync";
+import { ArchiveBoardPage, ArchivePage } from "./ui/archive-page";
 import { BlitzPage } from "./ui/blitz-page";
 import { CodexPage } from "./ui/codex-page";
 import { DailyPage } from "./ui/daily-page";
 import { HistoryPage } from "./ui/history-page";
 import { screenFor } from "./ui/nav";
+import type { ServerStore } from "./ui/server-store";
 import { Shell } from "./ui/shell";
 
 // Absent on a build with no hosted backend; present, it holds both halves.
@@ -22,7 +24,7 @@ export type RouterContext = {
 	persist: Persist;
 	backend?: Backend;
 	remount: () => void;
-	utcToday: string;
+	serverStore: ServerStore;
 };
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -50,6 +52,21 @@ const applicationsRoute = createRoute({
 	path: "/applications",
 	component: function ApplicationsPage() {
 		return <DailyPage category="applications" />;
+	},
+});
+
+const archiveRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/archive",
+	component: ArchivePage,
+});
+
+const archiveBoardRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/archive/$category/$date",
+	component: function ArchiveBoard() {
+		const { category, date } = archiveBoardRoute.useParams();
+		return <ArchiveBoardPage category={category} date={date} />;
 	},
 });
 
@@ -95,6 +112,8 @@ const routeTree = rootRoute.addChildren([
 	mixedRoute,
 	protocolsRoute,
 	applicationsRoute,
+	archiveRoute,
+	archiveBoardRoute,
 	blitzRoute,
 	historyRoute,
 	historyBlitzRoute,
@@ -107,7 +126,7 @@ export function createAppRouter(options: {
 	backend?: Backend;
 	remount: () => void;
 	history?: RouterHistory;
-	utcToday: string;
+	serverStore: ServerStore;
 }) {
 	return createRouter({
 		routeTree,
@@ -115,7 +134,7 @@ export function createAppRouter(options: {
 			persist: options.persist,
 			backend: options.backend,
 			remount: options.remount,
-			utcToday: options.utcToday,
+			serverStore: options.serverStore,
 		},
 		basepath: "/portdle",
 		history: options.history,

@@ -1,16 +1,21 @@
 import { useRouteContext } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { applications, protocols } from "../catalogs/production";
 import {
 	type CodexCard as CodexCardData,
 	clearCodexFresh,
 	codexCounts,
 	codexGroups,
 } from "../engine/codex";
-import type { CatalogKind, CodexSort, CodexState } from "../engine/types";
+import type {
+	CatalogEntry,
+	CatalogKind,
+	CodexSort,
+	CodexState,
+} from "../engine/types";
 import { transportLabel } from "./daily-reveal";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
+import { LoadStatus, useServerData } from "./server-data";
 import { runViewTransition } from "./view-transition";
 
 const KIND_LABEL: Record<CatalogKind, string> = {
@@ -185,7 +190,34 @@ function UnseenCard({ id }: { id: string }) {
 	);
 }
 
+// The Codex needs only the catalog, so it does not wait for the current
+// Dailies. The inner component keeps its mount effect, which writes the stored
+// Codex, until the catalog is ready.
 export function CodexPage() {
+	const { catalog } = useServerData();
+	if (catalog.status !== "ready") {
+		return (
+			<main className="mx-auto w-full max-w-3xl px-4 pb-6">
+				<h1 className="text-2xl font-bold tracking-tight">Codex</h1>
+				<LoadStatus state={catalog.status} />
+			</main>
+		);
+	}
+	return (
+		<CodexScreen
+			protocols={catalog.value.protocols}
+			applications={catalog.value.applications}
+		/>
+	);
+}
+
+function CodexScreen({
+	protocols,
+	applications,
+}: {
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+}) {
 	const { persist } = useRouteContext({ from: "__root__" });
 	const [map] = useState(() => persist.readCodex());
 	const [sort, setSort] = useState<CodexSort>(() => persist.readCodexSort());
@@ -216,11 +248,15 @@ export function CodexPage() {
 
 	const groups = codexGroups({ map, protocols, applications, sort });
 	const counts = codexCounts({ map, protocols, applications });
-	const total = protocols.length + applications.length;
+	// Totals follow what the Codex shows: unseen retired entries are hidden.
 	const kindTotal: Record<CatalogKind, number> = {
-		protocol: protocols.length,
-		application: applications.length,
+		protocol: 0,
+		application: 0,
 	};
+	for (const group of groups) {
+		kindTotal[group.kind] = group.cards.length;
+	}
+	const total = kindTotal.protocol + kindTotal.application;
 
 	return (
 		<main className="mx-auto w-full max-w-3xl px-4 pb-6">

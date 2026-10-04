@@ -1,4 +1,5 @@
 import type { Mark } from "./marks";
+import { puzzleNumber } from "./puzzle-number";
 import type { DailyCategory } from "./types";
 
 export const CATEGORY_LABEL: Record<DailyCategory, string> = {
@@ -22,8 +23,10 @@ export function formatShare(input: {
 	date: string;
 	status: "won" | "lost";
 	rows: Mark[][];
+	late: boolean;
 }): string {
 	const tries = input.status === "lost" ? "X/6" : `${input.rows.length}/6`;
 	const grid = input.rows.map(rowLine).join("\n");
-	return `Portdle · ${CATEGORY_LABEL[input.category]} · ${input.date} · ${tries}\n\n${grid}`;
+	const lateMark = input.late ? " · late" : "";
+	return `Portdle #${puzzleNumber(input.date)} · ${CATEGORY_LABEL[input.category]} · ${tries}${lateMark}\n\n${grid}`;
 }

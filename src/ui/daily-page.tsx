@@ -1,31 +1,33 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
-import { applications, protocols, schedules } from "../catalogs/production";
-import { catalogFor } from "../engine/catalog";
+import { type ReactNode, useEffect, useState } from "react";
+import { catalogFor, entryById, playableCatalogFor } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
-import { getDaily } from "../engine/daily";
 import {
 	applyCommittedGuess,
 	digitLength,
 	evaluateDefaultGuess,
 } from "../engine/guess";
 import { bestMarkByDigit, computeMarks, type Mark } from "../engine/marks";
+import { puzzleNumber } from "../engine/puzzle-number";
 import { CATEGORY_LABEL } from "../engine/share";
-import { applyDailyFinish, emptyStats } from "../engine/stats";
 import {
 	type CatalogEntry,
-	type CategoryStats,
 	type CodexEncounter,
 	DAILY_CATEGORIES,
 	type DailyCategory,
 	type DailyPersist,
 } from "../engine/types";
+import { isLate } from "../engine/utc";
+import type { CurrentDailies } from "../remote/remote";
+import { categoryStats } from "./category-stats";
 import { DailyReveal } from "./daily-reveal";
 import { DigitSlots, SLOT_KEYS } from "./digit-slots";
+import { GlobalStats } from "./global-stats";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
-import { categoryStreakGap } from "./sync-utc";
+import { LoadStatus, useServerData } from "./server-data";
+import { allReady } from "./server-store";
 
 const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
 	mixed: "/",
@@ -247,18 +249,147 @@ function TrackerStrip({
 	);
 }
 
+function hasTry(record: DailyPersist | null): boolean {
+	return (record?.guesses.length ?? 0) > 0;
+}
+
 export function DailyPage({ category }: { category: DailyCategory }) {
-	const { persist, utcToday } = useRouteContext({ from: "__root__" });
-	const answer = getDaily(
-		category,
-		utcToday,
-		schedules[category],
+	const { catalog, dailies } = useServerData();
+	const data = allReady(catalog, dailies);
+	if (data.status !== "ready") {
+		return (
+			<DailyLoading
+				top={<DailySwitcher category={category} />}
+				state={data.status}
+			/>
+		);
+	}
+	const [{ protocols, applications }, current] = data.value;
+	return (
+		<PinnedDaily
+			category={category}
+			protocols={protocols}
+			applications={applications}
+			current={current}
+		/>
+	);
+}
+
+// Shows one day's Daily for the life of the mount. A new server day replaces
+// it at once while the player has not committed a try on it; with a try
+// (unfinished, or finished with its Reveal) it stays until the player leaves.
+function PinnedDaily({
+	category,
+	protocols,
+	applications,
+	current,
+}: {
+	category: DailyCategory;
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+	current: CurrentDailies;
+}) {
+	const { persist } = useRouteContext({ from: "__root__" });
+	function showing(daily: CurrentDailies) {
+		return {
+			daily,
+			started: hasTry(persist.readDaily(category, daily.today)),
+		};
+	}
+	const [shown, setShown] = useState(() => showing(current));
+	if (current.today !== shown.daily.today && !shown.started) {
+		setShown(showing(current));
+	}
+	const puzzle = entryById(
 		protocols,
 		applications,
+		shown.daily.entryIds[category],
 	);
-	const catalog = catalogFor(category, protocols, applications);
+	if (!puzzle) {
+		return <MissingPuzzle top={<DailySwitcher category={category} />} />;
+	}
+	return (
+		<DailyBoard
+			key={shown.daily.today}
+			top={
+				<>
+					<DailySwitcher category={category} />
+					<p className="mt-3 text-center text-sm">
+						<Link to="/archive" className="underline">
+							Archive
+						</Link>
+					</p>
+				</>
+			}
+			category={category}
+			puzzle={puzzle}
+			protocols={protocols}
+			applications={applications}
+			date={shown.daily.today}
+			serverToday={current.today}
+			onTry={() =>
+				setShown((previous) =>
+					previous.started ? previous : { ...previous, started: true },
+				)
+			}
+		/>
+	);
+}
+
+// The current Dailies name an entry the loaded catalog lacks. The catalog counts
+// as failed, so the panel's Try again, `online`, and focus reload it.
+export function MissingPuzzle({ top }: { top: ReactNode }) {
+	const { serverStore } = useRouteContext({ from: "__root__" });
+	useEffect(() => serverStore.rejectCatalog(), [serverStore]);
+	return <DailyLoading top={top} state="failed" />;
+}
+
+export function DailyLoading({
+	top,
+	state,
+	onRetry,
+}: {
+	// What leads the screen: the Daily switcher, or the Archive's back link.
+	top: ReactNode;
+	state: "loading" | "failed";
+	onRetry?: () => void;
+}) {
+	return (
+		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
+			{top}
+			<LoadStatus state={state} onRetry={onRetry} />
+		</main>
+	);
+}
+
+export function DailyBoard({
+	top,
+	category,
+	puzzle,
+	protocols,
+	applications,
+	date,
+	serverToday,
+	onTry,
+}: {
+	// What leads the screen: the Daily switcher, or the Archive's back link.
+	top: ReactNode;
+	category: DailyCategory;
+	puzzle: CatalogEntry;
+	protocols: CatalogEntry[];
+	applications: CatalogEntry[];
+	// The Daily's own day, and the server's latest today.
+	date: string;
+	serverToday: string;
+	onTry?: () => void;
+}) {
+	const { persist } = useRouteContext({ from: "__root__" });
+	// Misses identify only entries still in play; a saved identification
+	// resolves in the whole catalog.
+	const catalog = playableCatalogFor(category, protocols, applications);
+	const wholeCatalog = catalogFor("mixed", protocols, applications);
 	const [board, setBoard] = useState<DailyPersist | null>(() =>
-		persist.readDaily(category, utcToday),
+		persist.readDaily(category, date),
 	);
 	const [digits, setDigits] = useState("");
 	const [message, setMessage] = useState("");
@@ -266,31 +397,8 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 	const [saveWarning, setSaveWarning] = useState(false);
 	const [finishedThisSession, setFinishedThisSession] = useState(false);
 
-	if (!answer) {
-		return (
-			<main className="mx-auto max-w-md py-16 text-center">
-				<h1 className="text-2xl font-bold tracking-tight">
-					Puzzle unavailable
-				</h1>
-				<p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-					There is no Daily for this date yet.
-				</p>
-				<p className="mt-4">
-					<Link
-						to="/blitz"
-						className="text-sm font-medium underline underline-offset-4"
-					>
-						Play Blitz
-					</Link>
-				</p>
-			</main>
-		);
-	}
-
-	const puzzle = answer;
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
-	const stats: CategoryStats = persist.readStats(category) ?? emptyStats();
 
 	function noteWrite(result: { ok: boolean }) {
 		if (!result.ok) {
@@ -304,7 +412,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 	}
 
 	function submitGuess() {
-		const stored = persist.readDaily(category, utcToday);
+		const stored = persist.readDaily(category, date);
 		if (stored?.status === "won" || stored?.status === "lost") {
 			setBoard(stored);
 			return;
@@ -321,7 +429,11 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 			previousPorts,
 			catalog,
 		});
-		const next = applyCommittedGuess(current, result);
+		const next = applyCommittedGuess(
+			current,
+			result,
+			isLate(date, serverToday),
+		);
 		if (next.status === "invalid") {
 			setMessage(
 				digits.length < length ? "Not enough digits." : "Not a valid port.",
@@ -337,7 +449,8 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 		setDigits("");
 		setMessage("");
 		setBoard(next);
-		noteWrite(persist.writeDaily(category, utcToday, next));
+		onTry?.();
+		noteWrite(persist.writeDaily(category, date, next));
 		if (result.status === "miss" && result.identified) {
 			noteWrite(
 				recordEncounter({ state: "identified", id: result.identified.id }),
@@ -351,26 +464,18 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 				}),
 			);
 			setFinishedThisSession(true);
-			if (persist.readLastPlayed(category) !== utcToday) {
-				const gapped = categoryStreakGap(persist, category, utcToday);
-				const finished = applyDailyFinish({
-					stats: gapped,
-					result: next.status,
-					tries: next.guesses.length,
-				});
-				noteWrite(persist.writeStats(category, finished));
-				noteWrite(persist.writeLastPlayed(category, utcToday));
-			}
-			noteWrite(persist.writeLastSeenUtc(utcToday));
 		}
 	}
 
 	return (
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
-			<DailySwitcher category={category} />
+			{top}
 			<div className="[view-transition-name:switcher-content]">
 				<header className="mt-8 text-center">
-					<p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
+					<p className="font-mono text-xs text-zinc-500">
+						#{puzzleNumber(date)} · {date}
+					</p>
+					<p className="mt-2 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">
 						Which port is
 					</p>
 					<h1 className="mt-1 text-3xl font-bold tracking-tight">
@@ -387,7 +492,7 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 							key={`${guess.port}-${guess.result}`}
 							guess={guess}
 							length={length}
-							catalog={catalog}
+							catalog={wholeCatalog}
 							answerPort={puzzle.port}
 						/>
 					))}
@@ -427,14 +532,17 @@ export function DailyPage({ category }: { category: DailyCategory }) {
 					</button>
 				)}
 				{frozen && board ? (
-					<DailyReveal
-						category={category}
-						puzzle={puzzle}
-						board={board}
-						stats={stats}
-						utcToday={utcToday}
-						finishedThisSession={finishedThisSession}
-					/>
+					<>
+						<DailyReveal
+							category={category}
+							puzzle={puzzle}
+							board={board}
+							stats={categoryStats(persist, category, serverToday)}
+							utcToday={date}
+							finishedThisSession={finishedThisSession}
+						/>
+						<GlobalStats category={category} date={date} board={board} />
+					</>
 				) : null}
 			</div>
 		</main>

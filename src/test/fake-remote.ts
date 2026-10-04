@@ -1,6 +1,11 @@
+import type { DailyCategory, ScheduleRow } from "../engine/types";
 import {
 	AccountGoneError,
 	type AccountState,
+	type Catalog,
+	type CurrentDailies,
+	type DailyGlobalStats,
+	emptyDailyStats,
 	LEADERBOARD_TOP,
 	type LeaderboardPage,
 	type LeaderboardQuery,
@@ -10,6 +15,12 @@ import {
 	type Remote,
 	type SyncedRows,
 } from "../remote/remote";
+import {
+	fixtureCatalog,
+	fixtureEntryIds,
+	fixtureScheduleRows,
+	UTC_TODAY,
+} from "./dailies";
 
 export function emptyRows(): SyncedRows {
 	return { codex: {}, bests: {}, runs: [], dailies: {}, preferences: {} };
@@ -32,6 +43,10 @@ function reverseKeys(value: unknown): unknown {
 		);
 	}
 	return value;
+}
+
+export function dailyStatsId(category: DailyCategory, date: string): string {
+	return `${category}|${date}`;
 }
 
 export function leaderboardId(query: LeaderboardQuery): string {
@@ -65,11 +80,35 @@ export type FakeRemote = Remote & {
 	// How many pushes had completed when each leaderboard read arrived.
 	pushesAtRead: number[];
 	failLeaderboard: boolean;
+	// Totals per `dailyStatsId`; zeros when absent.
+	dailyStats: Record<string, DailyGlobalStats>;
+	dailyStatsCalls: number;
+	// How many pushes had completed when each stats read arrived.
+	pushesAtStatsRead: number[];
+	failDailyStats: boolean;
 	gone: boolean;
 	reorderKeys: boolean;
+	// What the public reads serve. `today` is the server's UTC date; the
+	// current Dailies and the Schedule rows follow it unless overridden.
+	catalog: Catalog;
+	today: string;
+	// The server's current time; noon UTC of `today` when null.
+	serverNow: number | null;
+	entryIds: Record<DailyCategory, string> | null;
+	scheduleRows: ScheduleRow[] | null;
+	catalogCalls: number;
+	dailiesCalls: number;
+	scheduleCalls: number;
+	failCatalog: boolean;
+	failDailies: boolean;
+	failSchedule: boolean;
+	holdCatalog(): () => void;
+	holdDailies(): () => void;
+	holdSchedule(): () => void;
 	holdPull(): () => void;
 	holdPush(): () => void;
 	holdLeaderboard(): () => void;
+	holdDailyStats(): () => void;
 	holdConfirmDisplayName(): () => void;
 	holdChangeDisplayName(): () => void;
 	holdDeleteAccount(): () => void;
@@ -82,9 +121,13 @@ export function createFakeRemote(
 	state: AccountState = { status: "signedOut" },
 	rows: SyncedRows = emptyRows(),
 ): FakeRemote {
+	let catalogGate: Promise<void> | null = null;
+	let dailiesGate: Promise<void> | null = null;
+	let scheduleGate: Promise<void> | null = null;
 	let pullGate: Promise<void> | null = null;
 	let pushGate: Promise<void> | null = null;
 	let leaderboardGate: Promise<void> | null = null;
+	let dailyStatsGate: Promise<void> | null = null;
 	let completedPushes = 0;
 	let redirectText: string | null = null;
 	let gate: Promise<void> | null = null;
@@ -135,8 +178,38 @@ export function createFakeRemote(
 		leaderboardCalls: [],
 		pushesAtRead: [],
 		failLeaderboard: false,
+		dailyStats: {},
+		dailyStatsCalls: 0,
+		pushesAtStatsRead: [],
+		failDailyStats: false,
 		gone: false,
 		reorderKeys: false,
+		catalog: fixtureCatalog(),
+		today: UTC_TODAY,
+		serverNow: null,
+		entryIds: null,
+		scheduleRows: null,
+		catalogCalls: 0,
+		dailiesCalls: 0,
+		scheduleCalls: 0,
+		failCatalog: false,
+		failDailies: false,
+		failSchedule: false,
+		holdCatalog() {
+			return hold((g) => {
+				catalogGate = g;
+			});
+		},
+		holdDailies() {
+			return hold((g) => {
+				dailiesGate = g;
+			});
+		},
+		holdSchedule() {
+			return hold((g) => {
+				scheduleGate = g;
+			});
+		},
 		holdPull() {
 			return hold((g) => {
 				pullGate = g;
@@ -150,6 +223,11 @@ export function createFakeRemote(
 		holdLeaderboard() {
 			return hold((g) => {
 				leaderboardGate = g;
+			});
+		},
+		holdDailyStats() {
+			return hold((g) => {
+				dailyStatsGate = g;
 			});
 		},
 		holdConfirmDisplayName() {
@@ -302,6 +380,55 @@ export function createFakeRemote(
 				)
 				.sort((a, b) => a.rank - b.rank);
 			return { rows, viewerId };
+		},
+		async readCatalog(): Promise<Catalog> {
+			fake.catalogCalls += 1;
+			if (catalogGate) {
+				await catalogGate;
+			}
+			if (fake.failCatalog) {
+				throw new Error("catalog failed");
+			}
+			return clone(fake.catalog);
+		},
+		async readCurrentDailies(): Promise<CurrentDailies> {
+			fake.dailiesCalls += 1;
+			if (dailiesGate) {
+				await dailiesGate;
+			}
+			if (fake.failDailies) {
+				throw new Error("current Dailies failed");
+			}
+			return {
+				today: fake.today,
+				serverNow: fake.serverNow ?? Date.parse(`${fake.today}T12:00:00Z`),
+				entryIds: clone(fake.entryIds ?? fixtureEntryIds(fake.today)),
+			};
+		},
+		async readSchedule(): Promise<ScheduleRow[]> {
+			fake.scheduleCalls += 1;
+			if (scheduleGate) {
+				await scheduleGate;
+			}
+			if (fake.failSchedule) {
+				throw new Error("schedule failed");
+			}
+			return clone(fake.scheduleRows ?? fixtureScheduleRows(fake.today));
+		},
+		async readDailyStats(category, date): Promise<DailyGlobalStats> {
+			fake.dailyStatsCalls += 1;
+			fake.pushesAtStatsRead.push(completedPushes);
+			// The answer a request gets is the one held when it is sent.
+			const held = clone(
+				fake.dailyStats[dailyStatsId(category, date)] ?? emptyDailyStats(),
+			);
+			if (dailyStatsGate) {
+				await dailyStatsGate;
+			}
+			if (fake.failDailyStats) {
+				throw new Error("daily stats failed");
+			}
+			return held;
 		},
 		redirectError: () => redirectText,
 		clearRedirectError() {

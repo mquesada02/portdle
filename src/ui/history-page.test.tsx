@@ -4,8 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { dailyOn } from "../test/dailies";
-import { memoryStore, stubMatchMedia } from "../test/helpers";
+import { dailyOn, saveDaily } from "../test/dailies";
+import { createFakeRemote } from "../test/fake-remote";
+import { loaded, memoryStore, stubMatchMedia } from "../test/helpers";
 import { App } from "./app";
 
 const UTC_TODAY = "2026-09-11";
@@ -15,13 +16,16 @@ const EPOCH = "2026-09-09";
 async function renderHistory(
 	persist: ReturnType<typeof createPersist> = createPersist(memoryStore()),
 	path = "/portdle/history",
+	remote = createFakeRemote(),
 ) {
 	stubMatchMedia();
+	remote.today = UTC_TODAY;
 	const history = createMemoryHistory({
 		initialEntries: [path],
 	});
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(<App persist={persist} remote={remote} history={history} />);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 }
 
 function fakeRun(overrides: Partial<BlitzRun> = {}): BlitzRun {
@@ -52,7 +56,7 @@ function historyList() {
 
 function dateHeadingNames() {
 	return within(historyList())
-		.getAllByRole("heading", { level: 2 })
+		.queryAllByRole("heading", { level: 2 })
 		.map((heading) => heading.textContent);
 }
 
@@ -67,102 +71,65 @@ afterEach(() => {
 	document.documentElement.classList.remove("dark");
 });
 
-test("History heading and past days newest first without today", async () => {
+test("History lists only finished Dailies, newest first, with number, result, and answer", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
+	saveDaily(persist, "mixed", YESTERDAY, "won", 3);
+	saveDaily(persist, "protocols", YESTERDAY, "playing", 2);
+	saveDaily(persist, "applications", EPOCH, "won", 2);
+	saveDaily(persist, "mixed", EPOCH, "lost", 6);
 	await renderHistory(persist);
 	expect(
 		screen.getByRole("heading", { level: 1, name: "History" }),
 	).toBeTruthy();
 	expect(dateHeadingNames()).toEqual([YESTERDAY, EPOCH]);
 	const mixedYesterday = dailyOn("mixed", YESTERDAY);
-	const protocolsYesterday = dailyOn("protocols", YESTERDAY);
-	const applicationsYesterday = dailyOn("applications", YESTERDAY);
-	const mixedEpoch = dailyOn("mixed", EPOCH);
-	const protocolsEpoch = dailyOn("protocols", EPOCH);
-	const applicationsEpoch = dailyOn("applications", EPOCH);
-	const yesterdayRows = dateRows(YESTERDAY);
-	expect(yesterdayRows.length).toBe(3);
-	expect(yesterdayRows[0]?.textContent).toBe(
-		`Mixed ${mixedYesterday.name} ${mixedYesterday.port}`,
-	);
-	expect(yesterdayRows[1]?.textContent).toContain("Protocols");
-	expect(yesterdayRows[1]?.textContent).toContain(protocolsYesterday.name);
-	expect(yesterdayRows[2]?.textContent).toContain("Applications");
-	expect(yesterdayRows[2]?.textContent).toContain(applicationsYesterday.name);
+	expect(dateRows(YESTERDAY).map((row) => row.textContent)).toEqual([
+		`Mixed#2 · Won 3/6 · ${mixedYesterday.name} ${mixedYesterday.port}`,
+	]);
 	const epochRows = dateRows(EPOCH);
-	expect(epochRows.length).toBe(3);
-	expect(epochRows[0]?.textContent).toContain(mixedEpoch.name);
-	expect(epochRows[1]?.textContent).toContain(protocolsEpoch.name);
-	expect(epochRows[2]?.textContent).toContain(applicationsEpoch.name);
-	expect(historyList().textContent).not.toContain(UTC_TODAY);
-	expect(dateHeadingNames()).not.toContain(UTC_TODAY);
+	expect(epochRows[0]?.textContent).toContain("Mixed#1 · Lost · ");
+	expect(epochRows[0]?.textContent).toContain(dailyOn("mixed", EPOCH).name);
+	expect(epochRows[1]?.textContent).toContain("Applications#1 · Won 2/6 · ");
+	expect(epochRows).toHaveLength(2);
 });
 
-test("won Mixed today lists Mixed today and not unfinished categories", async () => {
+test("a Daily finished today is listed and links to its Archive board", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	const mixedToday = dailyOn("mixed", UTC_TODAY);
-	persist.writeDaily("mixed", UTC_TODAY, {
-		status: "won",
-		guesses: [
-			{
-				port: mixedToday.port,
-				result: "correct",
-				identified: {
-					id: mixedToday.id,
-					name: mixedToday.name,
-					port: mixedToday.port,
-				},
-			},
-		],
-	});
+	saveDaily(persist, "protocols", UTC_TODAY, "lost", 6);
 	await renderHistory(persist);
-	expect(dateHeadingNames()).toEqual([UTC_TODAY, YESTERDAY, EPOCH]);
-	const todayRows = dateRows(UTC_TODAY);
-	expect(todayRows.length).toBe(1);
-	expect(todayRows[0]?.textContent).toContain("Mixed");
-	expect(todayRows[0]?.textContent).toContain(mixedToday.name);
-	expect(todayRows[0]?.textContent).toContain(String(mixedToday.port));
+	expect(dateHeadingNames()).toEqual([UTC_TODAY]);
+	const [row] = dateRows(UTC_TODAY);
+	expect(row?.textContent).toContain("Protocols#3 · Lost · ");
+	expect(row?.textContent).toContain(dailyOn("protocols", UTC_TODAY).name);
 	expect(
-		todayRows.some((row) => row.textContent?.includes("Protocols") === true),
-	).toBe(false);
-	expect(dateRows(YESTERDAY).length).toBe(3);
+		within(row as HTMLElement)
+			.getByRole("link")
+			.getAttribute("href"),
+	).toBe(`/portdle/archive/protocols/${UTC_TODAY}`);
 });
 
-test("lost Protocols today lists Protocols today", async () => {
+test("a finished Daily with no Schedule row stays listed and links to the no-Daily note", async () => {
+	const remote = createFakeRemote();
+	remote.scheduleRows = [];
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	const protocolsToday = dailyOn("protocols", UTC_TODAY);
-	persist.writeDaily("protocols", UTC_TODAY, {
-		status: "lost",
-		guesses: [
-			{ port: 1, result: "miss", identified: null },
-			{ port: 2, result: "miss", identified: null },
-			{ port: 3, result: "miss", identified: null },
-			{ port: 4, result: "miss", identified: null },
-			{ port: 5, result: "miss", identified: null },
-			{ port: 6, result: "miss", identified: null },
-		],
-	});
-	await renderHistory(persist);
-	const todayRows = dateRows(UTC_TODAY);
-	expect(todayRows.length).toBe(1);
-	expect(todayRows[0]?.textContent).toContain("Protocols");
-	expect(todayRows[0]?.textContent).toContain(protocolsToday.name);
-	expect(todayRows[0]?.textContent).toContain(String(protocolsToday.port));
+	saveDaily(persist, "mixed", YESTERDAY, "won", 2);
+	await renderHistory(persist, "/portdle/history", remote);
+	const [row] = dateRows(YESTERDAY);
+	expect(row?.textContent).toBe("Mixed#2 · Won 2/6");
+	await userEvent.setup().click(within(row as HTMLElement).getByRole("link"));
+	expect(await screen.findByText("No Daily on this day.")).toBeTruthy();
 });
 
-test("playing Mixed today does not list Mixed today", async () => {
+test("an unfinished or unplayed Daily is not listed, today or before", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	persist.writeDaily("mixed", UTC_TODAY, {
-		status: "playing",
-		guesses: [{ port: 80, result: "miss", identified: null }],
-	});
+	saveDaily(persist, "mixed", UTC_TODAY, "playing", 1);
+	saveDaily(persist, "mixed", YESTERDAY, "playing", 4);
 	await renderHistory(persist);
-	expect(dateHeadingNames()).not.toContain(UTC_TODAY);
-	expect(historyList().textContent).not.toContain(UTC_TODAY);
+	expect(dateHeadingNames()).toEqual([]);
 });
 
 test("corrupt Mixed persist today does not list Mixed today", async () => {
@@ -171,15 +138,19 @@ test("corrupt Mixed persist today does not list Mixed today", async () => {
 	const persist = createPersist(store);
 	persist.writeHowToSeen();
 	await renderHistory(persist);
-	expect(dateHeadingNames()).not.toContain(UTC_TODAY);
-	expect(historyList().textContent).not.toContain(UTC_TODAY);
+	expect(dateHeadingNames()).toEqual([]);
 });
 
-test("History list contains no links", async () => {
+test("the Daily segment links to the Archive, the Blitz segment does not", async () => {
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
 	await renderHistory(persist);
-	expect(within(historyList()).queryAllByRole("link").length).toBe(0);
+	expect(
+		screen.getByRole("link", { name: "Archive" }).getAttribute("href"),
+	).toBe("/portdle/archive");
+	cleanup();
+	await renderHistory(persist, "/portdle/history/blitz");
+	expect(screen.queryByRole("link", { name: "Archive" })).toBeNull();
 });
 
 test("first History visit still shows How-to", async () => {
@@ -293,4 +264,79 @@ test("Blitz segment contains no links", async () => {
 	await renderHistory(persist, "/portdle/history/blitz");
 	const list = screen.getByRole("list", { name: "History" });
 	expect(within(list).queryAllByRole("link").length).toBe(0);
+});
+
+test("a failed past-rows read lists no Daily rows when nothing is saved", async () => {
+	const remote = createFakeRemote();
+	remote.failSchedule = true;
+	await renderHistory(undefined, "/portdle/history", remote);
+	expect(
+		screen.queryByRole("list", { name: "History" })?.children.length ?? 0,
+	).toBe(0);
+	expect(screen.queryByText("Loading...")).toBeNull();
+});
+
+test("History lists the saved rows until the past rows arrive, with no loading line", async () => {
+	const remote = createFakeRemote();
+	const release = remote.holdSchedule();
+	stubMatchMedia();
+	remote.today = UTC_TODAY;
+	const persist = createPersist(memoryStore());
+	saveDaily(persist, "mixed", YESTERDAY, "won", 3);
+	render(
+		<App
+			persist={persist}
+			remote={remote}
+			history={createMemoryHistory({ initialEntries: ["/portdle/history"] })}
+		/>,
+	);
+	const list = await screen.findByRole("list", { name: YESTERDAY });
+	expect(list.textContent).toBe("Mixed#2 · Won 3/6");
+	expect(screen.queryByText("Loading...")).toBeNull();
+	release();
+	await screen.findByText(new RegExp(dailyOn("mixed", YESTERDAY).name));
+});
+
+test("answers resolve by id in the whole catalog: a retired entry and an entry of another kind", async () => {
+	const remote = createFakeRemote();
+	remote.catalog = {
+		protocols: [
+			{
+				id: "old",
+				name: "Old Proto",
+				port: 1111,
+				transport: "tcp",
+				description: "d",
+				answerEligible: true,
+				retired: true,
+			},
+		],
+		applications: [
+			{
+				id: "moved",
+				name: "Moved App",
+				port: 2222,
+				transport: "tcp",
+				description: "d",
+				answerEligible: true,
+			},
+		],
+	};
+	remote.scheduleRows = [
+		{ category: "protocols", date: YESTERDAY, entryId: "old" },
+		{ category: "protocols", date: EPOCH, entryId: "moved" },
+	];
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	saveDaily(persist, "protocols", YESTERDAY, "won", 1);
+	saveDaily(persist, "protocols", EPOCH, "won", 1);
+	await renderHistory(persist, "/portdle/history", remote);
+	expect(
+		within(screen.getByRole("list", { name: YESTERDAY })).getByText(
+			/Old Proto/,
+		),
+	).toBeTruthy();
+	expect(
+		within(screen.getByRole("list", { name: EPOCH })).getByText(/Moved App/),
+	).toBeTruthy();
 });

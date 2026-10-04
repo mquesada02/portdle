@@ -20,6 +20,7 @@ import {
 } from "../test/fake-remote";
 import {
 	memoryStore,
+	SERVER_MESSAGE,
 	stubMatchMedia,
 	stubViewTransitions,
 } from "../test/helpers";
@@ -63,14 +64,7 @@ async function mountBlitz(
 	persist.writeHowToSeen();
 	seed?.(persist);
 	const history = createMemoryHistory({ initialEntries: ["/portdle/blitz"] });
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={history}
-			utcToday="2026-09-09"
-		/>,
-	);
+	render(<App persist={persist} remote={remote} history={history} />);
 	await screen.findByRole("navigation", { name: "Main" });
 	if (remote?.state.status === "signedIn") {
 		await waitFor(() => expect(persist.readSyncAccount()).toBe("u1"));
@@ -82,10 +76,11 @@ async function openLeaderboards(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(screen.getByRole("tab", { name: "Leaderboards" }));
 }
 
-test("without a Remote the Blitz screen has no tabs and stays the arena", async () => {
+test("without a Remote the Blitz screen has no tabs and its Play side shows the error panel", async () => {
 	await mountBlitz();
 	expect(screen.queryByRole("tablist")).toBeNull();
-	expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
+	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
 });
 
 test("with a Remote the idle arena has a Play tab selected and the arena in it", async () => {

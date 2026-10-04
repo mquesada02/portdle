@@ -1,247 +1,126 @@
 import { expect, test } from "vitest";
-import { groupBlitzRunsByDate, historyRows } from "./history";
+import { groupBlitzRunsByDate, historyRows, type SavedDaily } from "./history";
 import { http, vite } from "./test-fixtures";
-import type { BlitzRun, ScheduleFile } from "./types";
+import type {
+	BlitzRun,
+	CatalogEntry,
+	DailyCategory,
+	ScheduleRow,
+} from "./types";
 
-const unfinishedToday = {
-	mixed: false,
-	protocols: false,
-	applications: false,
-};
+function saved(
+	date: string,
+	category: DailyCategory,
+	status: SavedDaily["status"] = "won",
+	tries = 3,
+): SavedDaily {
+	return { date, category, status, tries };
+}
 
-const schedules: Record<"mixed" | "protocols" | "applications", ScheduleFile> =
-	{
-		mixed: {
-			epoch: "2026-09-09",
-			cycles: [{ startDay: 0, order: ["http", "vite"] }],
-		},
-		protocols: {
-			epoch: "2026-09-09",
-			cycles: [{ startDay: 0, order: ["http", "http"] }],
-		},
-		applications: {
-			epoch: "2026-09-09",
-			cycles: [{ startDay: 0, order: ["vite", "vite"] }],
-		},
-	};
+function day(
+	date: string,
+	ids: [string, string, string] = ["http", "http", "vite"],
+): ScheduleRow[] {
+	return [
+		{ category: "mixed", date, entryId: ids[0] },
+		{ category: "protocols", date, entryId: ids[1] },
+		{ category: "applications", date, entryId: ids[2] },
+	];
+}
 
 function rows(options: {
-	utcToday: string;
-	schedules?: typeof schedules;
-	finishedToday?: typeof unfinishedToday;
+	saved: SavedDaily[];
+	schedule?: ScheduleRow[];
+	protocols?: CatalogEntry[];
+	applications?: CatalogEntry[];
 }) {
 	return historyRows({
-		utcToday: options.utcToday,
-		schedules: options.schedules ?? schedules,
-		protocols: [http],
-		applications: [vite],
-		finishedToday: options.finishedToday ?? unfinishedToday,
+		saved: options.saved,
+		schedule: options.schedule ?? [],
+		protocols: options.protocols ?? [http],
+		applications: options.applications ?? [vite],
 	});
 }
 
-test("yesterday listed; today absent when unfinished", () => {
-	expect(rows({ utcToday: "2026-09-10" })).toEqual([
-		{
-			date: "2026-09-09",
-			category: "mixed",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
-	]);
-});
-
-test("today Mixed listed only when finishedToday.mixed", () => {
+test("only finished Dailies are listed, with their result", () => {
 	expect(
 		rows({
-			utcToday: "2026-09-10",
-			finishedToday: {
-				mixed: true,
-				protocols: false,
-				applications: false,
-			},
+			saved: [
+				saved("2026-09-09", "mixed", "won", 4),
+				saved("2026-09-09", "protocols", "playing", 2),
+				saved("2026-09-09", "applications", "lost", 6),
+			],
+			schedule: day("2026-09-09"),
 		}),
 	).toEqual([
 		{
-			date: "2026-09-10",
-			category: "mixed",
-			name: "Vite",
-			port: 5173,
-		},
-		{
 			date: "2026-09-09",
 			category: "mixed",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "protocols",
+			status: "won",
+			tries: 4,
 			name: "HTTP",
 			port: 80,
 		},
 		{
 			date: "2026-09-09",
 			category: "applications",
+			status: "lost",
+			tries: 6,
 			name: "Vite",
 			port: 5173,
 		},
 	]);
 });
 
-test("no row has date after utcToday", () => {
-	expect(
-		rows({ utcToday: "2026-09-10" }).some((row) => row.date > "2026-09-10"),
-	).toBe(false);
-});
-
-test("unknown id is skipped", () => {
+test("later dates come first, categories in Daily order within a date", () => {
 	expect(
 		rows({
-			utcToday: "2026-09-11",
-			schedules: {
-				mixed: {
-					epoch: "2026-09-09",
-					cycles: [{ startDay: 0, order: ["missing", "http"] }],
-				},
-				protocols: {
-					epoch: "2026-09-09",
-					cycles: [{ startDay: 0, order: ["http", "http"] }],
-				},
-				applications: {
-					epoch: "2026-09-09",
-					cycles: [{ startDay: 0, order: ["vite", "vite"] }],
-				},
-			},
-		}),
+			saved: [
+				saved("2026-09-09", "applications"),
+				saved("2026-09-10", "protocols"),
+				saved("2026-09-09", "mixed"),
+				saved("2026-09-10", "mixed"),
+			],
+		}).map((row) => `${row.date} ${row.category}`),
 	).toEqual([
-		{
-			date: "2026-09-10",
-			category: "mixed",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-10",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-10",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
-		{
-			date: "2026-09-09",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
+		"2026-09-10 mixed",
+		"2026-09-10 protocols",
+		"2026-09-09 mixed",
+		"2026-09-09 applications",
 	]);
 });
 
-test("day before epoch is not listed", () => {
-	expect(
-		rows({ utcToday: "2026-09-10" }).some((row) => row.date === "2026-09-08"),
-	).toBe(false);
-});
-
-test("later date's rows come before earlier date's rows", () => {
-	expect(rows({ utcToday: "2026-09-11" }).map((row) => row.date)).toEqual([
-		"2026-09-10",
-		"2026-09-10",
-		"2026-09-10",
-		"2026-09-09",
-		"2026-09-09",
-		"2026-09-09",
-	]);
-});
-
-test("two cycles both contribute past days", () => {
+test("a finished Daily with no Schedule row or no catalog entry stays listed without a name", () => {
 	expect(
 		rows({
-			utcToday: "2026-09-11",
-			schedules: {
-				mixed: {
-					epoch: "2026-09-09",
-					cycles: [
-						{ startDay: 0, order: ["http"] },
-						{ startDay: 1, order: ["vite"] },
-					],
-				},
-				protocols: {
-					epoch: "2026-09-09",
-					cycles: [
-						{ startDay: 0, order: ["http"] },
-						{ startDay: 1, order: ["http"] },
-					],
-				},
-				applications: {
-					epoch: "2026-09-09",
-					cycles: [
-						{ startDay: 0, order: ["vite"] },
-						{ startDay: 1, order: ["vite"] },
-					],
-				},
-			},
-		}),
+			saved: [saved("2026-09-09", "mixed"), saved("2026-09-10", "mixed")],
+			schedule: [{ category: "mixed", date: "2026-09-10", entryId: "missing" }],
+		}).map((row) => [row.date, row.name, row.port]),
 	).toEqual([
-		{
-			date: "2026-09-10",
-			category: "mixed",
-			name: "Vite",
-			port: 5173,
-		},
-		{
-			date: "2026-09-10",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-10",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
-		{
-			date: "2026-09-09",
-			category: "mixed",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "protocols",
-			name: "HTTP",
-			port: 80,
-		},
-		{
-			date: "2026-09-09",
-			category: "applications",
-			name: "Vite",
-			port: 5173,
-		},
+		["2026-09-10", undefined, undefined],
+		["2026-09-09", undefined, undefined],
 	]);
+});
+
+test("a retired entry and an entry of another catalog kind still resolve", () => {
+	const retired: CatalogEntry = {
+		...http,
+		id: "old",
+		name: "Old",
+		retired: true,
+	};
+	expect(
+		rows({
+			saved: [
+				saved("2026-09-09", "mixed"),
+				saved("2026-09-09", "protocols"),
+				saved("2026-09-09", "applications"),
+			],
+			schedule: day("2026-09-09", ["old", "vite", "http"]),
+			protocols: [http, retired],
+			applications: [vite],
+		}).map((row) => row.name),
+	).toEqual(["Old", "Vite", "HTTP"]);
 });
 
 function fakeRun(endedAt: string, score: number): BlitzRun {

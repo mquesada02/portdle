@@ -1,17 +1,12 @@
 import { expect, test } from "vitest";
-import applicationsJson from "../catalogs/applications.json";
-import protocolsJson from "../catalogs/protocols.json";
-import applicationsScheduleJson from "../catalogs/schedules/applications.json";
-import identityJson from "../catalogs/schedules/identity.json";
-import mixedScheduleJson from "../catalogs/schedules/mixed.json";
-import protocolsScheduleJson from "../catalogs/schedules/protocols.json";
+import applicationsJson from "../test/fixtures/applications.json";
+import protocolsJson from "../test/fixtures/protocols.json";
+import applicationsScheduleJson from "../test/fixtures/schedules/applications.json";
+import mixedScheduleJson from "../test/fixtures/schedules/mixed.json";
+import protocolsScheduleJson from "../test/fixtures/schedules/protocols.json";
 import { answerPool, catalogFor, validateCatalog } from "./catalog";
 import { getDaily } from "./daily";
-import {
-	type FrozenIdentity,
-	validateFrozenIdentity,
-	validateSchedules,
-} from "./schedule-gen";
+import { validateSchedules } from "./schedule-gen";
 import type { CatalogEntry, ScheduleFile } from "./types";
 
 const protocols = protocolsJson as CatalogEntry[];
@@ -21,9 +16,8 @@ const schedules = {
 	protocols: protocolsScheduleJson as ScheduleFile,
 	applications: applicationsScheduleJson as ScheduleFile,
 };
-const identity = identityJson as FrozenIdentity;
 
-test("production catalogs meet floors and validation", () => {
+test("frozen fixture catalogs meet floors and validation", () => {
 	expect(validateCatalog(protocols)).toEqual([]);
 	expect(validateCatalog(applications)).toEqual([]);
 	expect(validateCatalog(catalogFor("mixed", protocols, applications))).toEqual(
@@ -61,19 +55,10 @@ test("continuity literals keep Mixed fixture identity", () => {
 	});
 });
 
-test("committed schedules cover epoch week and stay distinct", () => {
+test("frozen fixture schedules cover epoch week and stay distinct", () => {
 	expect(
 		validateSchedules({
 			utcToday: "2026-09-09",
-			protocols,
-			applications,
-			schedules,
-		}),
-	).toEqual([]);
-	expect(
-		validateFrozenIdentity({
-			utcToday: "2026-09-09",
-			identity,
 			protocols,
 			applications,
 			schedules,

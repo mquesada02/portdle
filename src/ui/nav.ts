@@ -9,7 +9,7 @@ export const NAV = [
 		to: "/",
 		label: "Daily",
 		icon: GRID,
-		matchPaths: ["/", "/protocols", "/applications"],
+		matchPaths: ["/", "/protocols", "/applications", "/archive"],
 	},
 	{ to: "/blitz", label: "Blitz", icon: BOLT, matchPaths: ["/blitz"] },
 	{
@@ -21,11 +21,21 @@ export const NAV = [
 	{ to: "/codex", label: "Codex", icon: BOOK, matchPaths: ["/codex"] },
 ] as const;
 
-// Looks up which nav screen a pathname belongs to, via NAV's own
-// matchPaths, mirroring the lookup the shell's active-link highlighting
-// already does.
+// Whether a nav item is the current screen for a pathname: one of its
+// matchPaths exactly, or below one of them (the Archive's boards). The Daily's
+// "/" never matches a longer path.
+export function onScreen(
+	item: (typeof NAV)[number],
+	pathname: string,
+): boolean {
+	return (item.matchPaths as readonly string[]).some(
+		(path) =>
+			pathname === path || (path !== "/" && pathname.startsWith(`${path}/`)),
+	);
+}
+
+// Looks up which nav screen a pathname belongs to, through the same match the
+// shell's active-link highlighting uses.
 export function screenFor(pathname: string): string | undefined {
-	return NAV.find((item) =>
-		(item.matchPaths as readonly string[]).includes(pathname),
-	)?.to;
+	return NAV.find((item) => onScreen(item, pathname))?.to;
 }

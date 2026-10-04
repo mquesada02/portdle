@@ -9,11 +9,12 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import protocolsJson from "../catalogs/protocols.json";
 import type { CatalogEntry, CodexMap } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { UTC_TODAY } from "../test/dailies";
+import { createFakeRemote } from "../test/fake-remote";
+import protocolsJson from "../test/fixtures/protocols.json";
 import {
+	loaded,
 	memoryStore,
 	stubMatchMedia,
 	stubViewTransitions,
@@ -40,8 +41,11 @@ async function renderCodex(
 	const persist = options.persist ?? createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/codex"] });
-	render(<App persist={persist} history={history} utcToday={UTC_TODAY} />);
+	render(
+		<App persist={persist} remote={createFakeRemote()} history={history} />,
+	);
 	await screen.findByRole("navigation", { name: "Main" });
+	await loaded();
 	return persist;
 }
 

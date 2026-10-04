@@ -174,10 +174,39 @@ test("win on try 1 commits won", () => {
 		previousPorts: [],
 		catalog,
 	});
-	expect(applyCommittedGuess(null, result)).toEqual({
+	expect(applyCommittedGuess(null, result, false)).toEqual({
 		status: "won",
 		guesses: [{ port: 5173, result: "correct", identified: null }],
+		late: false,
 	});
+});
+
+test("a new record carries the late mark it is given", () => {
+	const miss = { status: "miss" as const, port: 80, identified: null };
+	expect(applyCommittedGuess(null, miss, true)).toMatchObject({
+		status: "playing",
+		late: true,
+	});
+	expect(applyCommittedGuess(null, miss, false)).toMatchObject({
+		status: "playing",
+		late: false,
+	});
+});
+
+test("a stored record keeps its late mark on every later try, absent included", () => {
+	const guesses = [{ port: 1, result: "miss" as const, identified: null }];
+	const miss = { status: "miss" as const, port: 80, identified: null };
+	const correct = { status: "correct" as const, port: 5173 };
+	for (const late of [true, false]) {
+		const current = { status: "playing" as const, guesses, late };
+		expect(applyCommittedGuess(current, miss, !late)).toMatchObject({ late });
+		expect(applyCommittedGuess(current, correct, !late)).toMatchObject({
+			status: "won",
+			late,
+		});
+	}
+	const unmarked = { status: "playing" as const, guesses };
+	expect(applyCommittedGuess(unmarked, miss, true)).not.toHaveProperty("late");
 });
 
 test("win on try 6 commits won", () => {
@@ -193,7 +222,7 @@ test("win on try 6 commits won", () => {
 		previousPorts: [80, 19, 23, 1, 2],
 		catalog,
 	});
-	const next = applyCommittedGuess(current, result);
+	const next = applyCommittedGuess(current, result, false);
 	expect(next).toMatchObject({ status: "won" });
 	if ("guesses" in next) {
 		expect(next.guesses).toHaveLength(6);
@@ -213,7 +242,7 @@ test("lose on sixth miss commits lost", () => {
 		previousPorts: [80, 19, 23, 1, 2],
 		catalog,
 	});
-	expect(applyCommittedGuess(current, result)).toMatchObject({
+	expect(applyCommittedGuess(current, result, false)).toMatchObject({
 		status: "lost",
 		guesses: expect.arrayContaining([
 			{ port: 3, result: "miss", identified: null },
@@ -222,10 +251,21 @@ test("lose on sixth miss commits lost", () => {
 });
 
 test("invalid and duplicate do not produce persist", () => {
-	expect(applyCommittedGuess(null, { status: "invalid" })).toEqual({
+	expect(applyCommittedGuess(null, { status: "invalid" }, false)).toEqual({
 		status: "invalid",
 	});
-	expect(applyCommittedGuess(null, { status: "duplicate" })).toEqual({
+	expect(applyCommittedGuess(null, { status: "duplicate" }, false)).toEqual({
 		status: "duplicate",
 	});
+});
+
+test("a retired answer is still correct when the catalog no longer holds it", () => {
+	expect(
+		evaluateDefaultGuess({
+			digits: "80",
+			answer: { ...http, retired: true },
+			previousPorts: [],
+			catalog: [vite],
+		}),
+	).toEqual({ status: "correct", port: 80 });
 });
