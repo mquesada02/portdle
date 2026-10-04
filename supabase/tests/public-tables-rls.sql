@@ -25,7 +25,7 @@ begin
 			where p.schemaname = 'public' and p.tablename = c.relname
 				and p.cmd in ('SELECT', 'ALL')
 				and (r.rolname = any (p.roles) or 'public' = any (p.roles))
-				and coalesce(p.qual, 'true') <> 'false'
+				and p.qual <> 'false'
 		);
 	assert missing is null, format('readable tables without a read policy: %s', missing);
 
