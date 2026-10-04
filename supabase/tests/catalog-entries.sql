@@ -79,8 +79,15 @@ begin
 	assert not has_table_privilege('anon', 'public.catalog_entries', 'insert, update, delete, truncate, references, trigger'), 'anon has no write grant on entries';
 	assert not has_table_privilege('authenticated', 'public.catalog_entries', 'insert, update, delete, truncate, references, trigger'), 'authenticated has no write grant on entries';
 	assert not has_table_privilege('schedule_generator', 'public.catalog_entries', 'insert, update, delete, truncate, references, trigger'), 'the generator has no write grant on entries';
+	-- Every reader sees rows through the read policy (20261004000014).
 	set local role anon;
 	assert (select count(*) from public.catalog_entries) > 0, 'anon reads the catalog';
+	reset role;
+	set local role authenticated;
+	assert (select count(*) from public.catalog_entries) > 0, 'authenticated reads the catalog';
+	reset role;
+	set local role schedule_generator;
+	assert (select count(*) from public.catalog_entries) > 0, 'the generator reads the catalog';
 	reset role;
 	perform pg_temp.expect_error('anon', $q$update public.catalog_entries set name = 'x' where id = 't184-free'$q$, '%permission denied%');
 
