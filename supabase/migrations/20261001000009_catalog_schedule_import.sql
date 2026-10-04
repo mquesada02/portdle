@@ -1,4 +1,4 @@
--- GENERATED once, by a script that commit 2807554 still holds, from the switch-over day in
+-- GENERATED once, by a script removed at the release, from the switch-over day in
 -- src/engine/switch-over.ts and the catalog and schedule files committed
 -- then. Do not edit by hand. Apply in the
 -- Supabase SQL editor after 20261001000008 (the owner applies migrations in
