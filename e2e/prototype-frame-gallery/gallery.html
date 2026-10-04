@@ -1,0 +1,219 @@
+<!doctype html>
+<!-- PROTOTYPE — throwaway (ticket "Prototype: frame gallery", #217).
+     Three gallery layouts for the same frames, switchable via ?variant=A|B|C
+     and ?it=<interaction id>. Served by `pnpm proto:gallery`. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Frame gallery prototype</title>
+<style>
+	:root { color-scheme: light dark; --bg: #f4f4f5; --fg: #18181b; --muted: #71717a; --card: #fff; --line: #d4d4d8; --hl: #e11d48; }
+	@media (prefers-color-scheme: dark) { :root { --bg: #18181b; --fg: #f4f4f5; --muted: #a1a1aa; --card: #27272a; --line: #3f3f46; } }
+	* { box-sizing: border-box; }
+	body { margin: 0; padding: 16px 16px 96px; font: 14px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+	h1 { font-size: 18px; margin: 0 0 4px; }
+	.meta { color: var(--muted); margin: 0 0 12px; }
+	.tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+	.tabs a { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; color: inherit; text-decoration: none; }
+	.tabs a[aria-current] { background: var(--fg); color: var(--bg); }
+	img { display: block; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+	figure { margin: 0; }
+	figcaption { font: 12px ui-monospace, monospace; color: var(--muted); margin-top: 4px; }
+	/* A: filmstrip */
+	.strip { margin-bottom: 20px; }
+	.strip h2 { font-size: 13px; margin: 0 0 6px; }
+	.row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+	.row figure { flex: 0 0 auto; }
+	.row img { height: 260px; width: auto; cursor: zoom-in; }
+	.row figure.edge img { outline: 2px dashed var(--line); }
+	dialog.zoom { max-width: 95vw; max-height: 95vh; padding: 0; border: 0; background: transparent; }
+	dialog.zoom img { max-height: 92vh; width: auto; }
+	/* B: flipbook */
+	.controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 1; }
+	.controls input[type=range] { flex: 1 1 240px; }
+	.controls button { font: inherit; padding: 6px 12px; }
+	.time { font: 600 20px ui-monospace, monospace; min-width: 90px; }
+	.quad { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; align-items: start; }
+	/* C: diff focus */
+	.focus { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; }
+	@media (max-width: 700px) { .focus { grid-template-columns: 1fr; } }
+	.focus canvas { max-width: 100%; border: 1px solid var(--line); border-radius: 4px; }
+	.side label { display: block; margin: 4px 0; }
+	.timeline { display: flex; gap: 6px; overflow-x: auto; margin-top: 12px; }
+	.timeline button { padding: 0; border: 2px solid transparent; background: none; cursor: pointer; }
+	.timeline button[aria-pressed=true] { border-color: var(--hl); }
+	.timeline img { height: 90px; width: auto; }
+	.timeline span { display: block; font: 11px ui-monospace, monospace; color: var(--muted); }
+	/* prototype switcher */
+	.switcher { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 999px; background: #111; color: #fff; box-shadow: 0 6px 24px rgba(0,0,0,.35); font: 600 13px system-ui; z-index: 10; }
+	.switcher button { background: #333; color: #fff; border: 0; border-radius: 999px; width: 30px; height: 30px; font-size: 16px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1 id="title"></h1>
+<p class="meta" id="meta"></p>
+<nav class="tabs" id="tabs"></nav>
+<main id="app"></main>
+<div class="switcher" role="toolbar" aria-label="Prototype variant">
+	<button id="prev" aria-label="Previous variant">←</button>
+	<span id="vlabel"></span>
+	<button id="next" aria-label="Next variant">→</button>
+</div>
+<script src="out/manifest.js"></script>
+<script>
+const M = window.MANIFEST;
+const VARIANTS = { A: "Filmstrip", B: "Flipbook", C: "Diff focus" };
+const keys = Object.keys(VARIANTS);
+const params = new URLSearchParams(location.search);
+let variant = keys.includes(params.get("variant")) ? params.get("variant") : "A";
+let itId = params.get("it") ?? M.interactions[0].id;
+const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) k === "text" ? (e.textContent = v) : e.setAttribute(k, v); e.append(...kids); return e; };
+const src = (it, file) => `out/${it.id}/${file}`;
+const cfgName = (c) => `${c.width}px · ${c.theme}`;
+
+function go(next) {
+	params.set("variant", variant); params.set("it", itId);
+	history.replaceState(null, "", `?${params}`);
+	render();
+}
+document.getElementById("prev").onclick = () => { variant = keys[(keys.indexOf(variant) + keys.length - 1) % keys.length]; go(); };
+document.getElementById("next").onclick = () => { variant = keys[(keys.indexOf(variant) + 1) % keys.length]; go(); };
+addEventListener("keydown", (e) => {
+	if (e.target.closest("input, textarea, [contenteditable]")) return;
+	if (e.key === "ArrowLeft") document.getElementById("prev").click();
+	if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+
+let stopPlay = null;
+function render() {
+	stopPlay?.(); stopPlay = null;
+	const it = M.interactions.find((i) => i.id === itId);
+	document.getElementById("vlabel").textContent = `${variant} — ${VARIANTS[variant]}`;
+	document.getElementById("title").textContent = it.label;
+	const c0 = it.configs[0];
+	document.getElementById("meta").textContent =
+		`Fixed day ${M.today} · stubbed data · Chromium · frozen at ${it.times.join(", ")} ms after the click · animations: ${c0.animations.names.join(", ")} (end ${c0.animations.end} ms)`;
+	const tabs = document.getElementById("tabs"); tabs.replaceChildren();
+	for (const i of M.interactions) {
+		const a = el("a", { href: `?variant=${variant}&it=${i.id}`, text: i.label });
+		if (i.id === itId) a.setAttribute("aria-current", "page");
+		a.onclick = (e) => { e.preventDefault(); itId = i.id; go(); };
+		tabs.append(a);
+	}
+	const app = document.getElementById("app"); app.replaceChildren();
+	({ A: renderA, B: renderB, C: renderC })[variant](app, it);
+}
+
+// A — one row per viewport and theme; before, every frame, after.
+function renderA(app, it) {
+	const zoom = el("dialog", { class: "zoom" }); const zimg = el("img", { alt: "" }); zoom.append(zimg);
+	zoom.onclick = () => zoom.close(); app.append(zoom);
+	for (const c of it.configs) {
+		const row = el("div", { class: "row" });
+		const cells = [["before", c.before, true], ...c.frames.map((f) => [`${f.t} ms`, f.file, false]), ["after", c.after, true]];
+		for (const [cap, file, edge] of cells) {
+			const img = el("img", { src: src(it, file), alt: `${cfgName(c)} ${cap}`, loading: "lazy" });
+			img.onclick = () => { zimg.src = img.src; zoom.showModal(); };
+			row.append(el("figure", edge ? { class: "edge" } : {}, img, el("figcaption", { text: cap })));
+		}
+		app.append(el("section", { class: "strip" }, el("h2", { text: cfgName(c) }), row));
+	}
+}
+
+// B — all four side by side, one shared time; step or play in slow motion.
+function renderB(app, it) {
+	const steps = ["before", ...it.times, "after"];
+	let i = 1;
+	const range = el("input", { type: "range", min: 0, max: steps.length - 1, value: i, "aria-label": "Frame" });
+	const time = el("span", { class: "time" });
+	const play = el("button", { text: "▶ Play" });
+	const speed = el("select", { "aria-label": "Speed" });
+	for (const [v, t] of [[10, "10× slower"], [4, "4× slower"], [1, "real time"]]) speed.append(el("option", { value: v, text: t }));
+	const imgs = it.configs.map((c) => el("img", { alt: cfgName(c) }));
+	const show = () => {
+		const s = steps[i]; time.textContent = typeof s === "number" ? `${s} ms` : s; range.value = i;
+		it.configs.forEach((c, k) => { imgs[k].src = src(it, s === "before" ? c.before : s === "after" ? c.after : c.frames.find((f) => f.t === s).file); });
+	};
+	range.oninput = () => { i = +range.value; show(); };
+	play.onclick = () => {
+		if (stopPlay) { stopPlay(); return; }
+		let k = 1; let timer;
+		const tick = () => {
+			i = k; show();
+			const cur = it.times[k - 1]; const nxt = it.times[k];
+			k = k >= it.times.length ? 1 : k + 1;
+			timer = setTimeout(tick, nxt === undefined ? 700 : Math.max(16, (nxt - cur) * +speed.value));
+		};
+		play.textContent = "■ Stop"; tick();
+		stopPlay = () => { clearTimeout(timer); play.textContent = "▶ Play"; stopPlay = null; };
+	};
+	app.append(
+		el("div", { class: "controls" }, play, speed, time, range),
+		el("div", { class: "quad" }, ...it.configs.map((c, k) => el("figure", {}, imgs[k], el("figcaption", { text: cfgName(c) })))),
+	);
+	show();
+}
+
+// C — one frame large, pixels changed since the previous frame tinted.
+function renderC(app, it) {
+	let cfg = it.configs[0]; let idx = 0; let tint = true;
+	const canvas = el("canvas");
+	const side = el("div", { class: "side" });
+	const timeline = el("div", { class: "timeline" });
+	const load = (file) => new Promise((r) => { const im = new Image(); im.onload = () => r(im); im.src = src(it, file); });
+	const files = () => [cfg.before, ...cfg.frames.map((f) => f.file)];
+	const labels = () => ["before", ...cfg.frames.map((f) => `${f.t} ms`)];
+	async function draw() {
+		const [cur, prev] = await Promise.all([load(files()[idx]), load(files()[Math.max(0, idx - 1)])]);
+		canvas.width = cur.width; canvas.height = cur.height;
+		const g = canvas.getContext("2d"); g.drawImage(cur, 0, 0);
+		if (tint && idx > 0) {
+			const a = g.getImageData(0, 0, cur.width, cur.height);
+			const o = document.createElement("canvas"); o.width = cur.width; o.height = cur.height;
+			const og = o.getContext("2d"); og.drawImage(prev, 0, 0);
+			const b = og.getImageData(0, 0, cur.width, cur.height);
+			let n = 0;
+			for (let p = 0; p < a.data.length; p += 4) {
+				if (Math.abs(a.data[p] - b.data[p]) + Math.abs(a.data[p + 1] - b.data[p + 1]) + Math.abs(a.data[p + 2] - b.data[p + 2]) > 24) {
+					a.data[p] = 225; a.data[p + 1] = 29; a.data[p + 2] = 72; n++;
+				}
+			}
+			g.putImageData(a, 0, 0);
+			status.textContent = `${n.toLocaleString()} px changed since ${labels()[idx - 1]}`;
+		} else status.textContent = idx === 0 ? "before the click" : "tint off";
+		[...timeline.children].forEach((b, k) => b.setAttribute("aria-pressed", String(k === idx)));
+	}
+	const status = el("p", { class: "meta" });
+	const tintBox = el("input", { type: "checkbox", checked: "" });
+	tintBox.onchange = () => { tint = tintBox.checked; draw(); };
+	side.append(el("h2", { text: "Viewport and theme" }));
+	for (const c of it.configs) {
+		const r = el("input", { type: "radio", name: "cfg" }); if (c === cfg) r.checked = true;
+		r.onchange = () => { cfg = c; buildTimeline(); draw(); };
+		side.append(el("label", {}, r, ` ${cfgName(c)}`));
+	}
+	side.append(el("label", {}, tintBox, " Tint pixels changed since the previous frame"), status,
+		el("p", { class: "meta", text: "Keys: , and . step frames" }));
+	function buildTimeline() {
+		timeline.replaceChildren();
+		files().forEach((f, k) => {
+			const b = el("button", { "aria-pressed": "false" }, el("img", { src: src(it, f), alt: "" }), el("span", { text: labels()[k] }));
+			b.onclick = () => { idx = k; draw(); };
+			timeline.append(b);
+		});
+	}
+	addEventListener("keydown", stepKeys);
+	function stepKeys(e) {
+		if (variant !== "C") return removeEventListener("keydown", stepKeys);
+		if (e.key === ".") { idx = Math.min(files().length - 1, idx + 1); draw(); }
+		if (e.key === ",") { idx = Math.max(0, idx - 1); draw(); }
+	}
+	app.append(el("div", { class: "focus" }, el("div", {}, canvas, timeline), side));
+	buildTimeline(); idx = 1; draw();
+}
+
+render();
+</script>
+</body>
+</html>

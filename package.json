@@ -23,7 +23,8 @@
 		"dev:schedule": "tsx scripts/fill-local-schedule.ts",
 		"smoke:backend": "tsx scripts/smoke-backend.ts",
 		"test:sql": "scripts/run-sql-tests.sh",
-		"test:e2e": "tsx scripts/e2e.ts"
+		"test:e2e": "tsx scripts/e2e.ts",
+		"proto:gallery": "node e2e/prototype-frame-gallery/capture.mjs && echo \"Gallery: http://127.0.0.1:4181/gallery.html\" && python3 -m http.server 4181 --bind 127.0.0.1 -d e2e/prototype-frame-gallery"
 	},
 	"dependencies": {
 		"@leeoniya/ufuzzy": "^1.0.19",
