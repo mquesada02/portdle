@@ -1,9 +1,9 @@
 -- Owner-run in the Supabase SQL editor after the catalog migrations, and run
 -- in CI. Raises on the first failed assertion; prints a notice on success.
 -- Structural check of the generated import (a SQL test cannot read the JSON
--- files; the rows equalled them when a script, removed at the release, generated
--- the import). Read-only. Rows after the switch-over day (added by the
--- Schedule generator) are not asserted.
+-- files; the rows equalled the files when the import was generated).
+-- Read-only. Rows after the switch-over day (added by the Schedule
+-- generator) are not asserted.
 
 do $$
 declare
