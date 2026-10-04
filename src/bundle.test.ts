@@ -16,8 +16,10 @@ test("the glob sees product files", () => {
 	expect(Object.keys(product)).toContain("./remote/supabase.ts");
 });
 
-test("no product file imports the catalog or Schedule files", () => {
-	expect(filesMatching(/\bfrom\s+["'][^"']*catalogs\//)).toEqual([]);
+test("no product file imports the catalog or Schedule fixtures", () => {
+	expect(
+		filesMatching(/\bfrom\s+["'][^"']*(catalogs|test\/fixtures)\//),
+	).toEqual([]);
 });
 
 test("the Supabase library is imported only as a type or lazily", () => {

@@ -1,8 +1,3 @@
-import applicationsJson from "../catalogs/applications.json";
-import protocolsJson from "../catalogs/protocols.json";
-import applicationsScheduleJson from "../catalogs/schedules/applications.json";
-import mixedScheduleJson from "../catalogs/schedules/mixed.json";
-import protocolsScheduleJson from "../catalogs/schedules/protocols.json";
 import { getDaily } from "../engine/daily";
 import { digitLength } from "../engine/guess";
 import {
@@ -16,6 +11,11 @@ import {
 import { addUtcDays } from "../engine/utc";
 import type { Persist } from "../persist/storage";
 import type { Catalog } from "../remote/remote";
+import applicationsJson from "./fixtures/applications.json";
+import protocolsJson from "./fixtures/protocols.json";
+import applicationsScheduleJson from "./fixtures/schedules/applications.json";
+import mixedScheduleJson from "./fixtures/schedules/mixed.json";
+import protocolsScheduleJson from "./fixtures/schedules/protocols.json";
 
 export const UTC_TODAY = "2026-09-09";
 
@@ -41,7 +41,7 @@ export function dailyOn(category: DailyCategory, date = UTC_TODAY) {
 	return entry;
 }
 
-// What the fake `Remote` serves by default, taken from the committed files.
+// What the fake `Remote` serves by default, taken from the frozen fixture files.
 export function fixtureCatalog(): Catalog {
 	return { protocols, applications };
 }

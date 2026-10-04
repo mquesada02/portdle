@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import applicationsJson from "../catalogs/applications.json";
-import protocolsJson from "../catalogs/protocols.json";
+import applicationsJson from "../test/fixtures/applications.json";
+import protocolsJson from "../test/fixtures/protocols.json";
 import { catalogFor } from "./catalog";
 import { buildSearchIndex, searchNames } from "./search";
 import { chargen, http, telnet } from "./test-fixtures";
@@ -8,7 +8,7 @@ import type { CatalogEntry } from "./types";
 
 const protocols = protocolsJson as CatalogEntry[];
 const applications = applicationsJson as CatalogEntry[];
-const production = catalogFor("mixed", protocols, applications);
+const fixture = catalogFor("mixed", protocols, applications);
 
 const https: CatalogEntry = {
 	id: "https",
@@ -61,7 +61,7 @@ test("search caps at 20", () => {
 });
 
 test("fuzzy fragment: sql finds PostgreSQL and MySQL, nothing unrelated", () => {
-	const idx = buildSearchIndex(production);
+	const idx = buildSearchIndex(fixture);
 	expect(
 		searchNames(idx, "sql")
 			.map((hit) => hit.id)
@@ -70,20 +70,20 @@ test("fuzzy fragment: sql finds PostgreSQL and MySQL, nothing unrelated", () => 
 });
 
 test("fuzzy typo: postgers finds PostgreSQL first", () => {
-	const idx = buildSearchIndex(production);
+	const idx = buildSearchIndex(fixture);
 	const hits = searchNames(idx, "postgers");
 	expect(hits[0]?.id).toBe("postgresql");
 });
 
 test("alias postgres finds PostgreSQL", () => {
-	const idx = buildSearchIndex(production);
+	const idx = buildSearchIndex(fixture);
 	expect(searchNames(idx, "postgres").map((hit) => hit.id)).toEqual([
 		"postgresql",
 	]);
 });
 
 test("nonsense query finds nothing", () => {
-	const idx = buildSearchIndex(production);
+	const idx = buildSearchIndex(fixture);
 	expect(searchNames(idx, "zzzz")).toEqual([]);
 });
 

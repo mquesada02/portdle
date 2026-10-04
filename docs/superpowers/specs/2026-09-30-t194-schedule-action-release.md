@@ -1,0 +1,84 @@
+# Ticket spec: Schedule Action, runbook, and release
+
+Spec for #194. Tracker: https://github.com/mquesada02/portdle/issues/194. Parent: Spec 5 (Dailies from the backend), https://github.com/mquesada02/portdle/issues/181 (`docs/superpowers/specs/2026-09-30-spec5-dailies-backend.md`, "Schedule Action and generator", "Owner steps at release", "Development and CI", stories 63 to 68). Map: https://github.com/mquesada02/portdle/issues/169. Base branch: `spec5`. Blocked by #185, #188, and #193 (all merged).
+
+## Problem Statement
+
+The Daily freeze workflow still commits the Schedule files to `master`, which no longer feed the site. The generator now runs against Postgres (`pnpm schedule:generate`), but nothing runs it on a timer, so the Schedule would run dry seven days after the switch-over. The owner has no written steps to edit entries, to run the generator by hand, or to fix a real mistake in a past answer. The committed catalog and Schedule files, `identity.json`, and the CI schedule check outlive their purpose, and the release has no checklist.
+
+## Solution
+
+The workflow becomes the Schedule Action: it runs the generator every day at 00:05 UTC and by hand, as the generator role over the session pooler, with the secret seed. It no longer commits, no longer starts CI, and holds read-only repository rights. The keep-alive job stays unchanged. Two owner documents are added: a runbook and a release checklist. The switch-over day is set to the release day, 2026-10-04, and every switch-over artifact is regenerated from the committed files. Last, the old pipeline is removed: the catalog and Schedule files (moved to test fixtures), `identity.json` with its check and test, the CI schedule check, and the scripts and engine functions only the old pipeline used.
+
+## User Stories
+
+1. As the owner, I want the Schedule Action to run daily at 00:05 UTC, so that the Schedule always reaches seven days ahead. (Spec story 63.)
+2. As the owner, I want to start the Schedule Action by hand, so that I run it after a catalog edit or an outage. (Spec stories 63 and 68.)
+3. As the owner, I want the Action to connect only through `SCHEDULE_DATABASE_URL` and to mix `SCHEDULE_SEED` into every shuffle, both read from repository secrets, so that a leaked log or the code alone cannot reveal a future Daily. (Spec stories 65 and 66.)
+4. As the owner, I want the Action to hold only `contents: read`, so that a leaked token cannot change the repository. (Spec story 64 and the ticket.)
+5. As the owner, I want the Action never to commit and never to start CI, so that a run changes the database only.
+6. As the owner, I want the keep-alive job to stay byte for byte as it is, so that the free project does not pause. (Spec story 67.)
+7. As the owner, I want a run with a missing secret to fail with the generator script's own message, so that I see the cause in the Actions tab.
+8. As the owner, I want a runbook that tells me how to edit entries in the Table Editor, so that I change the catalog without a commit.
+9. As the owner, I want the runbook to tell me how to run the Action by hand, also after a long outage, so that I know a run fills every missing day.
+10. As the owner, I want the runbook to give the exact statements to disable and re-enable a trigger as the table owner, so that I can fix a real mistake in a past answer without guessing.
+11. As the owner, I want a release checklist in order, so that I switch over without rediscovering the steps. (Spec "Owner steps at release".)
+12. As the owner, I want every repository secret and variable named in those documents and none committed, so that I know what to set and nothing leaks.
+13. As the owner, I want the switch-over day set to 2026-10-04 and the import migration and every other artifact regenerated from the committed files, so that every Daily on or before that day keeps its answer.
+14. As a developer, I want the catalog and Schedule files, `identity.json` with its check and test, and the CI schedule check removed after the final regeneration, so that no dead data or step stays. The files that tests use move to `src/test/fixtures/`. (Owner decisions of 2026-10-03: the fixtures and the removal of the orphaned pipeline.)
+15. As the owner, I want nothing outside tests to import those fixtures, so that the production bundle holds no catalog and no Schedule.
+
+## Implementation Decisions
+
+- **Order of work** (owner decision): the Schedule files on `master` change at each 00:05 UTC freeze until the owner merges the release, and the import must cover the committed Schedule through the switch-over day. The ticket therefore lands in two stages.
+  1. Now: the Action, the two documents, the switch-over day, a regeneration on the files in the worktree, and the PR.
+  2. After the 2026-10-04 freeze (the coordinator syncs `spec5` and says so): merge `origin/spec5` into the branch, run `pnpm gen:catalog-migration` again and commit the migration only if it changes (`pnpm gen:catalog-migration --check` passing is the evidence; the Schedule JSON files may already cover the day, so the commit can be empty), then one last deletion commit, then CI. The coordinator keeps `spec5` synced with `master`; the worker never merges `master` itself.
+  The deletion is the last commit, so the generator script can still run in stage 2. Stage 1 ends with the worker opening the PR and then waiting on the coordinator, with a blocking `ask` that names the trigger: the coordinator's message that `spec5` holds the 2026-10-04 freeze. The worker starts stage 2 only on that message, and sends its final report only after stage 2 and a green CI. The PR is not ready before then.
+- **Workflow file**: `.github/workflows/daily-freeze.yml` is renamed with `git mv` to `schedule-action.yml`; `name: Schedule Action`; triggers `schedule` (`5 0 * * *`) and `workflow_dispatch`; concurrency group `schedule-action` with `cancel-in-progress: false`.
+- **Generate job** (`generate`): `runs-on: ubuntu-latest`, `permissions: contents: read` (the checkout needs it). The checkout has no `ref` pin: scheduled runs use the default branch, and a manual run uses the branch picked in the UI. Steps: checkout, `pnpm/action-setup@v4`, `actions/setup-node@v4` (Node 22, pnpm cache), `pnpm install --frozen-lockfile`, then `pnpm schedule:generate` with `SCHEDULE_DATABASE_URL` and `SCHEDULE_SEED` in `env` from `secrets`, never in inline script text. No `git` step, no `gh` step, no `actions: write`.
+- **Keep-alive job**: copied byte for byte (variables `SUPABASE_URL` and `SUPABASE_ANON_KEY`, `permissions: {}`, no `needs`).
+- **Repository secrets and variables** (the only ones): secrets `SCHEDULE_DATABASE_URL` (the session pooler connection string, port 5432, user `schedule_generator.<project-ref>`) and `SCHEDULE_SEED` (a long random string, kept in the password manager too); variables `SUPABASE_URL` and `SUPABASE_ANON_KEY` (public, already set). The generator password is already set on the live project (owner, 2026-10-02), so the checklist builds the connection string from the password in the password manager and sets no new password.
+- **Runbook** `docs/runbook.md`: three procedures. (1) Edit entries: Table Editor, table `catalog_entries`; `retired`, `answer_eligible`, and text fields stay editable; the database rejects a delete, a changed id, and a changed name or port of a past answer; then run the Action by hand so a new or retired entry reaches the future days. (2) Run the Action by hand: Actions tab, "Schedule Action", "Run workflow"; a run fills every missing day, so it is also the fix after an outage; run it from the default branch, because a manual run uses the code of the branch picked in the UI; a failed run sends GitHub's failure email; the Schedule reaches today + 7, so an outage shorter than seven days loses no Daily. (3) Fix a real mistake in a past answer: in the SQL editor as the table owner (`postgres`), disable the trigger (`alter table public.schedule disable trigger guard_schedule_write;`), fix the row, enable it again (`alter table public.schedule enable trigger guard_schedule_write;`); the same pair for `public.catalog_entries` and `guard_entry_update`; the truncate and entry-delete triggers stay on, so a row is updated and never deleted and re-inserted; always enable again in the same session, and check with `select tgname, tgenabled from pg_trigger where tgrelid in ('public.schedule'::regclass, 'public.catalog_entries'::regclass) and not tgisinternal;` (every `tgenabled` is `O`).
+- **Release checklist** `docs/release-checklist.md`, in order, for 2026-10-04 and never earlier: (1) apply migrations `20261001000008` through `20261001000013` in filename order in the SQL editor (`20261001000007` is already applied live); (2) build `SCHEDULE_DATABASE_URL` from the session pooler string (port 5432, user `schedule_generator.<project-ref>`) and the generator password already in the password manager (set 2026-10-02; the checklist sets no new password, which the parent spec's "set the role's password" step covers); (3) set the two repository secrets; (4) merge the release (the coordinator squash-merges `spec5` into `master` after the owner confirms steps 1 to 3); (5) run the Schedule Action once by hand, which fills the Schedule after the switch-over day with the secret seed; (6) check that the Action run is green and that `schedule` has rows through today + 7 for each category. The checklist names every secret and variable and holds no value. The PR carries both documents, and the coordinator hands the checklist to the owner.
+- **Switch-over day**: `src/engine/switch-over.ts` becomes `"2026-10-04"`. `pnpm gen:catalog-migration` rewrites `supabase/migrations/20261001000009_catalog_schedule_import.sql` from that day. The only other holder of the day is the client build, which reads the same constant. If the generator cannot cover the day from the committed files, the run fails and stage 1 stops and asks the coordinator.
+- **CI**: the `pnpm gen:schedule --check` step leaves the `build` job in the deletion commit. Nothing else in `ci.yml` changes.
+- **Deletion commit** (after the regeneration, owner decisions Q1 and Q3):
+  - `git mv` the two catalogs and the three Schedule JSON files to `src/test/fixtures/`, mirroring the old tree (`src/test/fixtures/{applications,protocols}.json` and `src/test/fixtures/schedules/{applications,mixed,protocols}.json`), point the six files that import them (`src/test/dailies.ts` (a helper), `catalog-load.test.ts`, `schedule-gen-rows.test.ts`, `search.test.ts`, `codex-page.test.tsx`, `miss-popover.test.tsx`) there, and reword their "production catalog" checks and comments to "frozen fixture";
+  - delete `identity.json` and its check and test in `catalog-load.test.ts`; the fixture check of the Schedule JSON files with `validateSchedules` stays, with only its `validateFrozenIdentity` half removed;
+  - `src/bundle.test.ts` guards the production bundle with the pattern `catalogs/`, which no import path holds after the move: change it to `(catalogs|test/fixtures)/`, so a product file that imports the fixtures fails the test (the automated form of the Bundle check);
+  - in `src/engine/schedule-gen.test.ts`, delete the tests that call a removed function; a test that checks kept behavior (`validateSchedules`, the no-negative-day-index rule) stays when it does not call a removed function, and otherwise is ported to `generateFromRows` unless `schedule-gen-rows.test.ts` already holds an equal test;
+  - delete `scripts/gen-schedule.ts` with its test and the `gen:schedule` script, `scripts/gen-catalog-migration.ts` with its test and the `gen:catalog-migration` script, and the `schedule-gen.ts` functions and types only they used, with their tests: `generateSchedules`, `checkSchedules`, `validateFrozenIdentity`, `identityEqual`, `schedulesEqual`, `recordIdentity`, `clone`, `frozenPrefixIds`, `defaultRandom`, the `FrozenIdentity` type, and the imports left unused by these removals (in `schedule-gen.ts` and in `schedule-gen.test.ts`). Everything `schedule-store.ts`, `generateFromRows`, `hmac-random.ts`, and the kept tests use stays, among it `validateSchedules`, `sameCycleSwapIndex`, `cycleForDay`, `SCHEDULE_EPOCH`, `RandomFactory`, and `StoredRow`;
+  - reword only the comments in migration `20261001000009`, `switch-over.ts`, and `supabase/tests/catalog-import.sql` (its header names the removed Vitest test) to say the import was generated once by a script since removed; the migration's SQL and the SQL test's statements stay byte for byte the same.
+  - Before each deletion a search shows who still uses the symbol. A symbol with a user stays. History specs under `docs/superpowers/` keep the old names as they were written.
+- **Deletion check**: after the deletion, `pnpm typecheck` and `pnpm test` pass, and a search of the repository (outside `docs/`) finds none of the removed names (`gen:schedule`, `gen-schedule`, `gen:catalog-migration`, `gen-catalog-migration`, `identity.json`, `FrozenIdentity`, `generateSchedules`, `checkSchedules`, `validateFrozenIdentity`, `identityEqual`, `schedulesEqual`, `recordIdentity`).
+- **Bundle check**: after the move, `src/bundle.test.ts` fails if a product file imports `catalogs/` or `test/fixtures/`, a search of `src/` shows that only test files import `src/test/fixtures/`, and a search of the built `dist/` finds no catalog entry name (sample: `chargen`, `pgadmin`).
+
+## Testing Decisions
+
+- A good check here proves the shipped files, not their internals. The workflow and the documents have no unit test; their checks run and are recorded in the pull request:
+  - the workflow parses as YAML and `actionlint` passes when installed (the pull request records it as skipped when it is not); a search shows no `contents: write`, `actions: write`, `git push`, `git commit`, or `gh workflow run`, and the keep-alive job matches the old file's keep-alive block line for line (`diff` of that block against `git show origin/spec5:.github/workflows/daily-freeze.yml`);
+  - stage 1: `pnpm gen:catalog-migration` leaves the migration changed only by the day and its rows, and `pnpm gen:catalog-migration --check` passes; `pnpm test` still passes with the day at 2026-10-04;
+  - stage 2: after the regeneration `--check` passes; after the deletion `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass, the bundle check above passes, and the CI `build` and `sql-tests` jobs are green on the pull request;
+  - story 7: `pnpm schedule:generate` run with both variables unset exits non-zero and prints `Set SCHEDULE_DATABASE_URL and SCHEDULE_SEED.`;
+  - stories 8 to 10: the runbook's `alter table ... disable trigger`, `enable trigger`, and `pg_trigger` statements run as written on the local stack (`postgres` role, in one transaction that rolls back), and the `pg_trigger` query shows every `tgenabled` as `O` after the enable;
+  - stories 11 and 12: a search of the two documents finds each of `SCHEDULE_DATABASE_URL`, `SCHEDULE_SEED`, `SUPABASE_URL`, and `SUPABASE_ANON_KEY`, the checklist steps appear in the order of the spec's "Owner steps at release", and a search of the repository finds no connection string with a password and no seed value;
+  - the migration's SQL is unchanged by the comment edit (a `diff` ignoring comment lines is empty).
+- Prior art: `.github/workflows/daily-freeze.yml` (the old name; the freeze and keep-alive jobs), `docs/superpowers/specs/2026-09-29-t141-keep-alive.md`, `scripts/schedule-generator.ts` (the environment variables), `supabase/migrations/20261001000010_catalog_schedule_protections.sql` (trigger names).
+
+## Out of Scope
+
+- The live steps (applying migrations, setting secrets, the first Action run): the owner does them on 2026-10-04 with the checklist.
+- The squash-merge of `spec5` into `master` (the coordinator does it after the owner confirms the live steps), and any push to `master`.
+- Changes to the generator, the migrations' SQL, the SQL tests' statements (only the one comment in `supabase/tests/catalog-import.sql` changes), or the Playwright suite.
+- Setting a new generator password (owner decision: the live password is already set, 2026-10-02).
+- A way to alert on a failed Action beyond GitHub's failure email.
+- A source of activity for the Action if the repository becomes public (the spec names it as a later need).
+
+## Further Notes
+
+Author calls made in this spec, for the owner to veto:
+
+- The checkout has no `ref` pin, so a manual run uses the branch picked in the UI (the runbook says to pick the default branch).
+- `cancel-in-progress: false` stays as in the old workflow, so a second run waits for the first.
+- The workflow is renamed to `schedule-action.yml`; the old run history stays under the old name.
+- The Schedule JSON files are not deleted before the regeneration, because the generator script needs them.

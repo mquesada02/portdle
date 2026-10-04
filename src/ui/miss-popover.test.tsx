@@ -10,11 +10,11 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
-import protocolsJson from "../catalogs/protocols.json";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { dailyOn, padToAnswer } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
+import protocolsJson from "../test/fixtures/protocols.json";
 import {
 	loaded,
 	memoryStore,
@@ -26,7 +26,7 @@ import { MissPopover } from "./miss-popover";
 
 const mixedAnswer = dailyOn("mixed");
 
-// FTP's description and first source are read from the production catalog
+// FTP's description and first source are read from the frozen fixture catalog
 // rather than hardcoded, so this file does not need updating every time
 // catalog content changes (see docs/superpowers/specs/2026-09-11-t43-content.md).
 const protocols = protocolsJson as CatalogEntry[];
@@ -172,7 +172,7 @@ test("a pointer-down outside the trigger and panel closes it", async () => {
 });
 
 test("an entry with no sources shows no sources block", () => {
-	// Every production entry now carries at least one source (t43), so this
+	// Every fixture entry carries at least one source (t43), so this
 	// exercises MissPopover directly with a fixture entry that has none,
 	// rather than relying on the catalog to happen to have a sourceless row.
 	const entryWithNoSources: CatalogEntry = {

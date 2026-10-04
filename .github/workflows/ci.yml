@@ -20,7 +20,6 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm gen:schedule --check
       - run: pnpm build
         env:
           VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
