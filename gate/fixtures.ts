@@ -11,7 +11,12 @@
 // polls from the test process.
 
 import { test as base, expect } from "@playwright/test";
-import { stubBackend } from "./stub.ts";
+import {
+	type AccountOption,
+	accountFor,
+	STUB_URL,
+	stubBackend,
+} from "./stub.ts";
 
 export { expect };
 
@@ -30,17 +35,62 @@ function initScript(theme: string) {
 	localStorage.setItem("portdle:v1:theme", JSON.stringify(theme));
 }
 
-export const test = base.extend({
-	page: async ({ page, baseURL, colorScheme }, use) => {
+// The fixed sign-in: a session that expires in 2100, so the Supabase library
+// never refreshes it. The access token only has to look like a JWT.
+const SESSION_EXPIRY = 4102444800;
+
+function base64url(value: object): string {
+	return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function sessionOf(accountId: string) {
+	const claims = { sub: accountId, role: "authenticated", exp: SESSION_EXPIRY };
+	return {
+		access_token: `${base64url({ alg: "HS256", typ: "JWT" })}.${base64url(claims)}.stub`,
+		refresh_token: "stub-refresh-token",
+		token_type: "bearer",
+		expires_in: 3600,
+		expires_at: SESSION_EXPIRY,
+		user: {
+			id: accountId,
+			aud: "authenticated",
+			role: "authenticated",
+			email: "player@stub.test",
+			app_metadata: {},
+			user_metadata: {},
+			created_at: "2026-10-01T00:00:00Z",
+		},
+	};
+}
+
+// Runs in the page before any script, so the app finds the sign-in at load.
+function signInScript(stored: { key: string; session: object }) {
+	localStorage.setItem(stored.key, JSON.stringify(stored.session));
+}
+
+// `account` is set per file with `test.use({ account: "confirmed" })`; null
+// leaves the test signed out.
+export const test = base.extend<{ account: AccountOption | null }>({
+	account: [null, { option: true }],
+	page: async ({ page, baseURL, colorScheme, account }, use) => {
 		if (!baseURL) {
 			throw new Error("The gate configuration sets no baseURL.");
 		}
+		const signedIn = account === null ? undefined : accountFor(account);
 		const unstubbed = await stubBackend(
 			page.context(),
 			new URL(baseURL).origin,
+			signedIn,
 		);
 		await page.clock.install({ time: FIXED_TIME });
 		await page.addInitScript(initScript, colorScheme ?? "light");
+		if (signedIn) {
+			const key = `sb-${new URL(STUB_URL).hostname.split(".")[0]}-auth-token`;
+			await page.addInitScript(signInScript, {
+				key,
+				session: sessionOf(signedIn.id),
+			});
+		}
 		await use(page);
 		expect(unstubbed, "requests with no stub").toEqual([]);
 	},

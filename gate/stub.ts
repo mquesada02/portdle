@@ -13,6 +13,14 @@ export const STUB_KEY = "stub-anon-key";
 
 type Row = Record<string, unknown>;
 
+// A signed-in account: the row of the `accounts` table that the stub serves.
+export type AccountRow = {
+	id: string;
+	display_name: string;
+	name_confirmed: boolean;
+};
+export type AccountOption = "confirmed" | "unconfirmed";
+
 function fixture(file: string): Row[] {
 	return JSON.parse(
 		readFileSync(join(import.meta.dirname, "fixtures", file), "utf8"),
@@ -23,6 +31,35 @@ const CURRENT_DAILIES = fixture("current-dailies.json");
 const CATALOG = fixture("catalog.json");
 const SCHEDULE = fixture("schedule.json");
 const GLOBAL_STATS = fixture("daily-global-stats.json");
+const ACCOUNTS = fixture("accounts.json") as AccountRow[];
+const LEADERBOARD = fixture("leaderboard.json");
+
+// The account row of an option: the one whose name is (not) confirmed.
+export function accountFor(option: AccountOption): AccountRow {
+	const row = ACCOUNTS.find(
+		(account) => account.name_confirmed === (option === "confirmed"),
+	);
+	if (!row) {
+		throw new Error(`No ${option} account in accounts.json.`);
+	}
+	return row;
+}
+
+// The tables that Sync reads for a signed-in account (all empty).
+const SYNC_TABLES = [
+	"codex_entries",
+	"blitz_bests",
+	"dailies",
+	"preferences",
+	"blitz_runs",
+];
+
+// What the stub answers: a status, and a JSON body unless it is empty.
+type Reply = { status: number; body?: unknown };
+
+function ok(body: unknown): Reply {
+	return { status: 200, body };
+}
 
 const CORS = {
 	"access-control-allow-origin": "*",
@@ -41,29 +78,68 @@ function eq(url: URL, column: string): string | null {
 	return url.searchParams.get(column)?.replace(/^eq\./, "") ?? null;
 }
 
-function answer(url: URL): Row[] | null {
+// The answers for a signed-in test. A write is answered only where Sync makes
+// one: the first sync of a device pushes the stored preferences.
+function answerSignedIn(
+	url: URL,
+	method: string,
+	account: AccountRow,
+): Reply | null {
+	const table = url.pathname.replace("/rest/v1/", "");
+	if (method === "POST") {
+		return table === "preferences" ? { status: 201 } : null;
+	}
+	if (method !== "GET") {
+		return null;
+	}
+	if (table === "accounts") {
+		return eq(url, "id") === account.id ? ok(account) : null;
+	}
+	if (SYNC_TABLES.includes(table)) {
+		return ok([]);
+	}
+	if (table === "leaderboard_all_time") {
+		return ok(
+			LEADERBOARD.filter((row) =>
+				["category", "orientation", "mode"].every(
+					(column) => row[column] === eq(url, column),
+				),
+			),
+		);
+	}
+	return null;
+}
+
+function answer(
+	url: URL,
+	method: string,
+	account: AccountRow | undefined,
+): Reply | null {
 	switch (url.pathname) {
 		case "/rest/v1/rpc/current_dailies":
-			return CURRENT_DAILIES;
+			return ok(CURRENT_DAILIES);
 		case "/rest/v1/catalog_entries":
-			return firstPage(CATALOG, url);
+			return ok(firstPage(CATALOG, url));
 		case "/rest/v1/schedule":
-			return firstPage(SCHEDULE, url);
+			return ok(firstPage(SCHEDULE, url));
 		case "/rest/v1/daily_global_stats":
-			return GLOBAL_STATS.filter(
-				(row) =>
-					row.category === eq(url, "category") && row.day === eq(url, "day"),
+			return ok(
+				GLOBAL_STATS.filter(
+					(row) =>
+						row.category === eq(url, "category") && row.day === eq(url, "day"),
+				),
 			);
 		default:
-			return null;
+			return account ? answerSignedIn(url, method, account) : null;
 	}
 }
 
-// Installs the stub on a context. Returns the list that collects every
-// request that had no stub.
+// Installs the stub on a context. A signed-in test also passes its account.
+// Returns the list that collects every request that had no stub.
 export async function stubBackend(
 	context: BrowserContext,
 	previewOrigin: string,
+	account?: AccountRow,
 ): Promise<string[]> {
 	const unstubbed: string[] = [];
 	await context.route("**/*", async (route) => {
@@ -76,13 +152,14 @@ export async function stubBackend(
 			if (request.method() === "OPTIONS") {
 				return route.fulfill({ status: 204, headers: CORS });
 			}
-			const rows = answer(url);
-			if (rows) {
+			const reply = answer(url, request.method(), account);
+			if (reply) {
 				return route.fulfill({
-					status: 200,
+					status: reply.status,
 					contentType: "application/json",
 					headers: CORS,
-					body: JSON.stringify(rows),
+					body:
+						reply.body === undefined ? undefined : JSON.stringify(reply.body),
 				});
 			}
 		}
