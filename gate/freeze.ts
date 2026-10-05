@@ -45,6 +45,53 @@ export async function waitForQuiet(page: Page): Promise<void> {
 	);
 }
 
+// Holds the animations that `interact` starts, so a slow poll cannot miss them.
+// A poll can come after a 150 ms animation ends: the machine can be loaded, the
+// page can be loading, or hundreds of view-transition animations can slow the
+// page evaluation. A view transition: when it is ready, every animation gets
+// the rate 0. A keyframe: at its start event, the animations of the element get
+// the rate 0 (an init script covers a page that `interact` loads). An animation
+// with rate 0 still counts as running, so the poll finds it and pauses it. The
+// hold stays for the life of the page.
+async function holdStarts(page: Page, target: string): Promise<void> {
+	if (target.startsWith("::")) {
+		await page.evaluate(() => {
+			// An engine without view transitions has nothing to hold.
+			if (typeof document.startViewTransition !== "function") {
+				return;
+			}
+			const start = document.startViewTransition.bind(document);
+			document.startViewTransition = (...args: Parameters<typeof start>) => {
+				const transition = start(...args);
+				// The empty rejection handler is for a skipped transition.
+				transition.ready.then(
+					() => {
+						for (const a of document.getAnimations()) {
+							a.playbackRate = 0;
+						}
+					},
+					() => {},
+				);
+				return transition;
+			};
+		});
+		return;
+	}
+	const hold = () => {
+		document.addEventListener(
+			"animationstart",
+			(event) => {
+				for (const a of (event.target as Element).getAnimations()) {
+					a.playbackRate = 0;
+				}
+			},
+			true,
+		);
+	};
+	await page.addInitScript(hold);
+	await page.evaluate(hold);
+}
+
 // Pauses the installed clock one second ahead. Use it after `waitForQuiet` and
 // after all typing, before the interaction: the jump runs the timers that are
 // due in that second. With a paused clock, no page timer fires, so a timer
@@ -88,6 +135,7 @@ export async function shootMotion(
 		toleranceOnAllFrames,
 	} = options;
 	await waitForQuiet(page);
+	await holdStarts(page, target);
 	await interact();
 	await pollUntil(`no animation named ${target} started`, TIMEOUT_MS, () =>
 		page.evaluate(
