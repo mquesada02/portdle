@@ -33,7 +33,9 @@ begin
 	-- Runs: (account, ended_at, score, time). Key: protocols, inverted, marathon.
 	insert into public.blitz_runs (account_id, ended_at, category, orientation, mode, ended, score, time_to_score_ms, rounds) values
 		(ua, now() - interval '1 second', 'protocols', 'inverted', 'marathon', 'lives', 10, 5000, '[]'),
-		(ua, week_start - interval '1 second', 'protocols', 'inverted', 'marathon', 'lives', 50, 4000, '[]'),
+		-- Two seconds: on a Monday day_start equals week_start, so one second
+		-- would share its (account, ended_at) key with the day_start run below.
+		(ua, week_start - interval '2 seconds', 'protocols', 'inverted', 'marathon', 'lives', 50, 4000, '[]'),
 		(ua, day_start - interval '1 second', 'protocols', 'inverted', 'marathon', 'lives', 30, 4000, '[]'),
 		(ua, now() + interval '1 day', 'protocols', 'inverted', 'marathon', 'lives', 999, 1, '[]'),
 		(ub, now() - interval '1 second', 'protocols', 'inverted', 'marathon', 'lives', 10, 3000, '[]'),
