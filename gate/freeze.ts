@@ -52,11 +52,11 @@ type HoldWindow = Window & { __holdStarts?: boolean };
 // it is ready. A keyframe animation or a CSS transition is held at its start or
 // run event (an init script covers a page that `interact` loads). A held
 // animation still counts as running, so the poll finds it and pauses it.
-// `releaseStarts` ends the hold, so later animations run as usual.
+// `releaseStarts` ends the hold, so later animations run as usual. Call
+// `shootMotion` once per page: the hold cannot be removed from later documents.
 async function holdStarts(page: Page, target: string): Promise<void> {
 	if (target.startsWith("::")) {
 		await page.evaluate(() => {
-			// An engine without view transitions has nothing to hold.
 			if (typeof document.startViewTransition !== "function") {
 				return;
 			}

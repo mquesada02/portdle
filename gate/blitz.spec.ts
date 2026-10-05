@@ -89,7 +89,7 @@ async function restShot(page: Page, name: string) {
 	await expect(page).toHaveScreenshot(`${name}.png`);
 }
 
-// The frames of a phase change. The screen is the new one that plays `rise`.
+// The frames of a phase change.
 function shootPhase(
 	page: Page,
 	reduced: boolean,
