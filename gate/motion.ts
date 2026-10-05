@@ -77,7 +77,11 @@ export async function shootRoundsToggle(
 	const log = page.getByText("you typed").first();
 	const interact = () => page.getByText("Rounds (4)").click();
 	const done = async () => {
-		await (closing ? expect(log).toBeHidden() : expect(log).toBeVisible());
+		if (closing) {
+			await expect(log).toBeHidden();
+		} else {
+			await expect(log).toBeVisible();
+		}
 		if (reduced) {
 			const duration = await page
 				.locator("details")

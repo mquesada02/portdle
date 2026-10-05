@@ -159,10 +159,8 @@ function holdByEvents(page: Page, target: string): Hold {
 	};
 }
 
-// The hold for `DETAILS_CONTENT_TARGET`: the playback rate of the document
-// timeline is 0 before the interaction, so no animation can end before the
-// test acts. The browser reports every started animation, also the ones that
-// `getAnimations()` misses, and `seek` sets the time of all of them.
+// The hold for `DETAILS_CONTENT_TARGET`: the document timeline runs at rate 0
+// before the interaction, and `seek` sets the time of every started animation.
 function holdThroughCdp(page: Page): Hold {
 	const started: string[] = [];
 	let cdp: CDPSession | undefined;
@@ -210,14 +208,29 @@ export async function pauseClock(page: Page): Promise<void> {
 	await page.clock.pauseAt(new Date(now + 1000));
 }
 
+type ShootOptions = {
+	name: string;
+	target: string;
+	times: number[];
+	interact: () => Promise<void>;
+	// The test paused the clock (see `pauseClock`).
+	pausedClock?: boolean;
+	// Shoot the whole page, not the viewport.
+	fullPage?: boolean;
+	// Every frame takes the color tolerance, also the first and the last. The
+	// switcher view transitions need it: the tab label drew one level off in
+	// the first frame and in the last frame, in rare runs.
+	toleranceOnAllFrames?: boolean;
+};
+
 // Runs `interact`, then freezes the animations it starts. `target` names the
 // animation to wait for: a keyframe name such as `pop`, a pseudo-element such
 // as `::view-transition-new(screen)`, a CSS transition by property name such
 // as `transition:opacity`, or `DETAILS_CONTENT_TARGET`. Earlier motion (for
 // example a focus-ring transition from the pointer) must end first, or the
 // helper would freeze it instead of the target. It holds the animations that
-// `interact` starts first (see `holdStarts`, `holdThroughCdp`), and releases the
-// hold after the last frame, or on a failure.
+// `interact` starts first (see `Hold`), and releases the hold after the last
+// frame.
 // Each frame is `<name>-<time>ms.png`.
 export async function shootMotion(
 	page: Page,
@@ -236,21 +249,6 @@ export async function shootMotion(
 		await hold.release().catch(() => {});
 	}
 }
-
-type ShootOptions = {
-	name: string;
-	target: string;
-	times: number[];
-	interact: () => Promise<void>;
-	// The test paused the clock (see `pauseClock`).
-	pausedClock?: boolean;
-	// Shoot the whole page, not the viewport.
-	fullPage?: boolean;
-	// Every frame takes the color tolerance, also the first and the last. The
-	// switcher view transitions need it: the tab label drew one level off in
-	// the first frame and in the last frame, in rare runs.
-	toleranceOnAllFrames?: boolean;
-};
 
 async function shootHeld(
 	page: Page,

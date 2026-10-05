@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function openArena(page: Page, testInfo: TestInfo) {
-	await openGame(page, testInfo, { path: "/portdle/blitz" });
+	return openGame(page, testInfo, { path: "/portdle/blitz" });
 }
 
 async function openSetup(page: Page, testInfo: TestInfo) {
@@ -165,7 +165,7 @@ for (const closing of [false, true]) {
 		page,
 		browserName,
 	}, testInfo) => {
-		const reduced = await openGame(page, testInfo, { path: "/portdle/blitz" });
+		const reduced = await openArena(page, testInfo);
 		await shootRoundsToggle(page, {
 			name: `blitz-rounds-${closing ? "close" : "open"}`,
 			closing,
