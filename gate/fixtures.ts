@@ -11,6 +11,7 @@
 // polls from the test process.
 
 import { test as base, expect } from "@playwright/test";
+import { authStorageKey } from "../scripts/e2e-env.ts";
 import {
 	type AccountOption,
 	accountFor,
@@ -63,11 +64,11 @@ function sessionOf(accountId: string) {
 	};
 }
 
-// The sign-in as the app stores it: the key is the one the app derives from the
-// backend host (`sb-<first host label>-auth-token`).
+// The sign-in as the app stores it, under the key the app derives from the
+// backend host.
 function storedSignIn(accountId: string) {
 	return {
-		key: `sb-${new URL(STUB_URL).hostname.split(".")[0]}-auth-token`,
+		key: authStorageKey(STUB_URL),
 		session: sessionOf(accountId),
 	};
 }
