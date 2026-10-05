@@ -26,7 +26,8 @@
 		"test:sql": "scripts/run-sql-tests.sh",
 		"test:e2e": "tsx scripts/e2e.ts",
 		"gate": "tsx scripts/gate.ts",
-		"gate:capture": "tsx scripts/gate.ts --capture"
+		"gate:capture": "tsx scripts/gate.ts --capture",
+		"check:fixtures": "tsx scripts/check-fixture-shapes.ts"
 	},
 	"dependencies": {
 		"@leeoniya/ufuzzy": "^1.0.19",
