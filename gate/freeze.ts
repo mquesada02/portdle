@@ -1,9 +1,9 @@
 // Freezes motion at fixed times and takes one frame per time.
 //
 // Every wait polls from the test process: a page evaluation, then a real Node
-// sleep (the one fixed wait is `LATE_START_MS` in `shootMotion`). The polls
+// sleep (the one fixed wait is `LATE_START_MS` in `shootHeld`). The polls
 // never use page timers, which the installed clock fakes (see fixtures.ts).
-// The frame sync in `shootMotion` does use
+// The frame sync in `shootHeld` does use
 // `requestAnimationFrame`, so it needs a running clock, or `pausedClock`.
 
 import { setTimeout as sleep } from "node:timers/promises";
