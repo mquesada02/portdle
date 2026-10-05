@@ -7,7 +7,7 @@
 // `requestAnimationFrame`, so it needs a running clock, or `pausedClock`.
 
 import { setTimeout as sleep } from "node:timers/promises";
-import { expect, type Page } from "@playwright/test";
+import { type CDPSession, expect, type Page } from "@playwright/test";
 
 const POLL_MS = 10;
 // A wall-clock budget for every wait below: a loaded runner starts an
@@ -21,6 +21,11 @@ const IN_FLIGHT_THRESHOLD = 0.02;
 // A fixed wait, not a poll: animations of the same change can start late.
 const LATE_START_MS = 100;
 const TRANSITION_PREFIX = "transition:";
+// The target of a Rounds disclosure height change. Chromium lists no
+// `::details-content` transition in `getAnimations()` and fires no event for
+// it, so `shootMotion` holds and seeks it through the CDP (Chrome DevTools
+// Protocol) Animation domain. Chromium only: use it from `shootDisclosure`.
+export const DETAILS_CONTENT_TARGET = "::details-content";
 
 async function pollUntil(
 	label: string,
@@ -46,6 +51,35 @@ export async function waitForQuiet(page: Page): Promise<void> {
 }
 
 type HoldWindow = Window & { __holdStarts?: boolean };
+
+type StartedAnimation = { id: string; name: string };
+
+// Holds every animation that the interaction starts, through the document
+// timeline: the playback rate is 0 before the interaction, so no animation can
+// end before the test acts. `started` lists the animations that the browser
+// reports, also the ones that `getAnimations()` misses. `release` restores
+// the rate and detaches the session.
+async function holdThroughCdp(page: Page): Promise<{
+	started: StartedAnimation[];
+	cdp: CDPSession;
+	release: () => Promise<void>;
+}> {
+	const cdp = await page.context().newCDPSession(page);
+	const started: StartedAnimation[] = [];
+	cdp.on("Animation.animationStarted", ({ animation }) =>
+		started.push({ id: animation.id, name: animation.name }),
+	);
+	await cdp.send("Animation.enable");
+	await cdp.send("Animation.setPlaybackRate", { playbackRate: 0 });
+	return {
+		started,
+		cdp,
+		release: async () => {
+			await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
+			await cdp.detach();
+		},
+	};
+}
 
 // Holds the animations that `interact` starts (rate 0), so a slow poll on a
 // loaded machine cannot miss a 150 ms animation. A view transition is held when
@@ -118,8 +152,8 @@ export async function pauseClock(page: Page): Promise<void> {
 
 // Runs `interact`, then freezes the animations it starts. `target` names the
 // animation to wait for: a keyframe name such as `pop`, a pseudo-element such
-// as `::view-transition-new(screen)`, or a CSS transition by property name
-// such as `transition:opacity`. Earlier motion (for example a
+// as `::view-transition-new(screen)`, a CSS transition by property name
+// such as `transition:opacity`, or `DETAILS_CONTENT_TARGET` (Chromium only). Earlier motion (for example a
 // focus-ring transition from the pointer) must end first, or the helper would
 // freeze it instead of the target. It holds the animations that `interact`
 // starts first (see `holdStarts`), and releases the hold after the last frame.
@@ -151,82 +185,108 @@ export async function shootMotion(
 		toleranceOnAllFrames,
 	} = options;
 	await waitForQuiet(page);
-	await holdStarts(page, target);
-	await interact();
-	await pollUntil(`no animation named ${target} started`, TIMEOUT_MS, () =>
-		page.evaluate(
-			({ wanted, prefix }) => {
-				const running = document
-					.getAnimations()
-					.filter((a) => a.playState === "running");
-				const isTarget = (a: Animation) =>
-					wanted.startsWith("::")
-						? (a.effect as KeyframeEffect | null)?.pseudoElement === wanted
-						: wanted.startsWith(prefix)
-							? (a as CSSTransition).transitionProperty ===
-								wanted.slice(prefix.length)
-							: (a as CSSAnimation).animationName === wanted;
-				if (!running.some(isTarget)) {
-					return false;
-				}
-				for (const a of running) {
+	// The CDP route skips `holdStarts` (it patches `startViewTransition`), and
+	// `releaseStarts` (it never sets the hold).
+	const cdpHold =
+		target === DETAILS_CONTENT_TARGET ? await holdThroughCdp(page) : undefined;
+	try {
+		if (!cdpHold) {
+			await holdStarts(page, target);
+		}
+		await interact();
+		if (cdpHold) {
+			await pollUntil(
+				`no ${target} height transition started`,
+				TIMEOUT_MS,
+				() => Promise.resolve(cdpHold.started.some((a) => a.name === "height")),
+			);
+		} else {
+			await pollUntil(`no animation named ${target} started`, TIMEOUT_MS, () =>
+				page.evaluate(
+					({ wanted, prefix }) => {
+						const running = document
+							.getAnimations()
+							.filter((a) => a.playState === "running");
+						const isTarget = (a: Animation) =>
+							wanted.startsWith("::")
+								? (a.effect as KeyframeEffect | null)?.pseudoElement === wanted
+								: wanted.startsWith(prefix)
+									? (a as CSSTransition).transitionProperty ===
+										wanted.slice(prefix.length)
+									: (a as CSSAnimation).animationName === wanted;
+						if (!running.some(isTarget)) {
+							return false;
+						}
+						for (const a of running) {
+							a.pause();
+						}
+						return true;
+					},
+					{ wanted: target, prefix: TRANSITION_PREFIX },
+				),
+			);
+		}
+		// Other animations of the same change can start a frame or two after the
+		// target (the color transitions of the Nav and the switchers). Wait, then
+		// pause them too: a transition that keeps running changes the frames.
+		await sleep(LATE_START_MS);
+		// A pause is pending until the next frame. Setting a time before it settles
+		// races with the pause.
+		await page.evaluate(() => {
+			const animations = document.getAnimations();
+			for (const a of animations) {
+				if (a.playState === "running") {
 					a.pause();
 				}
-				return true;
-			},
-			{ wanted: target, prefix: TRANSITION_PREFIX },
-		),
-	);
-	// Other animations of the same change can start a frame or two after the
-	// target (the color transitions of the Nav and the switchers). Wait, then
-	// pause them too: a transition that keeps running changes the frames.
-	await sleep(LATE_START_MS);
-	// A pause is pending until the next frame. Setting a time before it settles
-	// races with the pause.
-	await page.evaluate(() => {
-		const animations = document.getAnimations();
-		for (const a of animations) {
-			if (a.playState === "running") {
-				a.pause();
 			}
-		}
-		return Promise.all(animations.map((a) => a.ready));
-	});
-	for (const time of times) {
-		// Two drawn frames after the change: a screenshot taken sooner can show
-		// the compositor's stale frame (at 0 ms, a tile already scaled up). This
-		// is a one-shot sync, not a poll. With a running clock it uses the page's
-		// `requestAnimationFrame`. With a paused clock that never fires, so it
-		// uses the browser's own (`window.nativeRaf`, saved in fixtures.ts).
-		await page.evaluate(
-			({ ms, native }) =>
-				new Promise<void>((resolve) => {
-					for (const a of document.getAnimations()) {
-						if (a.playState === "paused") {
-							a.currentTime = ms;
-						}
-					}
-					const raf = native
-						? (
-								window as unknown as {
-									nativeRaf: typeof requestAnimationFrame;
-								}
-							).nativeRaf
-						: requestAnimationFrame;
-					raf(() => raf(() => resolve()));
-				}),
-			{ ms: time, native: pausedClock === true },
-		);
-		const tolerated =
-			toleranceOnAllFrames || (time !== times[0] && time !== times.at(-1));
-		await expect(page).toHaveScreenshot(`${name}-${time}ms.png`, {
-			fullPage,
-			// Left out for the first and last frame: an undefined value would
-			// replace the exact threshold of the gate configuration.
-			...(tolerated && { threshold: IN_FLIGHT_THRESHOLD }),
+			return Promise.all(animations.map((a) => a.ready));
 		});
+		for (const time of times) {
+			if (cdpHold) {
+				await cdpHold.cdp.send("Animation.seekAnimations", {
+					animations: cdpHold.started.map((a) => a.id),
+					currentTime: time,
+				});
+			}
+			// Two drawn frames after the change: a screenshot taken sooner can show
+			// the compositor's stale frame (at 0 ms, a tile already scaled up). This
+			// is a one-shot sync, not a poll. With a running clock it uses the page's
+			// `requestAnimationFrame`. With a paused clock that never fires, so it
+			// uses the browser's own (`window.nativeRaf`, saved in fixtures.ts).
+			await page.evaluate(
+				({ ms, native }) =>
+					new Promise<void>((resolve) => {
+						for (const a of document.getAnimations()) {
+							if (a.playState === "paused") {
+								a.currentTime = ms;
+							}
+						}
+						const raf = native
+							? (
+									window as unknown as {
+										nativeRaf: typeof requestAnimationFrame;
+									}
+								).nativeRaf
+							: requestAnimationFrame;
+						raf(() => raf(() => resolve()));
+					}),
+				{ ms: time, native: pausedClock === true },
+			);
+			const tolerated =
+				toleranceOnAllFrames || (time !== times[0] && time !== times.at(-1));
+			await expect(page).toHaveScreenshot(`${name}-${time}ms.png`, {
+				fullPage,
+				// Left out for the first and last frame: an undefined value would
+				// replace the exact threshold of the gate configuration.
+				...(tolerated && { threshold: IN_FLIGHT_THRESHOLD }),
+			});
+		}
+		if (!cdpHold) {
+			await releaseStarts(page);
+		}
+	} finally {
+		await cdpHold?.release();
 	}
-	await releaseStarts(page);
 }
 
 // With reduced motion, no animation of the target may start. `target` is a

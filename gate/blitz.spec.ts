@@ -9,7 +9,13 @@ import { join } from "node:path";
 import type { Page, TestInfo } from "@playwright/test";
 import { expect, isReduced, test } from "./fixtures.ts";
 import { waitForQuiet } from "./freeze.ts";
-import { restShot, shootOrEnd, TIMES_150 } from "./motion.ts";
+import {
+	openAtRest,
+	restShot,
+	shootDisclosure,
+	shootOrEnd,
+	TIMES_150,
+} from "./motion.ts";
 import { seedStorage } from "./seed.ts";
 import { openGame } from "./state.ts";
 
@@ -155,14 +161,33 @@ test("End card at rest, then Play again: End card to Arena", async ({
 	});
 });
 
-test("Rounds disclosure of the last run", async ({ page }, testInfo) => {
-	await openArena(page, testInfo);
+test("Rounds disclosure of the last run opens", async ({
+	page,
+	browserName,
+}, testInfo) => {
+	const reduced = await openGame(page, testInfo, { path: "/portdle/blitz" });
 	await expect(page.getByText("Rounds (4)")).toBeVisible();
-	await shootOrEnd(page, isReduced(testInfo), {
-		name: "blitz-rounds-rise",
-		target: "rise",
-		times: TIMES_150,
+	await shootDisclosure(page, {
+		name: "blitz-rounds-open",
 		interact: () => page.getByText("Rounds (4)").click(),
 		done: () => expect(page.getByText("you typed").first()).toBeVisible(),
+		reduced,
+		browserName,
+	});
+});
+
+test("Rounds disclosure of the last run closes", async ({
+	page,
+	browserName,
+}, testInfo) => {
+	const reduced = await openGame(page, testInfo, { path: "/portdle/blitz" });
+	await expect(page.getByText("Rounds (4)")).toBeVisible();
+	await openAtRest(page);
+	await shootDisclosure(page, {
+		name: "blitz-rounds-close",
+		interact: () => page.getByText("Rounds (4)").click(),
+		done: () => expect(page.getByText("you typed").first()).toBeHidden(),
+		reduced,
+		browserName,
 	});
 });

@@ -3,9 +3,11 @@
 // come from the current durations (Spec 3, "Durations and easing"). With reduced
 // motion, each test takes one end frame and asserts that no animation started.
 
+import type { Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import { pauseClock, shootMotion, waitForQuiet } from "./freeze.ts";
-import { TIMES_150 } from "./motion.ts";
+import { openAtRest, shootDisclosure, TIMES_150 } from "./motion.ts";
+import { seedStorage } from "./seed.ts";
 import {
 	expectEndFrame,
 	holdGlobalStats,
@@ -209,5 +211,46 @@ test("How-to dialog closes", async ({ page }, testInfo) => {
 		target: "transition:opacity",
 		times: [0, 25, 50, 75, 100],
 		interact: () => gotIt.click(),
+	});
+});
+
+// The Rounds disclosure of a Blitz run in History. The run is the stored last
+// run of `seedStorage`; its time shows in the local time zone.
+test.describe("Rounds disclosure in History", () => {
+	test.use({ timezoneId: "UTC" });
+
+	test.beforeEach(async ({ page }) => {
+		await seedStorage(page);
+	});
+
+	async function openHistory(page: Page, testInfo: TestInfo) {
+		const reduced = await openGame(page, testInfo, {
+			path: "/portdle/history/blitz",
+		});
+		await expect(page.getByText("Rounds (4)")).toBeVisible();
+		return reduced;
+	}
+
+	test("opens", async ({ page, browserName }, testInfo) => {
+		const reduced = await openHistory(page, testInfo);
+		await shootDisclosure(page, {
+			name: "history-rounds-open",
+			interact: () => page.getByText("Rounds (4)").click(),
+			done: () => expect(page.getByText("you typed").first()).toBeVisible(),
+			reduced,
+			browserName,
+		});
+	});
+
+	test("closes", async ({ page, browserName }, testInfo) => {
+		const reduced = await openHistory(page, testInfo);
+		await openAtRest(page);
+		await shootDisclosure(page, {
+			name: "history-rounds-close",
+			interact: () => page.getByText("Rounds (4)").click(),
+			done: () => expect(page.getByText("you typed").first()).toBeHidden(),
+			reduced,
+			browserName,
+		});
 	});
 });
