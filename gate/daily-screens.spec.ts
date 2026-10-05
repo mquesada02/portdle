@@ -3,9 +3,9 @@
 // does). Every frame is the whole page: the Reveal and the lists are below the
 // first screen.
 
-import { expect, test } from "./fixtures.ts";
+import { expect, isReduced, test } from "./fixtures.ts";
 import { waitForQuiet } from "./freeze.ts";
-import { isReduced, LOST, openGame, PLAYED, WON } from "./state.ts";
+import { LOST, openGame, PLAYED, WON } from "./state.ts";
 
 test.beforeEach(({ browserName }, testInfo) => {
 	test.skip(isReduced(testInfo), `A screen at rest (${browserName}).`);

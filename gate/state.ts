@@ -2,7 +2,7 @@
 // state, a held Global stats read, and a log of the animations that start.
 
 import type { Page, TestInfo } from "@playwright/test";
-import { expect } from "./fixtures.ts";
+import { expect, isReduced } from "./fixtures.ts";
 import { waitForQuiet } from "./freeze.ts";
 
 // The stored Daily record: the shape that `isDailyPersist` accepts
@@ -93,10 +93,6 @@ export const PLAYED: Saved[] = [
 	},
 ];
 
-export function isReduced(testInfo: TestInfo): boolean {
-	return testInfo.project.use.reducedMotion === "reduce";
-}
-
 // Writes the records to `localStorage` before the page loads. A marker in
 // `sessionStorage` makes it run once per session, so a reload keeps the
 // progress that the test makes.
@@ -163,9 +159,9 @@ export async function expectEndFrame(
 	options: { fullPage?: boolean } = {},
 ): Promise<void> {
 	await waitForQuiet(page);
-	const log = await page.evaluate(
-		() => (window as MotionWindow).motionLog ?? [],
-	);
+	const log = await page.evaluate(() => (window as MotionWindow).motionLog);
+	// Not installed: the test would pass with no check.
+	expect(log, "motion log installed").toBeDefined();
 	expect(log, "animations that started").toEqual([]);
 	await expect(page).toHaveScreenshot(`${name}-end.png`, options);
 }
