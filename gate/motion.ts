@@ -41,49 +41,6 @@ export async function shootOrEnd(
 	await expectEndFrame(page, name);
 }
 
-// One Rounds disclosure sequence (open or close). The freeze route is the CDP
-// one of `shootMotion`, so it runs in Chromium with motion only. With reduced
-// motion: the interaction, `done`, a check that the page sets no transition on
-// the content, and the end frame. In an engine that does not animate the height
-// (Firefox and WebKit have no `interpolate-size`): the interaction, `done`, and
-// one end frame, which records the instant change.
-export async function shootDisclosure(
-	page: Page,
-	options: {
-		name: string;
-		interact: () => Promise<void>;
-		done: () => Promise<void>;
-		reduced: boolean;
-		browserName: string;
-	},
-): Promise<void> {
-	const { name, interact, done, reduced, browserName } = options;
-	if (!reduced && browserName === "chromium") {
-		await shootMotion(page, {
-			name,
-			target: DETAILS_CONTENT_TARGET,
-			times: TIMES_200,
-			interact,
-		});
-		return;
-	}
-	await interact();
-	await done();
-	if (reduced) {
-		// The motion log cannot see this transition: it fires no event.
-		const duration = await page
-			.locator("details")
-			.evaluate(
-				(details) =>
-					getComputedStyle(details, "::details-content").transitionDuration,
-			);
-		expect(duration, "transition duration of the content").toBe("0s");
-		await expectEndFrame(page, name);
-		return;
-	}
-	await restShot(page, `${name}-end`);
-}
-
 // Opens the one Rounds disclosure of the page and leaves it at rest, for a
 // close sequence. A style tag removes the transition for the click, and goes
 // before the freeze starts. The tag removal changes no computed height, so no
@@ -98,7 +55,11 @@ async function openAtRest(page: Page): Promise<void> {
 }
 
 // The open or the close sequence of the "Rounds (4)" disclosure of the stored
-// last run. `closing` starts from an open disclosure at rest.
+// last run. `closing` starts from an open disclosure at rest. With reduced
+// motion, `done` also checks that the page sets no transition on the content:
+// the motion log cannot see it, as it fires no event. Firefox and WebKit have
+// no `interpolate-size`, so the height does not animate there: one end frame
+// records the instant change.
 export async function shootRoundsToggle(
 	page: Page,
 	options: {
@@ -114,12 +75,30 @@ export async function shootRoundsToggle(
 		await openAtRest(page);
 	}
 	const log = page.getByText("you typed").first();
-	await shootDisclosure(page, {
+	const interact = () => page.getByText("Rounds (4)").click();
+	const done = async () => {
+		await (closing ? expect(log).toBeHidden() : expect(log).toBeVisible());
+		if (reduced) {
+			const duration = await page
+				.locator("details")
+				.evaluate(
+					(details) =>
+						getComputedStyle(details, "::details-content").transitionDuration,
+				);
+			expect(duration, "transition duration of the content").toBe("0s");
+		}
+	};
+	if (!reduced && browserName !== "chromium") {
+		await interact();
+		await done();
+		await restShot(page, `${name}-end`);
+		return;
+	}
+	await shootOrEnd(page, reduced, {
 		name,
-		interact: () => page.getByText("Rounds (4)").click(),
-		done: () =>
-			closing ? expect(log).toBeHidden() : expect(log).toBeVisible(),
-		reduced,
-		browserName,
+		target: DETAILS_CONTENT_TARGET,
+		times: TIMES_200,
+		interact,
+		done,
 	});
 }
