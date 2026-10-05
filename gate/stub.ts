@@ -19,6 +19,11 @@ function fixture(file: string): Row[] {
 	) as Row[];
 }
 
+const CURRENT_DAILIES = fixture("current-dailies.json");
+const CATALOG = fixture("catalog.json");
+const SCHEDULE = fixture("schedule.json");
+const GLOBAL_STATS = fixture("daily-global-stats.json");
+
 const CORS = {
 	"access-control-allow-origin": "*",
 	"access-control-allow-headers":
@@ -39,13 +44,13 @@ function eq(url: URL, column: string): string | null {
 function answer(url: URL): Row[] | null {
 	switch (url.pathname) {
 		case "/rest/v1/rpc/current_dailies":
-			return fixture("current-dailies.json");
+			return CURRENT_DAILIES;
 		case "/rest/v1/catalog_entries":
-			return firstPage(fixture("catalog.json"), url);
+			return firstPage(CATALOG, url);
 		case "/rest/v1/schedule":
-			return firstPage(fixture("schedule.json"), url);
+			return firstPage(SCHEDULE, url);
 		case "/rest/v1/daily_global_stats":
-			return fixture("daily-global-stats.json").filter(
+			return GLOBAL_STATS.filter(
 				(row) =>
 					row.category === eq(url, "category") && row.day === eq(url, "day"),
 			);

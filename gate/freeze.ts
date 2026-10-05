@@ -8,7 +8,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { expect, type Page } from "@playwright/test";
 
 const POLL_MS = 10;
-const TARGET_TIMEOUT_MS = 2000;
+const TIMEOUT_MS = 2000;
 
 async function pollUntil(
 	label: string,
@@ -26,7 +26,7 @@ async function pollUntil(
 
 // Waits until no animation is running. Use it before a frame at rest.
 export async function waitForQuiet(page: Page): Promise<void> {
-	await pollUntil("animations still running", TARGET_TIMEOUT_MS, () =>
+	await pollUntil("animations still running", TIMEOUT_MS, () =>
 		page.evaluate(() =>
 			document.getAnimations().every((a) => a.playState !== "running"),
 		),
@@ -48,49 +48,30 @@ export async function shootMotion(
 	},
 ): Promise<void> {
 	const { name, target, times, interact } = options;
-	// The animations that exist now are the earlier motion.
-	await page.evaluate(() => {
-		(window as unknown as { gateEarlier: Animation[] }).gateEarlier =
-			document.getAnimations();
-	});
+	await waitForQuiet(page);
 	await interact();
-	await pollUntil("earlier motion still running", TARGET_TIMEOUT_MS, () =>
-		page.evaluate(() =>
-			(window as unknown as { gateEarlier: Animation[] }).gateEarlier.every(
-				(a) => a.playState !== "running",
-			),
-		),
-	);
-	await pollUntil(
-		`no animation named ${target} started`,
-		TARGET_TIMEOUT_MS,
-		() =>
-			page.evaluate((wanted) => {
-				const running = document
-					.getAnimations()
-					.filter((a) => a.playState === "running");
-				const isTarget = (a: Animation) =>
-					wanted.startsWith("::")
-						? (a.effect as KeyframeEffect | null)?.pseudoElement === wanted
-						: (a as CSSAnimation).animationName === wanted;
-				if (!running.some(isTarget)) {
-					return false;
-				}
-				for (const a of running) {
-					a.pause();
-				}
-				return true;
-			}, target),
+	await pollUntil(`no animation named ${target} started`, TIMEOUT_MS, () =>
+		page.evaluate((wanted) => {
+			const running = document
+				.getAnimations()
+				.filter((a) => a.playState === "running");
+			const isTarget = (a: Animation) =>
+				wanted.startsWith("::")
+					? (a.effect as KeyframeEffect | null)?.pseudoElement === wanted
+					: (a as CSSAnimation).animationName === wanted;
+			if (!running.some(isTarget)) {
+				return false;
+			}
+			for (const a of running) {
+				a.pause();
+			}
+			return true;
+		}, target),
 	);
 	// A pause is pending until the next frame. Setting a time before it settles
 	// races with the pause.
 	await page.evaluate(() =>
-		Promise.all(
-			document
-				.getAnimations()
-				.filter((a) => a.playState === "paused")
-				.map((a) => a.ready),
-		),
+		Promise.all(document.getAnimations().map((a) => a.ready)),
 	);
 	for (const time of times) {
 		// Two drawn frames after the change: a screenshot taken sooner can show
@@ -115,7 +96,7 @@ export async function shootMotion(
 	}
 }
 
-// With reduced motion, no animation of the target name may start.
+// With reduced motion, no CSS animation of the target name may start.
 export async function expectNoMotion(
 	page: Page,
 	target: string,

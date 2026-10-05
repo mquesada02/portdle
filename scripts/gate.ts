@@ -4,7 +4,8 @@
 // writes gate-baseline/ instead. `--src <dir>` builds the site from another
 // checkout (CI uses it to capture the merge-base commit); the gate tests are
 // always the ones in this checkout. No stack is needed: Playwright answers the
-// backend. pnpm puts the vite and playwright binaries on PATH for scripts.
+// backend. `pnpm exec vite` runs the vite of the `--src` checkout; pnpm puts
+// the playwright binary on PATH for scripts.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -19,7 +20,12 @@ for (let index = 0; index < args.length; index++) {
 	if (arg === "--capture") {
 		capture = true;
 	} else if (arg === "--src") {
-		src = args[++index] ?? ".";
+		const value = args[++index];
+		if (value === undefined) {
+			console.error("--src needs a directory.");
+			process.exit(1);
+		}
+		src = value;
 	} else if (arg !== undefined) {
 		rest.push(arg);
 	}
