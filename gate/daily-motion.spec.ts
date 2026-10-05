@@ -1,0 +1,209 @@
+// The Daily, Archive, and History motions. Each frame sequence is its own test
+// with its own page: `shootMotion` leaves the animations paused. Frame times
+// come from today's durations (Spec 3, "Durations and easing"). With reduced
+// motion, each test takes one end frame and asserts that no animation started.
+
+import { expect, test } from "./fixtures.ts";
+import { pauseClock, shootMotion, waitForQuiet } from "./freeze.ts";
+import {
+	expectEndFrame,
+	holdGlobalStats,
+	IDENTIFIED_MISS,
+	openGame,
+	PLAYED,
+} from "./state.ts";
+
+// Every view transition and every dialog enter lasts 150 ms.
+const ENTER_TIMES = [0, 40, 75, 110, 150];
+
+test("row shake of an empty guess", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo);
+	await page.getByLabel("Digit 1 of 2").click();
+	if (reduced) {
+		await page.keyboard.press("Enter");
+		await expect(page.getByText("Not enough digits.")).toBeVisible();
+		await expectEndFrame(page, "daily-row-shake");
+		return;
+	}
+	// 300 ms; the keyframe stops at 20, 40, 60, and 80 percent are at 60 to 240.
+	await shootMotion(page, {
+		name: "daily-row-shake",
+		target: "shake",
+		times: [0, 60, 120, 180, 240, 300],
+		interact: () => page.keyboard.press("Enter"),
+	});
+});
+
+test("divider draw and Reveal rise of a won Daily", async ({
+	page,
+}, testInfo) => {
+	const release = await holdGlobalStats(page);
+	const reduced = await openGame(page, testInfo);
+	await page.getByLabel("Digit 1 of 2").click();
+	await page.keyboard.type("22");
+	if (reduced) {
+		await page.keyboard.press("Enter");
+		await expect(page.getByText("Solved")).toBeVisible();
+		await expectEndFrame(page, "daily-finish", { fullPage: true });
+		release();
+		return;
+	}
+	await waitForQuiet(page);
+	await pauseClock(page);
+	// The draw lasts 300 ms. The rise starts at 250 ms and ends at 550 ms.
+	await shootMotion(page, {
+		name: "daily-finish",
+		target: "draw",
+		times: [0, 140, 250, 300, 425, 550],
+		interact: () => page.keyboard.press("Enter"),
+		pausedClock: true,
+		fullPage: true,
+	});
+	release();
+});
+
+test("Miss popover opens", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo, {
+		records: [IDENTIFIED_MISS],
+	});
+	const trigger = page.locator("[data-popover] button");
+	await expect(trigger).toBeVisible();
+	if (reduced) {
+		await trigger.click();
+		await expect(page.getByRole("note")).toBeVisible();
+		await expectEndFrame(page, "daily-popover-open");
+		return;
+	}
+	await shootMotion(page, {
+		name: "daily-popover-open",
+		target: "popover-in",
+		times: [0, 30, 60, 90, 120],
+		interact: () => trigger.click(),
+	});
+});
+
+test("Miss popover closes", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo, {
+		records: [IDENTIFIED_MISS],
+	});
+	await page.locator("[data-popover] button").click();
+	await expect(page.getByRole("note")).toBeVisible();
+	await waitForQuiet(page);
+	if (reduced) {
+		await page.keyboard.press("Escape");
+		await expect(page.getByRole("note")).toBeHidden();
+		await expectEndFrame(page, "daily-popover-close");
+		return;
+	}
+	await pauseClock(page);
+	await shootMotion(page, {
+		name: "daily-popover-close",
+		target: "popover-out",
+		times: [0, 20, 40, 60, 80],
+		interact: () => page.keyboard.press("Escape"),
+		pausedClock: true,
+	});
+});
+
+test("Daily switcher changes category", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo);
+	await expect(page.getByLabel("Digit 1 of 2")).toBeVisible();
+	const link = page
+		.getByRole("navigation", { name: "Daily switcher" })
+		.getByRole("link", { name: "Protocols" });
+	if (reduced) {
+		await link.click();
+		await expect(page.getByRole("heading", { name: "FTP" })).toBeVisible();
+		await expectEndFrame(page, "daily-switcher");
+		return;
+	}
+	await shootMotion(page, {
+		name: "daily-switcher",
+		target: "::view-transition-new(switcher-content)",
+		times: ENTER_TIMES,
+		interact: () => link.click(),
+	});
+});
+
+test("History switcher changes segment", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo, {
+		path: "/portdle/history",
+		records: PLAYED,
+	});
+	await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+	const link = page
+		.getByRole("navigation", { name: "History switcher" })
+		.getByRole("link", { name: "Blitz" });
+	if (reduced) {
+		await link.click();
+		await expect(page.getByText("No runs yet.")).toBeVisible();
+		await expectEndFrame(page, "history-switcher");
+		return;
+	}
+	await shootMotion(page, {
+		name: "history-switcher",
+		target: "::view-transition-new(switcher-content)",
+		times: ENTER_TIMES,
+		interact: () => link.click(),
+	});
+});
+
+test("Nav changes screen", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo, { records: PLAYED });
+	// The Mixed Daily of 2026-10-10 is played: the Reveal shows its answer.
+	await expect(page.getByRole("heading", { name: "SSH" })).toBeVisible();
+	const link = page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: "History" });
+	if (reduced) {
+		await link.click();
+		await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+		await expectEndFrame(page, "nav-screen-change");
+		return;
+	}
+	await shootMotion(page, {
+		name: "nav-screen-change",
+		target: "::view-transition-new(screen)",
+		times: ENTER_TIMES,
+		interact: () => link.click(),
+	});
+});
+
+test("How-to dialog opens", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo);
+	await expect(page.getByLabel("Digit 1 of 2")).toBeVisible();
+	const button = page.getByRole("button", { name: "How to play" });
+	if (reduced) {
+		await button.click();
+		await expect(page.getByRole("dialog")).toBeVisible();
+		await expectEndFrame(page, "how-to-open");
+		return;
+	}
+	await shootMotion(page, {
+		name: "how-to-open",
+		target: "transition:opacity",
+		times: ENTER_TIMES,
+		interact: () => button.click(),
+	});
+});
+
+test("How-to dialog closes", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo);
+	await page.getByRole("button", { name: "How to play" }).click();
+	await expect(page.getByRole("dialog")).toBeVisible();
+	await waitForQuiet(page);
+	const gotIt = page.getByRole("button", { name: "Got it" });
+	if (reduced) {
+		await gotIt.click();
+		await expect(page.getByRole("dialog")).toBeHidden();
+		await expectEndFrame(page, "how-to-close");
+		return;
+	}
+	// The exit lasts 100 ms.
+	await shootMotion(page, {
+		name: "how-to-close",
+		target: "transition:opacity",
+		times: [0, 25, 50, 75, 100],
+		interact: () => gotIt.click(),
+	});
+});
