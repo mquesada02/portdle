@@ -21,10 +21,7 @@ const IN_FLIGHT_THRESHOLD = 0.02;
 // A fixed wait, not a poll: animations of the same change can start late.
 const LATE_START_MS = 100;
 const TRANSITION_PREFIX = "transition:";
-// The target of a Rounds disclosure height change. Chromium lists no
-// `::details-content` transition in `getAnimations()` and fires no event for
-// it, so `shootMotion` holds and seeks it through the CDP (Chrome DevTools
-// Protocol) Animation domain, in Chromium only.
+// The target of a Rounds disclosure height change (Chromium only).
 export const DETAILS_CONTENT_TARGET = "::details-content";
 
 async function pollUntil(
@@ -159,8 +156,11 @@ function holdByEvents(page: Page, target: string): Hold {
 	};
 }
 
-// The hold for `DETAILS_CONTENT_TARGET`: the document timeline runs at rate 0
-// before the interaction, and `seek` sets the time of every started animation.
+// The hold for `DETAILS_CONTENT_TARGET`. Chromium lists no such transition in
+// `getAnimations()` and fires no event for it, so this hold uses the CDP
+// (Chrome DevTools Protocol) Animation domain: the document timeline runs at
+// rate 0 before the interaction, and `seek` sets the time of every started
+// animation.
 function holdThroughCdp(page: Page): Hold {
 	const started: string[] = [];
 	let cdp: CDPSession | undefined;
