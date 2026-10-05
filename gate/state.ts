@@ -2,22 +2,13 @@
 // state, a held Global stats read, and a log of the animations that start.
 
 import type { Page, TestInfo } from "@playwright/test";
+import type { DailyCategory, DailyPersist } from "../src/engine/types.ts";
 import { expect, isReduced } from "./fixtures.ts";
 import { waitForQuiet } from "./freeze.ts";
 
-// The stored Daily record: the shape that `isDailyPersist` accepts
-// (src/persist/storage.ts).
-type Guess = {
-	port: number;
-	result: "correct" | "miss";
-	identified: { id: string; name: string; port: number } | null;
-};
-type Saved = {
-	category: "mixed" | "protocols" | "applications";
-	date: string;
-	status: "won" | "lost" | "playing";
-	guesses: Guess[];
-};
+// A stored Daily record, with its place in the store.
+type Saved = DailyPersist & { category: DailyCategory; date: string };
+type Guess = DailyPersist["guesses"][number];
 
 const SSH = { id: "ssh", name: "SSH", port: 22 };
 const HTTP = { id: "http", name: "HTTP", port: 80 };
