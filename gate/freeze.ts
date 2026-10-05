@@ -72,9 +72,21 @@ export async function shootMotion(
 		pausedClock?: boolean;
 		// Shoot the whole page, not the viewport.
 		fullPage?: boolean;
+		// The first frame also takes the color tolerance. The switcher view
+		// transitions need it: their first frame (the tab label) drew one level off
+		// in about 1 of 10 five-run checks.
+		toleranceOnFirstFrame?: boolean;
 	},
 ): Promise<void> {
-	const { name, target, times, interact, pausedClock, fullPage } = options;
+	const {
+		name,
+		target,
+		times,
+		interact,
+		pausedClock,
+		fullPage,
+		toleranceOnFirstFrame,
+	} = options;
 	await waitForQuiet(page);
 	await interact();
 	await pollUntil(`no animation named ${target} started`, TIMEOUT_MS, () =>
@@ -141,7 +153,8 @@ export async function shootMotion(
 				}),
 			{ ms: time, native: pausedClock === true },
 		);
-		const inFlight = time !== times[0] && time !== times.at(-1);
+		const inFlight =
+			(toleranceOnFirstFrame || time !== times[0]) && time !== times.at(-1);
 		await expect(page).toHaveScreenshot(`${name}-${time}ms.png`, {
 			fullPage,
 			// Left out for the first and last frame: an undefined value would
