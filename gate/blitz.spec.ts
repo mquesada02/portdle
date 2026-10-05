@@ -83,12 +83,34 @@ async function playToEnd(page: Page, testInfo: TestInfo) {
 	await expect(page.getByText("Out of lives")).toBeVisible();
 }
 
+// A frame at rest, taken once the animations ended.
+async function restShot(page: Page, name: string) {
+	await waitForQuiet(page);
+	await expect(page).toHaveScreenshot(`${name}.png`);
+}
+
+// The frames of a phase change. The screen is the new one that plays `rise`.
+function shootPhase(
+	page: Page,
+	reduced: boolean,
+	options: {
+		name: string;
+		interact: () => Promise<void>;
+		done: () => Promise<void>;
+	},
+) {
+	return shootOrEnd(page, reduced, {
+		...options,
+		target: PHASE_TARGET,
+		times: TIMES_150,
+	});
+}
+
 test("Arena with a last run at rest", async ({ page }, testInfo) => {
 	test.skip(isReduced(testInfo), "A screen at rest.");
 	await openArena(page, testInfo);
 	await expect(page.getByText("Last run")).toBeVisible();
-	await waitForQuiet(page);
-	await expect(page).toHaveScreenshot("blitz-arena.png");
+	await restShot(page, "blitz-arena");
 });
 
 test("Setup dialog at rest", async ({ page }, testInfo) => {
@@ -96,31 +118,19 @@ test("Setup dialog at rest", async ({ page }, testInfo) => {
 	await openArena(page, testInfo);
 	await page.getByRole("button", { name: "New run" }).click();
 	await expect(page.getByRole("dialog")).toBeVisible();
-	await waitForQuiet(page);
-	await expect(page).toHaveScreenshot("blitz-setup.png");
+	await restShot(page, "blitz-setup");
 });
 
 test("Run at rest", async ({ page }, testInfo) => {
 	test.skip(isReduced(testInfo), "A screen at rest.");
 	await startRun(page, testInfo);
-	await waitForQuiet(page);
-	await expect(page).toHaveScreenshot("blitz-run.png");
-});
-
-test("End card at rest", async ({ page }, testInfo) => {
-	test.skip(isReduced(testInfo), "A screen at rest.");
-	await playToEnd(page, testInfo);
-	await waitForQuiet(page);
-	await expect(page.getByText("New best")).toBeVisible();
-	await expect(page).toHaveScreenshot("blitz-end.png");
+	await restShot(page, "blitz-run");
 });
 
 test("Start: Arena to Run", async ({ page }, testInfo) => {
 	const reduced = await openSetup(page, testInfo);
-	await shootOrEnd(page, reduced, {
+	await shootPhase(page, reduced, {
 		name: "blitz-start",
-		target: PHASE_TARGET,
-		times: TIMES_150,
 		interact: () => page.getByRole("button", { name: "Start" }).click(),
 		done: () => expect(page.getByText("Round 1")).toBeVisible(),
 	});
@@ -129,21 +139,25 @@ test("Start: Arena to Run", async ({ page }, testInfo) => {
 test("Last life: Run to End card", async ({ page }, testInfo) => {
 	await playToLastLife(page, testInfo);
 	await typeGuess(page, "miss");
-	await shootOrEnd(page, isReduced(testInfo), {
+	await shootPhase(page, isReduced(testInfo), {
 		name: "blitz-last-life",
-		target: PHASE_TARGET,
-		times: TIMES_150,
 		interact: () => page.keyboard.press("Enter"),
 		done: () => expect(page.getByText("Out of lives")).toBeVisible(),
 	});
 });
 
-test("Play again: End card to Arena", async ({ page }, testInfo) => {
+// The End card at rest comes first, in the same Run (a Run replays slowly).
+test("End card at rest, then Play again: End card to Arena", async ({
+	page,
+}, testInfo) => {
+	const reduced = isReduced(testInfo);
 	await playToEnd(page, testInfo);
-	await shootOrEnd(page, isReduced(testInfo), {
+	if (!reduced) {
+		await expect(page.getByText("New best")).toBeVisible();
+		await restShot(page, "blitz-end");
+	}
+	await shootPhase(page, reduced, {
 		name: "blitz-play-again",
-		target: PHASE_TARGET,
-		times: TIMES_150,
 		interact: () => page.getByRole("button", { name: "Play again" }).click(),
 		done: () => expect(page.getByText("Last run")).toBeVisible(),
 	});
