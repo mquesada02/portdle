@@ -34,10 +34,10 @@ const OPENAPI_TYPES: Record<string, string> = {
 	object: "object",
 };
 
+export type Definition = { properties: Record<string, { type?: string }> };
+
 // A property with no `type` (a jsonb column) has an unknown type.
-export function shapeOfDefinition(definition: {
-	properties: Record<string, { type?: string }>;
-}): Shape {
+export function shapeOfDefinition(definition: Definition): Shape {
 	return Object.fromEntries(
 		Object.entries(definition.properties).map(([key, property]) => {
 			if (property.type === undefined) {

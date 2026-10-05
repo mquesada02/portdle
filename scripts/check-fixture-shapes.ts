@@ -11,11 +11,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	compareShapes,
+	type Definition,
 	type Shape,
 	shapeOfDefinition,
 	shapeOfRows,
 } from "./fixture-shapes.ts";
-import { parseStackEnv } from "./stack-env.ts";
+import { parseStackEnv, type StackEnv } from "./stack-env.ts";
 
 const STACK_MESSAGE =
 	"The local stack does not answer the reads of the shape check. Run `pnpm dev` (it starts the stack) and `pnpm dev:schedule` (it fills the Schedule), then run `pnpm check:fixtures` again.";
@@ -62,7 +63,7 @@ function readFixture(file: string): Record<string, unknown>[] {
 }
 
 async function main(): Promise<string[]> {
-	let env: ReturnType<typeof parseStackEnv>;
+	let env: StackEnv;
 	try {
 		env = parseStackEnv(
 			execFileSync("supabase", ["status", "-o", "env"], {
@@ -75,9 +76,8 @@ async function main(): Promise<string[]> {
 	}
 
 	async function read(path: string, init: RequestInit = {}): Promise<unknown> {
-		let response: Response;
 		try {
-			response = await fetch(`${env.apiUrl}/rest/v1/${path}`, {
+			const response = await fetch(`${env.apiUrl}/rest/v1/${path}`, {
 				...init,
 				headers: {
 					apikey: env.publishableKey,
@@ -86,13 +86,15 @@ async function main(): Promise<string[]> {
 				},
 				signal: AbortSignal.timeout(10_000),
 			});
-		} catch {
-			throw new Error(STACK_MESSAGE);
+			if (!response.ok) {
+				throw new Error(`${path} answered ${response.status}`);
+			}
+			return await response.json();
+		} catch (error) {
+			throw new Error(
+				`${STACK_MESSAGE} (${path}: ${error instanceof Error ? error.message : error})`,
+			);
 		}
-		if (!response.ok) {
-			throw new Error(`${STACK_MESSAGE} (${path} answered ${response.status})`);
-		}
-		return response.json();
 	}
 
 	const differences: string[] = [];
@@ -119,7 +121,7 @@ async function main(): Promise<string[]> {
 	}
 
 	const document = (await read("")) as {
-		definitions?: Record<string, Parameters<typeof shapeOfDefinition>[0]>;
+		definitions?: Record<string, Definition>;
 	};
 	const definition = document.definitions?.daily_global_stats;
 	if (!definition) {

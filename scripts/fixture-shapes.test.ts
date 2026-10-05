@@ -20,6 +20,12 @@ test("collects the types of the non-null values of each key over all rows", () =
 	});
 });
 
+test("gives a key with two types in its rows both types, sorted", () => {
+	expect(shapeOfRows([{ a: "x" }, { a: 1 }])).toEqual({
+		a: ["number", "string"],
+	});
+});
+
 test("gives a key that is null in every row an empty type set", () => {
 	expect(shapeOfRows([{ blurb: null }, { blurb: null }])).toEqual({
 		blurb: [],
