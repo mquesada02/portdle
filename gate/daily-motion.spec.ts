@@ -150,8 +150,9 @@ test("History switcher changes segment", async ({ page }, testInfo) => {
 
 test("Nav changes screen", async ({ page }, testInfo) => {
 	const reduced = await openGame(page, testInfo, { records: PLAYED });
-	// The Mixed Daily of 2026-10-10 is played: the Reveal shows its answer.
-	await expect(page.getByRole("heading", { name: "SSH" })).toBeVisible();
+	// The Mixed Daily of 2026-10-10 is played: the Reveal shows its answer, and
+	// the Global stats load. Wait for them, so they do not change the old screen.
+	await expect(page.getByText("Global distribution")).toBeVisible();
 	const link = page
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "History" });
