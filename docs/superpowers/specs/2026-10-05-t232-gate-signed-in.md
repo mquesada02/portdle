@@ -49,7 +49,7 @@ The gate fakes a sign-in. Before the page loads, the test stores a fixed session
   - `Account menu open`: account `confirmed`. Open `/portdle/`. Click the "Account" button. Wait for the display name. Wait for quiet. Take one frame.
   - `Leaderboards tab`: account `confirmed`. Open `/portdle/blitz`. Click the "Leaderboards" tab. Wait for the first data row (the cell of the top player). Wait for quiet. Take one frame.
   - `Name confirm`: account `unconfirmed`. Open `/portdle/`. Wait for the dialog heading. Wait for quiet (the dialog fades in over 150 ms). Take one frame.
-- **Reuse.** The tests use `waitForQuiet` of `gate/freeze.ts` and the `test` of `gate/fixtures.ts`. The ticket forks no helper. The clock stays installed as in the tracer.
+- **Reuse.** The tests use `waitForQuiet` of `gate/freeze.ts` and the `test` of `gate/fixtures.ts`. The session key comes from `authStorageKey` of `scripts/e2e-env.ts`, which the functional suite already uses (it copies the rule of `src/remote/supabase.ts`). The ticket forks no helper. The clock stays installed as in the tracer.
 - **Frames.** The frame names are `account-menu.png`, `leaderboards.png`, and `name-confirm.png`. The config adds the test file and the project to each path (`gate-baseline/signed-in.spec.ts/account-menu-chromium-375-light.png`). This gives 12 frames. The PR adds frames, so its gate job reports differences against the master baseline. The PR carries the `visual-change` label once the frames are final.
 
 ## Testing Decisions
