@@ -102,16 +102,15 @@ function answerSignedIn(
 	if (route === "leaderboard_all_time") {
 		// No top-N cut and no viewer row: the fixture holds only the rows a frame
 		// shows, for the default picker (mixed, default, sprint).
-		const wanted = {
-			category: eq(url, "category"),
-			orientation: eq(url, "orientation"),
-			mode: eq(url, "mode"),
-		};
+		const category = eq(url, "category");
+		const orientation = eq(url, "orientation");
+		const mode = eq(url, "mode");
 		return ok(
-			LEADERBOARD.filter((row) =>
-				Object.entries(wanted).every(
-					([column, value]) => row[column] === value,
-				),
+			LEADERBOARD.filter(
+				(row) =>
+					row.category === category &&
+					row.orientation === orientation &&
+					row.mode === mode,
 			),
 		);
 	}
