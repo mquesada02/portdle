@@ -1,8 +1,9 @@
 // Freezes motion at fixed times and takes one frame per time.
 //
 // Every wait polls from the test process: a page evaluation, then a real Node
-// sleep. It never uses page timers or `requestAnimationFrame`, which the
-// installed clock fakes (see fixtures.ts).
+// sleep. The polls never use page timers, which the installed clock fakes (see
+// fixtures.ts). The frame sync in `shootMotion` does use
+// `requestAnimationFrame`, so it needs a running clock.
 
 import { setTimeout as sleep } from "node:timers/promises";
 import { expect, type Page } from "@playwright/test";
