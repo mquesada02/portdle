@@ -9,14 +9,17 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { expect, type Page } from "@playwright/test";
 
 const POLL_MS = 10;
-// A wall-clock budget: a loaded runner starts an animation late.
+// A wall-clock budget for every wait below: a loaded runner starts an
+// animation late.
 const TIMEOUT_MS = 10_000;
 // The color tolerance of the frames between a motion's first and last time.
-// Inside a compositor layer, an in-flight frame draws one or two color levels
-// off in rare runs. The first frame, the last frame, and the frames at rest
-// stay exact, and `maxDiffPixels` stays 0 everywhere.
+// Rarely, a frame in a compositor layer differs by one or two color levels.
+// The first frame, the last frame, and the frames at rest stay exact, and
+// `maxDiffPixels` stays 0 everywhere.
 const IN_FLIGHT_THRESHOLD = 0.02;
+// A fixed wait, not a poll: animations of the same change can start late.
 const LATE_START_MS = 100;
+const TRANSITION_PREFIX = "transition:";
 
 async function pollUntil(
 	label: string,
@@ -66,6 +69,7 @@ export async function shootMotion(
 		interact: () => Promise<void>;
 		// The test paused the clock (see `pauseClock`).
 		pausedClock?: boolean;
+		// Shoot the whole page, not the viewport.
 		fullPage?: boolean;
 	},
 ): Promise<void> {
@@ -73,25 +77,28 @@ export async function shootMotion(
 	await waitForQuiet(page);
 	await interact();
 	await pollUntil(`no animation named ${target} started`, TIMEOUT_MS, () =>
-		page.evaluate((wanted) => {
-			const running = document
-				.getAnimations()
-				.filter((a) => a.playState === "running");
-			const isTarget = (a: Animation) =>
-				wanted.startsWith("::")
-					? (a.effect as KeyframeEffect | null)?.pseudoElement === wanted
-					: wanted.startsWith("transition:")
-						? (a as CSSTransition).transitionProperty ===
-							wanted.slice("transition:".length)
-						: (a as CSSAnimation).animationName === wanted;
-			if (!running.some(isTarget)) {
-				return false;
-			}
-			for (const a of running) {
-				a.pause();
-			}
-			return true;
-		}, target),
+		page.evaluate(
+			({ wanted, prefix }) => {
+				const running = document
+					.getAnimations()
+					.filter((a) => a.playState === "running");
+				const isTarget = (a: Animation) =>
+					wanted.startsWith("::")
+						? (a.effect as KeyframeEffect | null)?.pseudoElement === wanted
+						: wanted.startsWith(prefix)
+							? (a as CSSTransition).transitionProperty ===
+								wanted.slice(prefix.length)
+							: (a as CSSAnimation).animationName === wanted;
+				if (!running.some(isTarget)) {
+					return false;
+				}
+				for (const a of running) {
+					a.pause();
+				}
+				return true;
+			},
+			{ wanted: target, prefix: TRANSITION_PREFIX },
+		),
 	);
 	// Other animations of the same change can start a frame or two after the
 	// target (the color transitions of the Nav and the switchers). Wait, then

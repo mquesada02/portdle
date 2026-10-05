@@ -66,5 +66,6 @@ test("error panel", async ({ page }, testInfo) => {
 	await expect(message).toBeVisible();
 	await waitForQuiet(page);
 	await expect(page).toHaveScreenshot("error-panel.png", { fullPage: true });
+	// A retry (on `focus` or `online`) would show "Loading..." again.
 	await expect(message).toBeVisible();
 });

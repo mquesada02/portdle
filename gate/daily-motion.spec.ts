@@ -1,6 +1,6 @@
 // The Daily, Archive, and History motions. Each frame sequence is its own test
 // with its own page: `shootMotion` leaves the animations paused. Frame times
-// come from today's durations (Spec 3, "Durations and easing"). With reduced
+// come from the current durations (Spec 3, "Durations and easing"). With reduced
 // motion, each test takes one end frame and asserts that no animation started.
 
 import { expect, test } from "./fixtures.ts";
@@ -25,7 +25,8 @@ test("row shake of an empty guess", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "daily-row-shake");
 		return;
 	}
-	// 300 ms; the keyframe stops at 20, 40, 60, and 80 percent are at 60 to 240.
+	// 300 ms. The stops at 20, 40, 60, and 80 percent fall at 60, 120, 180, and
+	// 240 ms.
 	await shootMotion(page, {
 		name: "daily-row-shake",
 		target: "shake",
@@ -38,28 +39,30 @@ test("divider draw and Reveal rise of a won Daily", async ({
 	page,
 }, testInfo) => {
 	const release = await holdGlobalStats(page);
-	const reduced = await openGame(page, testInfo);
-	await page.getByLabel("Digit 1 of 2").click();
-	await page.keyboard.type("22");
-	if (reduced) {
-		await page.keyboard.press("Enter");
-		await expect(page.getByText("Solved")).toBeVisible();
-		await expectEndFrame(page, "daily-finish", { fullPage: true });
+	try {
+		const reduced = await openGame(page, testInfo);
+		await page.getByLabel("Digit 1 of 2").click();
+		await page.keyboard.type("22");
+		if (reduced) {
+			await page.keyboard.press("Enter");
+			await expect(page.getByText("Solved")).toBeVisible();
+			await expectEndFrame(page, "daily-finish", { fullPage: true });
+			return;
+		}
+		await waitForQuiet(page);
+		await pauseClock(page);
+		// The draw lasts 300 ms. The rise starts at 250 ms and ends at 550 ms.
+		await shootMotion(page, {
+			name: "daily-finish",
+			target: "draw",
+			times: [0, 140, 250, 300, 425, 550],
+			interact: () => page.keyboard.press("Enter"),
+			pausedClock: true,
+			fullPage: true,
+		});
+	} finally {
 		release();
-		return;
 	}
-	await waitForQuiet(page);
-	await pauseClock(page);
-	// The draw lasts 300 ms. The rise starts at 250 ms and ends at 550 ms.
-	await shootMotion(page, {
-		name: "daily-finish",
-		target: "draw",
-		times: [0, 140, 250, 300, 425, 550],
-		interact: () => page.keyboard.press("Enter"),
-		pausedClock: true,
-		fullPage: true,
-	});
-	release();
 });
 
 test("Miss popover opens", async ({ page }, testInfo) => {

@@ -5,6 +5,8 @@ import type { Page, TestInfo } from "@playwright/test";
 import { expect } from "./fixtures.ts";
 import { waitForQuiet } from "./freeze.ts";
 
+// The stored Daily record: the shape that `isDailyPersist` accepts
+// (src/persist/storage.ts).
 type Guess = {
 	port: number;
 	result: "correct" | "miss";
@@ -95,8 +97,9 @@ export function isReduced(testInfo: TestInfo): boolean {
 	return testInfo.project.use.reducedMotion === "reduce";
 }
 
-// Writes the records to the device before the page loads, once per session:
-// a reload keeps the progress that the test makes.
+// Writes the records to `localStorage` before the page loads. A marker in
+// `sessionStorage` makes it run once per session, so a reload keeps the
+// progress that the test makes.
 async function seedDailies(page: Page, records: Saved[]): Promise<void> {
 	await page.addInitScript((seed) => {
 		if (sessionStorage.getItem("gate:seeded")) {
