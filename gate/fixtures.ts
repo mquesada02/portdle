@@ -1,6 +1,6 @@
 // The gate's `test`: every test gets the stub backend, the fixed clock, a
 // seeded random source, and the stored How-to flag and theme, and fails when a
-// request had no stub.
+// request had no stub. A test file can also sign the page in (`account`).
 //
 // Clock (checked with Playwright 1.63, Chromium, 2026-10-05): after
 // `clock.install`, the page's `setTimeout`, `setInterval`,
@@ -63,6 +63,15 @@ function sessionOf(accountId: string) {
 	};
 }
 
+// The sign-in as the app stores it: the key is the one the app derives from the
+// backend host (`sb-<first host label>-auth-token`).
+function storedSignIn(accountId: string) {
+	return {
+		key: `sb-${new URL(STUB_URL).hostname.split(".")[0]}-auth-token`,
+		session: sessionOf(accountId),
+	};
+}
+
 // Runs in the page before any script, so the app finds the sign-in at load.
 function signInScript(stored: { key: string; session: object }) {
 	localStorage.setItem(stored.key, JSON.stringify(stored.session));
@@ -85,11 +94,7 @@ export const test = base.extend<{ account: AccountOption | null }>({
 		await page.clock.install({ time: FIXED_TIME });
 		await page.addInitScript(initScript, colorScheme ?? "light");
 		if (signedIn) {
-			const key = `sb-${new URL(STUB_URL).hostname.split(".")[0]}-auth-token`;
-			await page.addInitScript(signInScript, {
-				key,
-				session: sessionOf(signedIn.id),
-			});
+			await page.addInitScript(signInScript, storedSignIn(signedIn.id));
 		}
 		await use(page);
 		expect(unstubbed, "requests with no stub").toEqual([]);

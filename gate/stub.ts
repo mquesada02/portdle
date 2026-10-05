@@ -45,7 +45,8 @@ export function accountFor(option: AccountOption): AccountRow {
 	return row;
 }
 
-// The tables that Sync reads for a signed-in account (all empty).
+// The tables that Sync reads for a signed-in account (all empty). A new Sync
+// table has no answer, so the unstubbed-request check fails the test.
 const SYNC_TABLES = [
 	"codex_entries",
 	"blitz_bests",
@@ -78,8 +79,8 @@ function eq(url: URL, column: string): string | null {
 	return url.searchParams.get(column)?.replace(/^eq\./, "") ?? null;
 }
 
-// The answers for a signed-in test. A write is answered only where Sync makes
-// one: the first sync of a device pushes the stored preferences.
+// The answers for a signed-in test. The one write answered is the preferences
+// push that Sync sends on the first sync of a device.
 function answerSignedIn(
 	url: URL,
 	method: string,
@@ -99,6 +100,8 @@ function answerSignedIn(
 		return ok([]);
 	}
 	if (table === "leaderboard_all_time") {
+		// No top-N cut and no viewer row: the fixture holds only the rows a frame
+		// shows, for the default picker (mixed, default, sprint).
 		return ok(
 			LEADERBOARD.filter((row) =>
 				["category", "orientation", "mode"].every(

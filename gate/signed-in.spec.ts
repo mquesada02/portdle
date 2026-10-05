@@ -16,7 +16,7 @@ test.describe("confirmed name", () => {
 	test("Account menu open", async ({ page }, testInfo) => {
 		test.skip(isReduced(testInfo), "A screen at rest.");
 		await page.goto("/portdle/");
-		await page.getByLabel("Account", { exact: true }).click();
+		await page.getByRole("button", { name: "Account", exact: true }).click();
 		await expect(page.getByText("Brave Falcon")).toBeVisible();
 		await waitForQuiet(page);
 		await expect(page).toHaveScreenshot("account-menu.png");
@@ -26,7 +26,7 @@ test.describe("confirmed name", () => {
 		test.skip(isReduced(testInfo), "A screen at rest.");
 		await page.goto("/portdle/blitz");
 		await page.getByRole("tab", { name: "Leaderboards" }).click();
-		await expect(page.getByRole("row").first()).toBeVisible();
+		await expect(page.getByRole("cell", { name: "Swift Otter" })).toBeVisible();
 		await waitForQuiet(page);
 		await expect(page).toHaveScreenshot("leaderboards.png");
 	});
