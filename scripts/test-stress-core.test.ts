@@ -1,9 +1,8 @@
 import { expect, test } from "vitest";
-import { DEFAULT_RUNS, failedTests, parseRuns } from "./test-stress-core.ts";
+import { failedTests, parseRuns } from "./test-stress-core.ts";
 
 test("runs defaults to 5", () => {
-	expect(parseRuns(undefined)).toBe(DEFAULT_RUNS);
-	expect(DEFAULT_RUNS).toBe(5);
+	expect(parseRuns(undefined)).toBe(5);
 });
 
 test("runs accepts a positive integer", () => {

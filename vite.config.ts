@@ -11,7 +11,8 @@ export default defineConfig({
 		// The Playwright specs in e2e/ run under `pnpm test:e2e`, not Vitest.
 		exclude: [...configDefaults.exclude, "e2e/**"],
 		setupFiles: ["./src/test/setup.ts"],
-		// These limits measure machine load: the tests wait on nothing real.
+		// A loaded machine must not time out a test: the tests wait on nothing
+		// real, so these limits measure machine load.
 		testTimeout: 30_000,
 		hookTimeout: 30_000,
 	},

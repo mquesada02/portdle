@@ -1,6 +1,7 @@
 import { configure } from "@testing-library/react";
 
-// A Testing Library wait ends on machine load, not on a real delay.
+// A loaded machine must not time out a wait: the tests wait on nothing real,
+// so this limit measures machine load.
 configure({ asyncUtilTimeout: 10_000 });
 
 // jsdom implements neither HTMLDialogElement.showModal/close nor window.scrollTo.

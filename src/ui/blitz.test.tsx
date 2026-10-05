@@ -512,6 +512,8 @@ const CROWDED_BLURBS: Record<number, string[]> = {
 
 const CROWDED_PORTS = Object.keys(CROWDED_BLURBS).map(Number);
 
+// The shuffle picks `floor(random * (index + 1))`. This value is below 1, so
+// it picks `index` itself, and the swap changes nothing.
 const NO_SWAP = 0.999999;
 
 // The start pool of a default Mixed run: answer Entries without the three

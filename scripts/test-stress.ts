@@ -35,13 +35,39 @@ function stopBurners() {
 	}
 }
 
-// The suite runs in an async child, so a signal handler runs at once and
-// stops the suite and the burners.
+// One report file per run, so a run that writes none never reads an old one.
+const reportDir = mkdtempSync(join(tmpdir(), "stress-"));
+
+// Null when the report is missing or does not parse.
+function readFailedTests(reportFile: string): string[] | null {
+	try {
+		return failedTests(
+			JSON.parse(readFileSync(reportFile, "utf8")),
+			process.cwd(),
+		);
+	} catch {
+		return null;
+	}
+}
+
+// The suite runs in an async child, so a signal handler runs at once. The
+// child has its own process group, so one kill stops pnpm and the Vitest
+// workers below it.
 let suite: ChildProcess | undefined;
+
+function stopSuite() {
+	if (suite?.pid !== undefined) {
+		try {
+			process.kill(-suite.pid);
+		} catch {
+			// The group is already gone.
+		}
+	}
+}
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	process.on(signal, () => {
-		suite?.kill();
+		stopSuite();
 		stopBurners();
 		process.exit(1);
 	});
@@ -58,15 +84,13 @@ function runSuite(reportFile: string): Promise<number | null> {
 				"--reporter=json",
 				`--outputFile=${reportFile}`,
 			],
-			{ stdio: ["ignore", "ignore", "inherit"] },
+			{ stdio: ["ignore", "ignore", "inherit"], detached: true },
 		);
 		suite.on("error", () => resolve(null));
 		suite.on("close", resolve);
 	});
 }
 
-// One report file per run, so a run that writes none never reads an old one.
-const reportDir = mkdtempSync(join(tmpdir(), "stress-"));
 let passed = 0;
 try {
 	for (let run = 1; run <= runs; run += 1) {
@@ -84,7 +108,7 @@ try {
 			passed += 1;
 			continue;
 		}
-		console.log(`Run ${run} failed (exit code ${status}).`);
+		console.log(`Run ${run} failed (exit code ${status ?? "none"}).`);
 		for (const name of failed ?? ["no readable report"]) {
 			console.log(`  ${name}`);
 		}
@@ -95,15 +119,3 @@ try {
 
 console.log(`${passed} of ${runs} runs passed`);
 process.exit(passed === runs ? 0 : 1);
-
-// Null when the report is missing or does not parse.
-function readFailedTests(reportFile: string): string[] | null {
-	try {
-		return failedTests(
-			JSON.parse(readFileSync(reportFile, "utf8")),
-			process.cwd(),
-		);
-	} catch {
-		return null;
-	}
-}
