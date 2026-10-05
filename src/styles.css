@@ -88,9 +88,9 @@
 	/* View transitions (Spec 3: motion polish, issue #87). Screen changes
 	   (issue #89). Keyed on the router's transition types (src/router.tsx),
 	   never on route paths. The root and the two shell regions, the top bar
-	   (shell-top) and the nav (shell-nav), hold still under every type. Naming
-	   the shell gives it groups of its own, lifted above every content group
-	   with a z-index: the pseudo-tree appends regions that exist only in the
+	   (shell-top) and the nav (shell-nav), hold still under every type except
+	   theme (see Theme crossfade below). Naming the shell gives it groups of
+	   its own, lifted above every content group with a z-index: the pseudo-tree appends regions that exist only in the
 	   new state after the ones present in both, so without the lift the
 	   arriving Codex cards would sit above the shell and draw over the tab bar
 	   (issue #112). */
