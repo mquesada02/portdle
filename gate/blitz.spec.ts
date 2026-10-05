@@ -9,7 +9,7 @@ import { join } from "node:path";
 import type { Page, TestInfo } from "@playwright/test";
 import { expect, isReduced, test } from "./fixtures.ts";
 import { waitForQuiet } from "./freeze.ts";
-import { shootOrEnd, TIMES_150 } from "./motion.ts";
+import { restShot, shootOrEnd, TIMES_150 } from "./motion.ts";
 import { seedStorage } from "./seed.ts";
 import { openGame } from "./state.ts";
 
@@ -26,18 +26,16 @@ test.beforeEach(async ({ page }) => {
 	await seedStorage(page);
 });
 
-// Opens the Arena. Returns whether the project has reduced motion.
-function openArena(page: Page, testInfo: TestInfo): Promise<boolean> {
-	return openGame(page, testInfo, { path: "/portdle/blitz" });
+async function openArena(page: Page, testInfo: TestInfo) {
+	await openGame(page, testInfo, { path: "/portdle/blitz" });
 }
 
-async function openSetup(page: Page, testInfo: TestInfo): Promise<boolean> {
-	const reduced = await openArena(page, testInfo);
+async function openSetup(page: Page, testInfo: TestInfo) {
+	await openArena(page, testInfo);
 	await page.getByRole("button", { name: "New run" }).click();
 	await expect(page.getByRole("dialog")).toBeVisible();
 	// The dialog opens on the last run's Sprint.
 	await page.getByRole("dialog").getByText("Survival", { exact: true }).click();
-	return reduced;
 }
 
 async function startRun(page: Page, testInfo: TestInfo) {
@@ -83,12 +81,6 @@ async function playToEnd(page: Page, testInfo: TestInfo) {
 	await expect(page.getByText("Out of lives")).toBeVisible();
 }
 
-// A frame at rest, taken once the animations ended.
-async function restShot(page: Page, name: string) {
-	await waitForQuiet(page);
-	await expect(page).toHaveScreenshot(`${name}.png`);
-}
-
 // The frames of a phase change.
 function shootPhase(
 	page: Page,
@@ -128,8 +120,8 @@ test("Run at rest", async ({ page }, testInfo) => {
 });
 
 test("Start: Arena to Run", async ({ page }, testInfo) => {
-	const reduced = await openSetup(page, testInfo);
-	await shootPhase(page, reduced, {
+	await openSetup(page, testInfo);
+	await shootPhase(page, isReduced(testInfo), {
 		name: "blitz-start",
 		interact: () => page.getByRole("button", { name: "Start" }).click(),
 		done: () => expect(page.getByText("Round 1")).toBeVisible(),
@@ -164,9 +156,9 @@ test("End card at rest, then Play again: End card to Arena", async ({
 });
 
 test("Rounds disclosure of the last run", async ({ page }, testInfo) => {
-	const reduced = await openArena(page, testInfo);
+	await openArena(page, testInfo);
 	await expect(page.getByText("Rounds (4)")).toBeVisible();
-	await shootOrEnd(page, reduced, {
+	await shootOrEnd(page, isReduced(testInfo), {
 		name: "blitz-rounds-rise",
 		target: "rise",
 		times: TIMES_150,

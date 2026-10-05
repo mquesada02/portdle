@@ -3,8 +3,8 @@
 // page loads directly, so no screen transition mixes with the pop.
 
 import { expect, isReduced, test } from "./fixtures.ts";
-import { shootMotion, waitForQuiet } from "./freeze.ts";
-import { shootOrEnd, TIMES_150 } from "./motion.ts";
+import { shootMotion } from "./freeze.ts";
+import { restShot, shootOrEnd, TIMES_150 } from "./motion.ts";
 import { seedStorage } from "./seed.ts";
 import { expectEndFrame, openGame } from "./state.ts";
 
@@ -19,8 +19,7 @@ test("Codex in the Name sort at rest", async ({ page }, testInfo) => {
 	await seedStorage(page);
 	await openGame(page, testInfo, { path: CODEX });
 	await expect(page.getByText("Seen 4 /")).toBeVisible();
-	await waitForQuiet(page);
-	await expect(page).toHaveScreenshot("codex-name.png");
+	await restShot(page, "codex-name");
 });
 
 test("Codex in the Port sort at rest", async ({ page }, testInfo) => {
@@ -28,8 +27,7 @@ test("Codex in the Port sort at rest", async ({ page }, testInfo) => {
 	await seedStorage(page, { sort: "port" });
 	await openGame(page, testInfo, { path: CODEX });
 	await expect(page.getByText("Seen 4 /")).toBeVisible();
-	await waitForQuiet(page);
-	await expect(page).toHaveScreenshot("codex-port.png");
+	await restShot(page, "codex-port");
 });
 
 test("Reorder: Name sort to Port sort", async ({ page }, testInfo) => {
