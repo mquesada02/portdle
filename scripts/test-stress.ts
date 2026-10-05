@@ -22,9 +22,11 @@ const burners: ChildProcess[] = [];
 
 function startBurners() {
 	for (let index = 0; index < 2 * availableParallelism(); index += 1) {
-		burners.push(
-			spawn(process.execPath, ["-e", "for(;;){}"], { stdio: "ignore" }),
-		);
+		const burner = spawn(process.execPath, ["-e", "for(;;){}"], {
+			stdio: "ignore",
+		});
+		burner.on("error", () => {});
+		burners.push(burner);
 	}
 }
 
@@ -46,30 +48,33 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	});
 }
 
-function runSuite(): Promise<number | null> {
+function runSuite(reportFile: string): Promise<number | null> {
 	return new Promise((resolve) => {
 		suite = spawn(
 			"vitest",
 			["run", "--reporter=json", `--outputFile=${reportFile}`],
 			{ stdio: ["ignore", "ignore", "inherit"] },
 		);
+		suite.on("error", () => resolve(null));
 		suite.on("close", resolve);
 	});
 }
 
-const reportFile = join(mkdtempSync(join(tmpdir(), "stress-")), "report.json");
+// One report file per run, so a run that writes none never reads an old one.
+const reportDir = mkdtempSync(join(tmpdir(), "stress-"));
 let passed = 0;
 try {
 	for (let run = 1; run <= runs; run += 1) {
 		console.log(`Stress run ${run} of ${runs}`);
+		const reportFile = join(reportDir, `report-${run}.json`);
 		startBurners();
 		let status: number | null;
 		try {
-			status = await runSuite();
+			status = await runSuite(reportFile);
 		} finally {
 			stopBurners();
 		}
-		const failed = readFailedTests();
+		const failed = readFailedTests(reportFile);
 		if (status === 0 && failed) {
 			passed += 1;
 			continue;
@@ -87,7 +92,7 @@ console.log(`${passed} of ${runs} runs passed`);
 process.exit(passed === runs ? 0 : 1);
 
 // Null when the report is missing or does not parse.
-function readFailedTests(): string[] | null {
+function readFailedTests(reportFile: string): string[] | null {
 	try {
 		return failedTests(
 			JSON.parse(readFileSync(reportFile, "utf8")),
