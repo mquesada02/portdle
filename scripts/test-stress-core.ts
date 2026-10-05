@@ -1,7 +1,7 @@
 // The pure parts of `pnpm test:stress`: argument parsing and the list of
 // failed tests in a Vitest JSON report.
 
-export const DEFAULT_RUNS = 5;
+const DEFAULT_RUNS = 5;
 
 export function parseRuns(arg: string | undefined): number {
 	if (arg === undefined) {

@@ -512,6 +512,10 @@ const CROWDED_BLURBS: Record<number, string[]> = {
 
 const CROWDED_PORTS = Object.keys(CROWDED_BLURBS).map(Number);
 
+function isCrowded(entry: CatalogEntry) {
+	return CROWDED_PORTS.includes(entry.port);
+}
+
 // The shuffle picks `floor(random * (index + 1))`. This value is below 1, so
 // it picks `index` itself, and the swap changes nothing.
 const NO_SWAP = 0.999999;
@@ -552,9 +556,7 @@ function firstInPool(matches: (entry: CatalogEntry) => boolean) {
 }
 
 test("unique inverted heading shows the port number only", async () => {
-	const entry = firstInPool(
-		(candidate) => !CROWDED_PORTS.includes(candidate.port),
-	);
+	const entry = firstInPool((candidate) => !isCrowded(candidate));
 	await startInvertedFake(dealPrompt(entry));
 	expect(
 		screen.getByRole("heading", { level: 1, name: String(entry.port) }),
@@ -565,9 +567,7 @@ test("unique inverted heading shows the port number only", async () => {
 });
 
 test("crowded inverted heading shows that port's blurb", async () => {
-	const entry = firstInPool((candidate) =>
-		CROWDED_PORTS.includes(candidate.port),
-	);
+	const entry = firstInPool(isCrowded);
 	await startInvertedFake(dealPrompt(entry));
 	expect(headingPort()).toBe(entry.port);
 	const blurbs = CROWDED_BLURBS[entry.port];
@@ -710,9 +710,7 @@ test("visiting History leaves the codex store unchanged", async () => {
 });
 
 test("an Inverted miss on a unique port records the prompt as Missed and the pick as Identified", async () => {
-	const promptEntry = firstInPool(
-		(candidate) => !CROWDED_PORTS.includes(candidate.port),
-	);
+	const promptEntry = firstInPool((candidate) => !isCrowded(candidate));
 	const persist = await startInvertedFake(dealPrompt(promptEntry));
 	expect(headingPort()).toBe(promptEntry.port);
 	const pick =
@@ -734,9 +732,7 @@ test("an Inverted miss on a unique port records the prompt as Missed and the pic
 });
 
 test("a same-port Inverted pick records the prompt as Missed and the pick as Identified", async () => {
-	const promptEntry = firstInPool((candidate) =>
-		CROWDED_PORTS.includes(candidate.port),
-	);
+	const promptEntry = firstInPool(isCrowded);
 	const persist = await startInvertedFake(dealPrompt(promptEntry));
 	expect(headingPort()).toBe(promptEntry.port);
 	const samePortPick = catalog.find(

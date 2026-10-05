@@ -92,29 +92,25 @@ function runSuite(reportFile: string): Promise<number | null> {
 }
 
 let passed = 0;
-try {
-	for (let run = 1; run <= runs; run += 1) {
-		console.log(`Stress run ${run} of ${runs}`);
-		const reportFile = join(reportDir, `report-${run}.json`);
+for (let run = 1; run <= runs; run += 1) {
+	console.log(`Stress run ${run} of ${runs}`);
+	const reportFile = join(reportDir, `report-${run}.json`);
+	let status: number | null;
+	try {
 		startBurners();
-		let status: number | null;
-		try {
-			status = await runSuite(reportFile);
-		} finally {
-			stopBurners();
-		}
-		const failed = readFailedTests(reportFile);
-		if (status === 0 && failed) {
-			passed += 1;
-			continue;
-		}
-		console.log(`Run ${run} failed (exit code ${status ?? "none"}).`);
-		for (const name of failed ?? ["no readable report"]) {
-			console.log(`  ${name}`);
-		}
+		status = await runSuite(reportFile);
+	} finally {
+		stopBurners();
 	}
-} finally {
-	stopBurners();
+	const failed = readFailedTests(reportFile);
+	if (status === 0 && failed) {
+		passed += 1;
+		continue;
+	}
+	console.log(`Run ${run} failed (exit code ${status ?? "none"}).`);
+	for (const name of failed ?? ["no readable report"]) {
+		console.log(`  ${name}`);
+	}
 }
 
 console.log(`${passed} of ${runs} runs passed`);

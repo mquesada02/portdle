@@ -33,17 +33,13 @@ test("a report with one failed test gives one line", () => {
 });
 
 test("a green report gives no lines", () => {
-	expect(
-		failedTests(
+	const report = {
+		testResults: [
 			{
-				testResults: [
-					{
-						name: "/repo/src/a.test.ts",
-						assertionResults: [{ status: "passed", fullName: "ok" }],
-					},
-				],
+				name: "/repo/src/a.test.ts",
+				assertionResults: [{ status: "passed", fullName: "ok" }],
 			},
-			"/repo",
-		),
-	).toEqual([]);
+		],
+	};
+	expect(failedTests(report, "/repo")).toEqual([]);
 });
