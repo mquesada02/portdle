@@ -9,10 +9,15 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { answerPool } from "../engine/catalog";
-import { type CatalogEntry, DAILY_CATEGORIES } from "../engine/types";
+import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { catalog, currentEntry, missThree } from "../test/blitz";
-import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
+import {
+	dailyOn,
+	fixtureEntryIds,
+	padToAnswer,
+	UTC_TODAY,
+} from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
 import {
 	loaded,
@@ -523,7 +528,7 @@ const NO_SWAP = 0.999999;
 // The start pool of a default Mixed run: answer Entries without the three
 // Daily answers, in catalog order.
 function blitzPool(): CatalogEntry[] {
-	const dailyIds = DAILY_CATEGORIES.map((category) => dailyOn(category).id);
+	const dailyIds = Object.values(fixtureEntryIds(UTC_TODAY));
 	return answerPool(catalog).filter(
 		(candidate) => !dailyIds.includes(candidate.id),
 	);
