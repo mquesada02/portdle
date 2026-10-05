@@ -11,10 +11,13 @@ export function App({
 	persist,
 	remote,
 	history,
+	random = Math.random,
 }: {
 	persist: Persist;
 	remote?: Remote;
 	history?: RouterHistory;
+	// The Blitz page deals its prompts from this source; a test scripts it.
+	random?: () => number;
 }) {
 	const backend = useMemo<Backend | undefined>(
 		() =>
@@ -55,8 +58,9 @@ export function App({
 				remount,
 				history,
 				serverStore,
+				random,
 			}),
-		[persist, backend, remount, history, serverStore],
+		[persist, backend, remount, history, serverStore, random],
 	);
 	// The router moves to the Daily before the remount, so the remount opens
 	// the Daily, not the screen the player deleted from, and no screen mounts
