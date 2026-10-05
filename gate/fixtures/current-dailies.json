@@ -1,0 +1,20 @@
+[
+	{
+		"server_time": "2026-10-10T12:00:00+00:00",
+		"utc_date": "2026-10-10",
+		"category": "applications",
+		"entry_id": "rails"
+	},
+	{
+		"server_time": "2026-10-10T12:00:00+00:00",
+		"utc_date": "2026-10-10",
+		"category": "mixed",
+		"entry_id": "ssh"
+	},
+	{
+		"server_time": "2026-10-10T12:00:00+00:00",
+		"utc_date": "2026-10-10",
+		"category": "protocols",
+		"entry_id": "ftp"
+	}
+]

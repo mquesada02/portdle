@@ -1,0 +1,68 @@
+import { defineConfig, devices } from "@playwright/test";
+
+const PORT = 4174;
+
+// The screenshot gate (gate/): its own configuration and web server, on the
+// stub build that `pnpm gate` makes in dist-gate. The functional suite uses
+// playwright.config.ts.
+//
+// One project per viewport, theme, and motion setting. The baseline is a
+// folder of frames (gate-baseline/), never committed: CI captures it on master
+// and a pull request compares with it. Compare is exact. A missing baseline
+// fails every frame, and Playwright writes the frame to test-results/.
+const VIEWPORTS = [
+	{ width: 375, height: 812 },
+	{ width: 1024, height: 768 },
+];
+const THEMES = ["light", "dark"] as const;
+
+export default defineConfig({
+	testDir: "gate",
+	snapshotDir: "gate-baseline",
+	snapshotPathTemplate: "{snapshotDir}/{testFilePath}/{arg}-{projectName}{ext}",
+	workers: 1,
+	forbidOnly: !!process.env.CI,
+	retries: 0,
+	timeout: 60_000,
+	reporter: [
+		["list"],
+		["html", { open: "never", outputFolder: "gate-report" }],
+	],
+	expect: {
+		toHaveScreenshot: { animations: "allow", threshold: 0, maxDiffPixels: 0 },
+	},
+	use: {
+		baseURL: `http://127.0.0.1:${PORT}`,
+		trace: "retain-on-failure",
+		// Grayscale text everywhere. With LCD text, a paused animation that moves
+		// between a composited layer and a normal paint changes its text edges, and
+		// the same frame differs between runs.
+		launchOptions: {
+			args: [
+				"--disable-lcd-text",
+				"--font-render-hinting=none",
+				"--disable-threaded-animation",
+			],
+		},
+	},
+	projects: [false, true].flatMap((reduced) =>
+		VIEWPORTS.flatMap((viewport) =>
+			THEMES.map((theme) => ({
+				name: `chromium-${viewport.width}-${theme}${reduced ? "-reduced" : ""}`,
+				use: {
+					...devices["Desktop Chrome"],
+					viewport,
+					colorScheme: theme,
+					reducedMotion: reduced
+						? ("reduce" as const)
+						: ("no-preference" as const),
+				},
+			})),
+		),
+	),
+	webServer: {
+		command: `vite preview --outDir dist-gate --host 127.0.0.1 --port ${PORT} --strictPort`,
+		url: `http://127.0.0.1:${PORT}/portdle/`,
+		reuseExistingServer: false,
+	},
+});

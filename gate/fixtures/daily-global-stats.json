@@ -1,0 +1,41 @@
+[
+	{
+		"category": "applications",
+		"day": "2026-10-10",
+		"players": 120,
+		"wins": 84,
+		"won_in_1": 3,
+		"won_in_2": 11,
+		"won_in_3": 24,
+		"won_in_4": 22,
+		"won_in_5": 14,
+		"won_in_6": 10,
+		"lost": 36
+	},
+	{
+		"category": "mixed",
+		"day": "2026-10-10",
+		"players": 120,
+		"wins": 84,
+		"won_in_1": 3,
+		"won_in_2": 11,
+		"won_in_3": 24,
+		"won_in_4": 22,
+		"won_in_5": 14,
+		"won_in_6": 10,
+		"lost": 36
+	},
+	{
+		"category": "protocols",
+		"day": "2026-10-10",
+		"players": 120,
+		"wins": 84,
+		"won_in_1": 3,
+		"won_in_2": 11,
+		"won_in_3": 24,
+		"won_in_4": 22,
+		"won_in_5": 14,
+		"won_in_6": 10,
+		"lost": 36
+	}
+]

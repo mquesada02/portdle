@@ -24,7 +24,9 @@
 		"dev:schedule": "tsx scripts/fill-local-schedule.ts",
 		"smoke:backend": "tsx scripts/smoke-backend.ts",
 		"test:sql": "scripts/run-sql-tests.sh",
-		"test:e2e": "tsx scripts/e2e.ts"
+		"test:e2e": "tsx scripts/e2e.ts",
+		"gate": "tsx scripts/gate.ts",
+		"gate:capture": "tsx scripts/gate.ts --capture"
 	},
 	"dependencies": {
 		"@leeoniya/ufuzzy": "^1.0.19",

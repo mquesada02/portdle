@@ -5,6 +5,9 @@
 			"**",
 			"!dist",
 			"!dist-e2e",
+			"!dist-gate",
+			"!gate-baseline",
+			"!gate-report",
 			"!playwright-report",
 			"!test-results",
 			"!node_modules"
