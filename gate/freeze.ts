@@ -45,6 +45,67 @@ export async function waitForQuiet(page: Page): Promise<void> {
 	);
 }
 
+type HoldWindow = Window & { __holdStarts?: boolean };
+
+// Holds the animations that `interact` starts (rate 0), so a slow poll on a
+// loaded machine cannot miss a 150 ms animation. A view transition is held when
+// it is ready, on the current document only. A keyframe animation or a CSS
+// transition is held at its start or run event (an init script covers a page
+// that `interact` loads). A held animation still counts as running, so the poll
+// finds it and pauses it. `releaseStarts` ends the hold, so later animations
+// run as usual. Call `shootMotion` once per page: the hold cannot be removed
+// from later documents.
+async function holdStarts(page: Page, target: string): Promise<void> {
+	if (target.startsWith("::")) {
+		await page.evaluate(() => {
+			if (typeof document.startViewTransition !== "function") {
+				return;
+			}
+			(window as HoldWindow).__holdStarts = true;
+			const start = document.startViewTransition.bind(document);
+			document.startViewTransition = (...args: Parameters<typeof start>) => {
+				const transition = start(...args);
+				// The empty rejection handler is for a skipped transition.
+				transition.ready.then(
+					() => {
+						if ((window as HoldWindow).__holdStarts) {
+							for (const a of document.getAnimations()) {
+								a.playbackRate = 0;
+							}
+						}
+					},
+					() => {},
+				);
+				return transition;
+			};
+		});
+		return;
+	}
+	const hold = () => {
+		(window as HoldWindow).__holdStarts = true;
+		const holdTarget = (event: Event) => {
+			if ((window as HoldWindow).__holdStarts) {
+				// `subtree` adds the pseudo-elements, such as a dialog `::backdrop`.
+				for (const a of (event.target as Element).getAnimations({
+					subtree: true,
+				})) {
+					a.playbackRate = 0;
+				}
+			}
+		};
+		document.addEventListener("animationstart", holdTarget, true);
+		document.addEventListener("transitionrun", holdTarget, true);
+	};
+	await page.addInitScript(hold);
+	await page.evaluate(hold);
+}
+
+async function releaseStarts(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		(window as HoldWindow).__holdStarts = false;
+	});
+}
+
 // Pauses the installed clock one second ahead. Use it after `waitForQuiet` and
 // after all typing, before the interaction: the jump runs the timers that are
 // due in that second. With a paused clock, no page timer fires, so a timer
@@ -60,7 +121,9 @@ export async function pauseClock(page: Page): Promise<void> {
 // as `::view-transition-new(screen)`, or a CSS transition by property name
 // such as `transition:opacity`. Earlier motion (for example a
 // focus-ring transition from the pointer) must end first, or the helper would
-// freeze it instead of the target. Each frame is `<name>-<time>ms.png`.
+// freeze it instead of the target. It holds the animations that `interact`
+// starts first (see `holdStarts`), and releases the hold after the last frame.
+// Each frame is `<name>-<time>ms.png`.
 export async function shootMotion(
 	page: Page,
 	options: {
@@ -88,6 +151,7 @@ export async function shootMotion(
 		toleranceOnAllFrames,
 	} = options;
 	await waitForQuiet(page);
+	await holdStarts(page, target);
 	await interact();
 	await pollUntil(`no animation named ${target} started`, TIMEOUT_MS, () =>
 		page.evaluate(
@@ -162,6 +226,7 @@ export async function shootMotion(
 			...(tolerated && { threshold: IN_FLIGHT_THRESHOLD }),
 		});
 	}
+	await releaseStarts(page);
 }
 
 // With reduced motion, no animation of the target may start. `target` is a
