@@ -8,8 +8,9 @@ export default defineConfig({
 	test: {
 		environment: "jsdom",
 		globals: false,
-		// The Playwright specs in e2e/ run under `pnpm test:e2e`, not Vitest.
-		exclude: [...configDefaults.exclude, "e2e/**"],
+		// The Playwright specs in e2e/ run under `pnpm test:e2e`, and the ones in
+		// gate/ under `pnpm gate`, not Vitest.
+		exclude: [...configDefaults.exclude, "e2e/**", "gate/**"],
 		setupFiles: ["./src/test/setup.ts"],
 		// A loaded machine must not time out a test: the tests wait on nothing
 		// real, so these limits measure machine load.

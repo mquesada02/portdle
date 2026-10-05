@@ -1,0 +1,27 @@
+[
+	{ "category": "applications", "day": "2026-10-04", "entry_id": "angular" },
+	{ "category": "mixed", "day": "2026-10-04", "entry_id": "amqp" },
+	{ "category": "protocols", "day": "2026-10-04", "entry_id": "bgp" },
+	{ "category": "applications", "day": "2026-10-05", "entry_id": "cra" },
+	{ "category": "mixed", "day": "2026-10-05", "entry_id": "http-alt" },
+	{ "category": "protocols", "day": "2026-10-05", "entry_id": "http" },
+	{
+		"category": "applications",
+		"day": "2026-10-06",
+		"entry_id": "elasticsearch"
+	},
+	{ "category": "mixed", "day": "2026-10-06", "entry_id": "ldap" },
+	{ "category": "protocols", "day": "2026-10-06", "entry_id": "irc" },
+	{ "category": "applications", "day": "2026-10-07", "entry_id": "jenkins" },
+	{ "category": "mixed", "day": "2026-10-07", "entry_id": "pop3" },
+	{ "category": "protocols", "day": "2026-10-07", "entry_id": "mqtt" },
+	{ "category": "applications", "day": "2026-10-08", "entry_id": "minio" },
+	{ "category": "mixed", "day": "2026-10-08", "entry_id": "sip" },
+	{ "category": "protocols", "day": "2026-10-08", "entry_id": "pop3" },
+	{ "category": "applications", "day": "2026-10-09", "entry_id": "pgadmin" },
+	{ "category": "mixed", "day": "2026-10-09", "entry_id": "syslog" },
+	{ "category": "protocols", "day": "2026-10-09", "entry_id": "redis" },
+	{ "category": "applications", "day": "2026-10-10", "entry_id": "rails" },
+	{ "category": "mixed", "day": "2026-10-10", "entry_id": "ssh" },
+	{ "category": "protocols", "day": "2026-10-10", "entry_id": "ftp" }
+]

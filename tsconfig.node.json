@@ -28,6 +28,7 @@
 		"scripts/e2e.ts",
 		"scripts/e2e-env.ts",
 		"scripts/test-stress.ts",
-		"scripts/test-stress-core.ts"
+		"scripts/test-stress-core.ts",
+		"scripts/gate.ts"
 	]
 }
