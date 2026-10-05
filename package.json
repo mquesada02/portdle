@@ -18,6 +18,7 @@
 		"format": "biome check --write .",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"test:stress": "tsx scripts/test-stress.ts",
 		"typecheck": "tsc -b --noEmit",
 		"schedule:generate": "tsx scripts/schedule-generator.ts",
 		"dev:schedule": "tsx scripts/fill-local-schedule.ts",

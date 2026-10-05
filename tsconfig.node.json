@@ -26,6 +26,8 @@
 		"scripts/schedule-generator.ts",
 		"scripts/fill-local-schedule.ts",
 		"scripts/e2e.ts",
-		"scripts/e2e-env.ts"
+		"scripts/e2e-env.ts",
+		"scripts/test-stress.ts",
+		"scripts/test-stress-core.ts"
 	]
 }
