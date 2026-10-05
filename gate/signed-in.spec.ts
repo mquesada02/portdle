@@ -2,13 +2,8 @@
 // Name confirm. The fixtures sign the page in before it loads (see
 // fixtures.ts), so each test only opens its screen.
 
-import type { TestInfo } from "@playwright/test";
-import { expect, test } from "./fixtures.ts";
+import { expect, isReduced, test } from "./fixtures.ts";
 import { waitForQuiet } from "./freeze.ts";
-
-function isReduced(testInfo: TestInfo): boolean {
-	return testInfo.project.use.reducedMotion === "reduce";
-}
 
 test.describe("confirmed name", () => {
 	test.use({ account: "confirmed" });

@@ -10,7 +10,7 @@
 // fire, so a test that pauses the clock must not poll in the page. freeze.ts
 // polls from the test process.
 
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type TestInfo } from "@playwright/test";
 import { authStorageKey } from "../scripts/e2e-env.ts";
 import {
 	type AccountOption,
@@ -20,6 +20,11 @@ import {
 } from "./stub.ts";
 
 export { expect };
+
+// True in the projects that run with reduced motion.
+export function isReduced(testInfo: TestInfo): boolean {
+	return testInfo.project.use.reducedMotion === "reduce";
+}
 
 // The fixed moment of every test: the server time of the current Dailies.
 const FIXED_TIME = new Date("2026-10-10T12:00:00Z");
@@ -64,16 +69,8 @@ function sessionOf(accountId: string) {
 	};
 }
 
-// The sign-in as the app stores it, under the key the app derives from the
-// backend host.
-function storedSignIn(accountId: string) {
-	return {
-		key: authStorageKey(STUB_URL),
-		session: sessionOf(accountId),
-	};
-}
-
 // Runs in the page before any script, so the app finds the sign-in at load.
+// The app stores it under a key derived from the backend host.
 function signInScript(stored: { key: string; session: object }) {
 	localStorage.setItem(stored.key, JSON.stringify(stored.session));
 }
@@ -86,7 +83,7 @@ export const test = base.extend<{ account: AccountOption | null }>({
 		if (!baseURL) {
 			throw new Error("The gate configuration sets no baseURL.");
 		}
-		const signedIn = account === null ? undefined : accountFor(account);
+		const signedIn = account ? accountFor(account) : undefined;
 		const unstubbed = await stubBackend(
 			page.context(),
 			new URL(baseURL).origin,
@@ -95,7 +92,10 @@ export const test = base.extend<{ account: AccountOption | null }>({
 		await page.clock.install({ time: FIXED_TIME });
 		await page.addInitScript(initScript, colorScheme ?? "light");
 		if (signedIn) {
-			await page.addInitScript(signInScript, storedSignIn(signedIn.id));
+			await page.addInitScript(signInScript, {
+				key: authStorageKey(STUB_URL),
+				session: sessionOf(signedIn.id),
+			});
 		}
 		await use(page);
 		expect(unstubbed, "requests with no stub").toEqual([]);

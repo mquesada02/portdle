@@ -82,30 +82,35 @@ function eq(url: URL, column: string): string | null {
 // The answers for a signed-in test. The one write answered is the preferences
 // push that Sync sends on the first sync of a device.
 function answerSignedIn(
+	route: string,
 	url: URL,
 	method: string,
 	account: AccountRow,
 ): Reply | null {
-	const table = url.pathname.replace("/rest/v1/", "");
 	if (method === "POST") {
-		return table === "preferences" ? { status: 201 } : null;
+		return route === "preferences" ? { status: 201 } : null;
 	}
 	if (method !== "GET") {
 		return null;
 	}
-	if (table === "accounts") {
+	if (route === "accounts") {
 		return eq(url, "id") === account.id ? ok(account) : null;
 	}
-	if (SYNC_TABLES.includes(table)) {
+	if (SYNC_TABLES.includes(route)) {
 		return ok([]);
 	}
-	if (table === "leaderboard_all_time") {
+	if (route === "leaderboard_all_time") {
 		// No top-N cut and no viewer row: the fixture holds only the rows a frame
 		// shows, for the default picker (mixed, default, sprint).
+		const wanted = {
+			category: eq(url, "category"),
+			orientation: eq(url, "orientation"),
+			mode: eq(url, "mode"),
+		};
 		return ok(
 			LEADERBOARD.filter((row) =>
-				["category", "orientation", "mode"].every(
-					(column) => row[column] === eq(url, column),
+				Object.entries(wanted).every(
+					([column, value]) => row[column] === value,
 				),
 			),
 		);
@@ -118,14 +123,15 @@ function answer(
 	method: string,
 	account: AccountRow | undefined,
 ): Reply | null {
-	switch (url.pathname) {
-		case "/rest/v1/rpc/current_dailies":
+	const route = url.pathname.replace("/rest/v1/", "");
+	switch (route) {
+		case "rpc/current_dailies":
 			return ok(CURRENT_DAILIES);
-		case "/rest/v1/catalog_entries":
+		case "catalog_entries":
 			return ok(firstPage(CATALOG, url));
-		case "/rest/v1/schedule":
+		case "schedule":
 			return ok(firstPage(SCHEDULE, url));
-		case "/rest/v1/daily_global_stats":
+		case "daily_global_stats":
 			return ok(
 				GLOBAL_STATS.filter(
 					(row) =>
@@ -133,7 +139,7 @@ function answer(
 				),
 			);
 		default:
-			return account ? answerSignedIn(url, method, account) : null;
+			return account ? answerSignedIn(route, url, method, account) : null;
 	}
 }
 

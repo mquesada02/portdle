@@ -2,13 +2,8 @@
 // project starts in its own theme (see fixtures.ts), so the light projects
 // frame light to dark and the dark projects dark to light.
 
-import type { TestInfo } from "@playwright/test";
-import { expect, test } from "./fixtures.ts";
+import { expect, isReduced, test } from "./fixtures.ts";
 import { expectNoMotion, shootMotion, waitForQuiet } from "./freeze.ts";
-
-function isReduced(testInfo: TestInfo): boolean {
-	return testInfo.project.use.reducedMotion === "reduce";
-}
 
 // One 250 ms crossfade of the whole page.
 const CROSSFADE_TIMES = [0, 60, 125, 190, 250];
