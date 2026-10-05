@@ -5,6 +5,7 @@
 
 import { expect, test } from "./fixtures.ts";
 import { pauseClock, shootMotion, waitForQuiet } from "./freeze.ts";
+import { TIMES_150 } from "./motion.ts";
 import {
 	expectEndFrame,
 	holdGlobalStats,
@@ -12,9 +13,6 @@ import {
 	openGame,
 	PLAYED,
 } from "./state.ts";
-
-// Every view transition and every dialog enter lasts 150 ms.
-const ENTER_TIMES = [0, 40, 75, 110, 150];
 
 test("row shake of an empty guess", async ({ page }, testInfo) => {
 	const reduced = await openGame(page, testInfo);
@@ -123,7 +121,7 @@ test("Daily switcher changes category", async ({ page }, testInfo) => {
 	await shootMotion(page, {
 		name: "daily-switcher",
 		target: "::view-transition-new(switcher-content)",
-		times: ENTER_TIMES,
+		times: TIMES_150,
 		interact: () => link.click(),
 		toleranceOnAllFrames: true,
 	});
@@ -147,7 +145,7 @@ test("History switcher changes segment", async ({ page }, testInfo) => {
 	await shootMotion(page, {
 		name: "history-switcher",
 		target: "::view-transition-new(switcher-content)",
-		times: ENTER_TIMES,
+		times: TIMES_150,
 		interact: () => link.click(),
 		toleranceOnAllFrames: true,
 	});
@@ -170,7 +168,7 @@ test("Nav changes screen", async ({ page }, testInfo) => {
 	await shootMotion(page, {
 		name: "nav-screen-change",
 		target: "::view-transition-new(screen)",
-		times: ENTER_TIMES,
+		times: TIMES_150,
 		interact: () => link.click(),
 	});
 });
@@ -188,7 +186,7 @@ test("How-to dialog opens", async ({ page }, testInfo) => {
 	await shootMotion(page, {
 		name: "how-to-open",
 		target: "transition:opacity",
-		times: ENTER_TIMES,
+		times: TIMES_150,
 		interact: () => button.click(),
 	});
 });

@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 import { shootMotion } from "./freeze.ts";
 import { expectEndFrame } from "./state.ts";
 
-// The frames of a 150 ms motion (`rise`, `pop`).
+// The frames of a 150 ms motion (`rise`, `pop`, a view transition, a dialog enter).
 export const TIMES_150 = [0, 40, 75, 110, 150];
 
 // With motion: `shootMotion`, one frame per time. With reduced motion (the page
