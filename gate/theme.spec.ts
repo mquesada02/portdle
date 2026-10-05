@@ -43,8 +43,11 @@ test("theme crossfade", async ({ page }, testInfo) => {
 					sample();
 				}),
 		);
+		seen.catch(() => {});
 		await toggle.click();
-		// The class flips at once: no view transition holds the change back.
+		// Both layers hold the motion back (the helper starts no transition, and
+		// the reduced-motion rule zeroes the pseudo-elements), so the check below
+		// fails only if both break. The class flips.
 		await expect
 			.poll(() =>
 				page.evaluate(() =>

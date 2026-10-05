@@ -135,7 +135,11 @@ test("theme control still flips and stores the theme without the View Transition
 		expect(persist.readTheme()).toBe("dark");
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
 	} finally {
-		document.startViewTransition = original;
+		if (original === undefined) {
+			delete (document as Partial<Document>).startViewTransition;
+		} else {
+			document.startViewTransition = original;
+		}
 	}
 });
 
