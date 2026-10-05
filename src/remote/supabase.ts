@@ -252,9 +252,9 @@ export function createSupabaseRemote(
 		return (await response.json()) as T;
 	}
 
-	function fetchAllRows<T>(path: string): Promise<T[]> {
+	function fetchAllRows<T>(path: string, signal?: AbortSignal): Promise<T[]> {
 		return readPages((offset) =>
-			restJson<T[]>(`${path}&limit=${PAGE_SIZE}&offset=${offset}`),
+			restJson<T[]>(`${path}&limit=${PAGE_SIZE}&offset=${offset}`, { signal }),
 		);
 	}
 
@@ -487,9 +487,10 @@ export function createSupabaseRemote(
 			);
 			return { rows, viewerId };
 		},
-		async readCatalog(): Promise<Catalog> {
+		async readCatalog(signal?: AbortSignal): Promise<Catalog> {
 			const rows = await fetchAllRows<CatalogDbRow>(
 				"catalog_entries?select=*&order=id",
+				signal,
 			);
 			const catalog: Catalog = { protocols: [], applications: [] };
 			for (const row of rows) {
@@ -503,13 +504,14 @@ export function createSupabaseRemote(
 			}
 			return catalog;
 		},
-		async readCurrentDailies(): Promise<CurrentDailies> {
+		async readCurrentDailies(signal?: AbortSignal): Promise<CurrentDailies> {
 			const rows = await restJson<CurrentDailiesDbRow[]>(
 				"rpc/current_dailies",
 				{
 					method: "POST",
 					body: "{}",
 					headers: { "Content-Type": "application/json" },
+					signal,
 				},
 			);
 			const entryIds: Partial<Record<DailyCategory, string>> = {};
@@ -537,9 +539,10 @@ export function createSupabaseRemote(
 				entryIds: entryIds as Record<DailyCategory, string>,
 			};
 		},
-		async readSchedule(): Promise<ScheduleRow[]> {
+		async readSchedule(signal?: AbortSignal): Promise<ScheduleRow[]> {
 			const rows = await fetchAllRows<ScheduleDbRow>(
 				"schedule?select=category,day,entry_id&order=day,category",
+				signal,
 			);
 			return rows.map((row) => {
 				if (!isDailyCategory(row.category)) {
@@ -552,9 +555,10 @@ export function createSupabaseRemote(
 				};
 			});
 		},
-		async readDailyStats(category, date): Promise<DailyGlobalStats> {
+		async readDailyStats(category, date, signal): Promise<DailyGlobalStats> {
 			const [row] = await restJson<DailyStatsDbRow[]>(
 				`daily_global_stats?select=*&category=eq.${category}&day=eq.${date}`,
+				{ signal },
 			);
 			return row
 				? {

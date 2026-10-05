@@ -1,5 +1,11 @@
 import { createMemoryHistory } from "@tanstack/react-router";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+	cleanup,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import type { BlitzRun } from "../engine/types";
@@ -339,4 +345,30 @@ test("answers resolve by id in the whole catalog: a retired entry and an entry o
 	expect(
 		within(screen.getByRole("list", { name: EPOCH })).getByText(/Moved App/),
 	).toBeTruthy();
+});
+
+test("leaving History aborts the request of the past rows read", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote();
+	remote.holdSchedule();
+	const read = remote.readSchedule;
+	const signals: Array<AbortSignal | undefined> = [];
+	remote.readSchedule = (signal) => {
+		signals.push(signal);
+		return read(signal);
+	};
+	stubMatchMedia();
+	remote.today = UTC_TODAY;
+	render(
+		<App
+			persist={createPersist(memoryStore())}
+			remote={remote}
+			history={createMemoryHistory({ initialEntries: ["/portdle/history"] })}
+		/>,
+	);
+	await screen.findByRole("navigation", { name: "Main" });
+	await waitFor(() => expect(signals).toHaveLength(1));
+	expect(signals[0]?.aborted).toBe(false);
+	await user.click(screen.getByRole("link", { name: "Codex" }));
+	expect(signals[0]?.aborted).toBe(true);
 });

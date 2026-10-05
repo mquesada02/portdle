@@ -111,16 +111,18 @@ export type Remote = {
 	// Rows go to the given account; a sign-in for another account is refused.
 	push(accountId: string, rows: SyncedRows): Promise<void>;
 	readLeaderboard(query: LeaderboardQuery): Promise<LeaderboardPage>;
-	// Public reads: no sign-in needed.
-	readCatalog(): Promise<Catalog>;
+	// Public reads: no sign-in needed. Each takes an optional signal: aborting
+	// it stops the request, and the read rejects.
+	readCatalog(signal?: AbortSignal): Promise<Catalog>;
 	// Rejects when the server has no Daily for a category today.
-	readCurrentDailies(): Promise<CurrentDailies>;
+	readCurrentDailies(signal?: AbortSignal): Promise<CurrentDailies>;
 	// Every Schedule row the server shows: days up to the server's UTC date.
-	readSchedule(): Promise<ScheduleRow[]>;
+	readSchedule(signal?: AbortSignal): Promise<ScheduleRow[]>;
 	// The totals of one Daily: all zeros when no one finished it on-day.
 	readDailyStats(
 		category: DailyCategory,
 		date: string,
+		signal?: AbortSignal,
 	): Promise<DailyGlobalStats>;
 	redirectError(): string | null;
 	clearRedirectError(): void;
