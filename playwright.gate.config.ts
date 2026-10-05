@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 4174;
+const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 // The screenshot gate (gate/): its own configuration and web server, on the
 // stub build that `pnpm gate` makes in dist-gate. The functional suite uses
@@ -33,7 +34,7 @@ export default defineConfig({
 		toHaveScreenshot: { animations: "allow", threshold: 0, maxDiffPixels: 0 },
 	},
 	use: {
-		baseURL: `http://127.0.0.1:${PORT}`,
+		baseURL: ORIGIN,
 		trace: "retain-on-failure",
 		// Grayscale text everywhere. With LCD text, a paused animation that moves
 		// between a composited layer and a normal paint changes its text edges, and
@@ -63,7 +64,7 @@ export default defineConfig({
 	),
 	webServer: {
 		command: `vite preview --outDir dist-gate --host 127.0.0.1 --port ${PORT} --strictPort`,
-		url: `http://127.0.0.1:${PORT}/portdle/`,
+		url: `${ORIGIN}/portdle/`,
 		reuseExistingServer: false,
 	},
 });
