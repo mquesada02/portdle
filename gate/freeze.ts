@@ -72,10 +72,10 @@ export async function shootMotion(
 		pausedClock?: boolean;
 		// Shoot the whole page, not the viewport.
 		fullPage?: boolean;
-		// The first frame also takes the color tolerance. The switcher view
-		// transitions need it: their first frame (the tab label) drew one level off
-		// in about 1 of 10 five-run checks.
-		toleranceOnFirstFrame?: boolean;
+		// Every frame takes the color tolerance, also the first and the last. The
+		// switcher view transitions need it: the tab label drew one level off in
+		// the first frame and in the last frame, in rare runs.
+		toleranceOnAllFrames?: boolean;
 	},
 ): Promise<void> {
 	const {
@@ -85,7 +85,7 @@ export async function shootMotion(
 		interact,
 		pausedClock,
 		fullPage,
-		toleranceOnFirstFrame,
+		toleranceOnAllFrames,
 	} = options;
 	await waitForQuiet(page);
 	await interact();
@@ -153,13 +153,13 @@ export async function shootMotion(
 				}),
 			{ ms: time, native: pausedClock === true },
 		);
-		const inFlight =
-			(toleranceOnFirstFrame || time !== times[0]) && time !== times.at(-1);
+		const tolerated =
+			toleranceOnAllFrames || (time !== times[0] && time !== times.at(-1));
 		await expect(page).toHaveScreenshot(`${name}-${time}ms.png`, {
 			fullPage,
 			// Left out for the first and last frame: an undefined value would
 			// replace the exact threshold of the gate configuration.
-			...(inFlight && { threshold: IN_FLIGHT_THRESHOLD }),
+			...(tolerated && { threshold: IN_FLIGHT_THRESHOLD }),
 		});
 	}
 }

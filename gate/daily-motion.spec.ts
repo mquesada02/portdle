@@ -125,7 +125,7 @@ test("Daily switcher changes category", async ({ page }, testInfo) => {
 		target: "::view-transition-new(switcher-content)",
 		times: ENTER_TIMES,
 		interact: () => link.click(),
-		toleranceOnFirstFrame: true,
+		toleranceOnAllFrames: true,
 	});
 });
 
@@ -149,7 +149,7 @@ test("History switcher changes segment", async ({ page }, testInfo) => {
 		target: "::view-transition-new(switcher-content)",
 		times: ENTER_TIMES,
 		interact: () => link.click(),
-		toleranceOnFirstFrame: true,
+		toleranceOnAllFrames: true,
 	});
 });
 
