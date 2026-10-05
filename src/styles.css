@@ -267,6 +267,12 @@
 		transition: none;
 	}
 
+	/* Its own rule: a browser that cannot parse ::details-content drops the
+	   whole rule, and it must not drop the rule above. */
+	*::details-content {
+		transition: none;
+	}
+
 	::view-transition-group(*),
 	::view-transition-old(*),
 	::view-transition-new(*) {
@@ -323,7 +329,19 @@
 		}
 	}
 
-	details[open] > ul {
-		animation: rise 150ms ease-out both;
+	details {
+		interpolate-size: allow-keywords;
+	}
+
+	details::details-content {
+		height: 0;
+		overflow: clip;
+		transition:
+			height 200ms ease-out,
+			content-visibility 200ms allow-discrete;
+	}
+
+	details[open]::details-content {
+		height: auto;
 	}
 }
