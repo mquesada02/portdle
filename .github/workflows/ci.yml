@@ -44,6 +44,8 @@ jobs:
       - run: supabase start -x studio,mailpit
       # Runs the Schedule generator once as the generator role, as pnpm dev does.
       - run: pnpm dev:schedule
+      # Compares the gate fixtures (gate/fixtures/) with the stack's real responses.
+      - run: pnpm check:fixtures
       - run: scripts/run-sql-tests.sh
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - id: e2e
