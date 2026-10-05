@@ -55,7 +55,7 @@ The gate fakes a sign-in. Before the page loads, the test stores a fixed session
 ## Testing Decisions
 
 - The gate tests are the product. A good test here opens one screen with literal fixtures and takes one frame.
-- Proof of the fake sign-in: the Account menu test reaches the signed-in view and the Leaderboards test shows the "You" badge. Both need the stored session and the stub answers.
+- Proof of the fake sign-in: the Account menu test reaches the signed-in view, and the Leaderboards frame shows the "You" badge. Both need the stored session and the stub answers. The frame, not an assertion, guards the badge.
 - Proof of the stub rule: a developer deletes the `leaderboard_all_time` case from `answer()` and runs the Leaderboards test. The test times out at the first row, and its failure list also holds the unstubbed-request message ("requests with no stub"). The developer then restores the case. This is a manual check and is not committed.
 - Proof that a frame guards the screen: a developer changes one class of the menu by hand, and `pnpm gate` fails that frame. This is a manual check and is not committed.
 - `pnpm gate:capture`, then `pnpm gate`, passes twice in a row on the same machine (the new frames are the same on each run).
