@@ -45,16 +45,17 @@ export async function waitForQuiet(page: Page): Promise<void> {
 	);
 }
 
+type HoldWindow = Window & { __holdStarts?: boolean };
+
 // Holds the animations that `interact` starts, so a slow poll cannot miss them.
 // A poll can come after a 150 ms animation ends: the machine can be loaded, the
 // page can be loading, or hundreds of view-transition animations can slow the
 // page evaluation. A view transition: when it is ready, every animation gets
 // the rate 0. A keyframe: at its start event, the animations of the element get
 // the rate 0 (an init script covers a page that `interact` loads). A CSS
-// transition target (`transition:`) is not held. An animation
-// with rate 0 still counts as running, so the poll finds it and pauses it. The
-// hold stays for the life of the page. After `shootMotion`, the page still
-// counts those animations as running, so use one `shootMotion` per page.
+// transition target (`transition:`) is not held. An animation with rate 0 still
+// counts as running, so the poll finds it and pauses it. `releaseStarts` ends
+// the hold on the current document, so later animations on it run as usual.
 async function holdStarts(page: Page, target: string): Promise<void> {
 	if (target.startsWith("::")) {
 		await page.evaluate(() => {
@@ -62,14 +63,17 @@ async function holdStarts(page: Page, target: string): Promise<void> {
 			if (typeof document.startViewTransition !== "function") {
 				return;
 			}
+			(window as HoldWindow).__holdStarts = true;
 			const start = document.startViewTransition.bind(document);
 			document.startViewTransition = (...args: Parameters<typeof start>) => {
 				const transition = start(...args);
 				// The empty rejection handler is for a skipped transition.
 				transition.ready.then(
 					() => {
-						for (const a of document.getAnimations()) {
-							a.playbackRate = 0;
+						if ((window as HoldWindow).__holdStarts) {
+							for (const a of document.getAnimations()) {
+								a.playbackRate = 0;
+							}
 						}
 					},
 					() => {},
@@ -80,11 +84,14 @@ async function holdStarts(page: Page, target: string): Promise<void> {
 		return;
 	}
 	const hold = () => {
+		(window as HoldWindow).__holdStarts = true;
 		document.addEventListener(
 			"animationstart",
 			(event) => {
-				for (const a of (event.target as Element).getAnimations()) {
-					a.playbackRate = 0;
+				if ((window as HoldWindow).__holdStarts) {
+					for (const a of (event.target as Element).getAnimations()) {
+						a.playbackRate = 0;
+					}
 				}
 			},
 			true,
@@ -92,6 +99,12 @@ async function holdStarts(page: Page, target: string): Promise<void> {
 	};
 	await page.addInitScript(hold);
 	await page.evaluate(hold);
+}
+
+async function releaseStarts(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		(window as HoldWindow).__holdStarts = false;
+	});
 }
 
 // Pauses the installed clock one second ahead. Use it after `waitForQuiet` and
@@ -213,6 +226,8 @@ export async function shootMotion(
 			...(tolerated && { threshold: IN_FLIGHT_THRESHOLD }),
 		});
 	}
+	// Later motion on the page runs as usual.
+	await releaseStarts(page);
 }
 
 // With reduced motion, no animation of the target may start. `target` is a
