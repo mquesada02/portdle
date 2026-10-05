@@ -209,7 +209,7 @@ Browsers without the View Transitions API, or without transition types, keep cha
 - New motion: 200 ms height and 250 ms crossfade, both `ease-out`; the height replaces the list's `rise`; the whole page crossfades; the theme change uses the view-transition helper with a `theme` type (#220).
 - Flaky fixes: the random source reaches the Blitz page like `persist` (#221 said "like `persist` and `remote`", but `remote` reaches the router context as `backend`); every random-retry test switches to a scripted source; the stress command's defaults; the limits; no separate `name-confirm` fix (#221).
 
-### Author calls made while writing (for the owner to accept or overrule at the spec gate)
+### Author calls made while writing (accepted by the owner at the spec gate, 2026-10-04)
 
 1. No new ADR. The decisions are test and CI tooling, recorded here and on the map; no ADR changes.
 2. No new glossary entries: the screenshot gate's terms are tooling, not player-facing.
