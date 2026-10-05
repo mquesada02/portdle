@@ -14,7 +14,7 @@ export const STUB_KEY = "stub-anon-key";
 type Row = Record<string, unknown>;
 
 // A signed-in account: the row of the `accounts` table that the stub serves.
-export type AccountRow = {
+type AccountRow = {
 	id: string;
 	display_name: string;
 	name_confirmed: boolean;
