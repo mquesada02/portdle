@@ -1,3 +1,8 @@
+import { configure } from "@testing-library/react";
+
+// A Testing Library wait ends on machine load, not on a real delay.
+configure({ asyncUtilTimeout: 10_000 });
+
 // jsdom implements neither HTMLDialogElement.showModal/close nor window.scrollTo.
 // Stub them so tests can open and close a native dialog and assert scroll calls.
 // showModal/close also capture and restore focus, mirroring enough of native
