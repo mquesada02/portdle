@@ -50,7 +50,8 @@ export async function waitForQuiet(page: Page): Promise<void> {
 // page can be loading, or hundreds of view-transition animations can slow the
 // page evaluation. A view transition: when it is ready, every animation gets
 // the rate 0. A keyframe: at its start event, the animations of the element get
-// the rate 0 (an init script covers a page that `interact` loads). An animation
+// the rate 0 (an init script covers a page that `interact` loads). A CSS
+// transition target (`transition:`) is not held. An animation
 // with rate 0 still counts as running, so the poll finds it and pauses it. The
 // hold stays for the life of the page. After `shootMotion`, the page still
 // counts those animations as running, so use one `shootMotion` per page.

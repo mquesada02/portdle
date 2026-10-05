@@ -1,12 +1,15 @@
 // Stored data for the Blitz and Codex frames. An init script writes it before
 // the app reads it. It runs after the base init script of fixtures.ts. It runs
-// on every document load, so a test loads the page once.
+// on every document load, so a test loads the page once. The keys and shapes
+// mirror src/persist/storage.ts (its key constants are private), and the
+// types of src/engine/types.ts check the shapes.
 
 import type { Page } from "@playwright/test";
+import type { BlitzBests, BlitzRun, CodexMap } from "../src/engine/types.ts";
 
 // A Mixed, Default, Sprint run that the clock ended: two correct rounds and two
 // misses, each miss a typed Wrong answer. The Arena shows its score and `endedAt`.
-const LAST_RUN = {
+const LAST_RUN: BlitzRun = {
 	category: "mixed",
 	orientation: "default",
 	mode: "sprint",
@@ -38,14 +41,14 @@ const LAST_RUN = {
 };
 
 // No Survival Best: the Survival Run of the End card sets a new one.
-const BESTS = {
+const BESTS: BlitzBests = {
 	"mixed|default|sprint": { score: 2 },
 	"protocols|default|sprint": { score: 3 },
 };
 
 // Four protocols among the first eight cards of both sorts, so a frame (the
 // viewport only) shows them. `fresh` marks the cards that pop on a visit.
-function codex(fresh: boolean) {
+function codex(fresh: boolean): CodexMap {
 	return {
 		echo: { state: "correct", fresh },
 		discard: { state: "missed", fresh: false },
