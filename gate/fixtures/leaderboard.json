@@ -1,0 +1,82 @@
+[
+	{
+		"account_id": "7c1d2e3f-4a5b-4c6d-8e7f-000000000001",
+		"display_name": "Swift Otter",
+		"category": "mixed",
+		"orientation": "default",
+		"mode": "sprint",
+		"score": 31,
+		"time_to_score_ms": null,
+		"rank": 1
+	},
+	{
+		"account_id": "7c1d2e3f-4a5b-4c6d-8e7f-000000000002",
+		"display_name": "Quiet Lynx",
+		"category": "mixed",
+		"orientation": "default",
+		"mode": "sprint",
+		"score": 29,
+		"time_to_score_ms": 58500,
+		"rank": 2
+	},
+	{
+		"account_id": "7c1d2e3f-4a5b-4c6d-8e7f-000000000003",
+		"display_name": "Bold Marten",
+		"category": "mixed",
+		"orientation": "default",
+		"mode": "sprint",
+		"score": 27,
+		"time_to_score_ms": 57000,
+		"rank": 3
+	},
+	{
+		"account_id": "0b8e6a4c-3f1d-4c52-9a7e-5d2f1c8b7e01",
+		"display_name": "Brave Falcon",
+		"category": "mixed",
+		"orientation": "default",
+		"mode": "sprint",
+		"score": 24,
+		"time_to_score_ms": null,
+		"rank": 4
+	},
+	{
+		"account_id": "7c1d2e3f-4a5b-4c6d-8e7f-000000000005",
+		"display_name": "Gentle Crane",
+		"category": "mixed",
+		"orientation": "default",
+		"mode": "sprint",
+		"score": 22,
+		"time_to_score_ms": 54000,
+		"rank": 5
+	},
+	{
+		"account_id": "7c1d2e3f-4a5b-4c6d-8e7f-000000000006",
+		"display_name": "Keen Badger",
+		"category": "mixed",
+		"orientation": "default",
+		"mode": "sprint",
+		"score": 19,
+		"time_to_score_ms": 52500,
+		"rank": 6
+	},
+	{
+		"account_id": "7c1d2e3f-4a5b-4c6d-8e7f-000000000007",
+		"display_name": "Lucky Finch",
+		"category": "mixed",
+		"orientation": "default",
+		"mode": "sprint",
+		"score": 15,
+		"time_to_score_ms": null,
+		"rank": 7
+	},
+	{
+		"account_id": "7c1d2e3f-4a5b-4c6d-8e7f-000000000008",
+		"display_name": "Mellow Stoat",
+		"category": "mixed",
+		"orientation": "default",
+		"mode": "sprint",
+		"score": 11,
+		"time_to_score_ms": 49500,
+		"rank": 8
+	}
+]
