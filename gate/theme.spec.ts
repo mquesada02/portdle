@@ -23,6 +23,26 @@ test("theme crossfade", async ({ page }, testInfo) => {
 	);
 	if (isReduced(testInfo)) {
 		await waitForQuiet(page);
+		// Sample from before the click until the 250 ms crossfade would have
+		// ended: a check after the motion would pass even if it had run.
+		const seen = page.evaluate(
+			() =>
+				new Promise<(string | null | undefined)[]>((resolve) => {
+					const names = new Set<string | null | undefined>();
+					const end = performance.now() + 400;
+					const sample = () => {
+						for (const a of document.getAnimations()) {
+							names.add((a.effect as KeyframeEffect | null)?.pseudoElement);
+						}
+						if (performance.now() < end) {
+							requestAnimationFrame(sample);
+						} else {
+							resolve([...names]);
+						}
+					};
+					sample();
+				}),
+		);
 		await toggle.click();
 		// The class flips at once: no view transition holds the change back.
 		await expect
@@ -32,8 +52,11 @@ test("theme crossfade", async ({ page }, testInfo) => {
 				),
 			)
 			.toBe(!wasDark);
-		await waitForQuiet(page);
 		await expectNoMotion(page, NEW_PAGE);
+		expect(await seen, "pseudo-element animations seen").not.toContain(
+			NEW_PAGE,
+		);
+		await waitForQuiet(page);
 		await expect(page).toHaveScreenshot("theme-crossfade-end.png");
 		return;
 	}
