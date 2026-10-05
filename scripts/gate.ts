@@ -10,14 +10,20 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { STUB_KEY, STUB_URL } from "../gate/stub.ts";
 
+let capture = false;
+let src = ".";
+const rest: string[] = [];
 const args = process.argv.slice(2);
-const capture = args.includes("--capture");
-const srcIndex = args.indexOf("--src");
-const src = srcIndex === -1 ? "." : (args[srcIndex + 1] ?? ".");
-const rest = args.filter(
-	(arg, index) =>
-		arg !== "--capture" && arg !== "--src" && index !== srcIndex + 1,
-);
+for (let index = 0; index < args.length; index++) {
+	const arg = args[index];
+	if (arg === "--capture") {
+		capture = true;
+	} else if (arg === "--src") {
+		src = args[++index] ?? ".";
+	} else if (arg !== undefined) {
+		rest.push(arg);
+	}
+}
 
 // No `tsc -b` here: `pnpm typecheck` runs it.
 execFileSync(

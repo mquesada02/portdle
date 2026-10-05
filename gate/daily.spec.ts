@@ -26,7 +26,8 @@ test("tile pop of a missed guess", async ({ page }, testInfo) => {
 	const submit = () => page.keyboard.press("Enter");
 	if (testInfo.project.name.endsWith("-reduced")) {
 		await submit();
-		await expect(page.getByRole("img").first()).toBeVisible();
+		// The counter changes only when the guess row exists.
+		await expect(page.getByText("1 / 6")).toBeVisible();
 		await waitForQuiet(page);
 		await expectNoMotion(page, "pop");
 		await expect(page).toHaveScreenshot("daily-tile-pop-end.png", {
