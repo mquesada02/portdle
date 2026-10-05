@@ -285,19 +285,24 @@ test("with no remote nothing runs", async () => {
 // A Remote whose reads wait for the test to flush them.
 function scriptedRemote() {
 	type Pending<T> = {
+		signal: AbortSignal | undefined;
 		resolve(value: T): void;
 		reject(): void;
 	};
 	const dailies: Array<Pending<CurrentDailies>> = [];
 	const catalogs: Array<Pending<Catalog>> = [];
-	function read<T>(list: Array<Pending<T>>) {
+	function read<T>(list: Array<Pending<T>>, signal?: AbortSignal) {
 		return new Promise<T>((resolve, reject) => {
-			list.push({ resolve, reject: () => reject(new Error("failed")) });
+			list.push({
+				signal,
+				resolve,
+				reject: () => reject(new Error("failed")),
+			});
 		});
 	}
 	const remote = {
-		readCatalog: () => read(catalogs),
-		readCurrentDailies: () => read(dailies),
+		readCatalog: (signal?: AbortSignal) => read(catalogs, signal),
+		readCurrentDailies: (signal?: AbortSignal) => read(dailies, signal),
 	} as unknown as Remote;
 	return { remote, dailies, catalogs };
 }
@@ -504,4 +509,93 @@ test("a read superseded during its catalog fetch applies neither the catalog nor
 	expect(dailiesOf(store).today).toBe("2026-09-11");
 	const { catalog } = store.getSnapshot();
 	expect(catalog.status === "ready" && catalog.value).toEqual(CATALOG);
+});
+
+test("a newer Dailies read aborts the request of the older one, and only the newer sets state", async () => {
+	const { remote, dailies } = scriptedRemote();
+	const store = createServerStore(remote, createFakeClock());
+	const older = store.refreshDailies();
+	expect(dailies[0]?.signal?.aborted).toBe(false);
+	void store.refreshDailies();
+	expect(dailies[0]?.signal?.aborted).toBe(true);
+	expect(dailies[1]?.signal?.aborted).toBe(false);
+	// The older call ends at once and changes nothing.
+	await older;
+	expect(store.getSnapshot().dailies.status).toBe("loading");
+	dailies[0]?.resolve(daily("2026-09-09"));
+	await flush();
+	expect(store.getSnapshot().dailies.status).toBe("loading");
+	dailies[1]?.resolve(daily("2026-09-10"));
+	await flush();
+	expect(dailiesOf(store).today).toBe("2026-09-10");
+});
+
+test("a newer Dailies read aborts the older one during its second catalog read too", async () => {
+	const { dailies, catalogs, store } = await loadedScripted();
+	const older = store.refreshDailies();
+	dailies[1]?.resolve(daily("2026-09-10", ["x", "x", "x"]));
+	await flush();
+	expect(catalogs).toHaveLength(2);
+	expect(catalogs[1]?.signal?.aborted).toBe(false);
+	void store.refreshDailies();
+	expect(catalogs[1]?.signal?.aborted).toBe(true);
+	await older;
+	expect(dailiesOf(store).today).toBe("2026-09-09");
+});
+
+test("a newer read that starts between the two steps stops the older sequence before its second catalog read", async () => {
+	const { remote, dailies, catalogs } = scriptedRemote();
+	const store = createServerStore(remote, createFakeClock());
+	store.load();
+	catalogs[0]?.resolve(CATALOG);
+	dailies[0]?.resolve(daily("2026-09-09"));
+	await flush();
+	// The next Dailies read lacks an entry, so a second catalog read is due.
+	// Its result calls a newer read as it fulfils, after `settle` has taken
+	// the first read: the cancel then has nothing to abort.
+	const original = remote.readCurrentDailies;
+	let armed = true;
+	remote.readCurrentDailies = (signal?: AbortSignal) => {
+		if (!armed) {
+			return original(signal);
+		}
+		armed = false;
+		return {
+			// biome-ignore lint/suspicious/noThenProperty: the test needs a thenable that runs code while `settle` takes it.
+			then(onFulfilled: (value: CurrentDailies) => void) {
+				onFulfilled(daily("2026-09-10", ["x", "x", "x"]));
+				void store.refreshDailies();
+			},
+		} as unknown as Promise<CurrentDailies>;
+	};
+	const older = store.refreshDailies();
+	await older;
+	await flush();
+	// The older sequence started no catalog read; the newer read is pending.
+	expect(catalogs).toHaveLength(1);
+	expect(dailies).toHaveLength(2);
+	expect(dailies[1]?.signal?.aborted).toBe(false);
+	// A third read still aborts the newer one: its handle was not replaced.
+	void store.refreshDailies();
+	expect(dailies[1]?.signal?.aborted).toBe(true);
+});
+
+test("a catalog read that a retry started is aborted when the second catalog read of an older sequence applies", async () => {
+	const { dailies, catalogs, store } = await loadedScripted();
+	const older = store.refreshDailies();
+	dailies[1]?.resolve(daily("2026-09-10", ["x", "x", "x"]));
+	await flush();
+	// The second catalog read is held. A failed catalog and a retry start
+	// a third catalog read.
+	expect(catalogs).toHaveLength(2);
+	store.rejectCatalog();
+	store.retry();
+	expect(catalogs).toHaveLength(3);
+	expect(catalogs[2]?.signal?.aborted).toBe(false);
+	catalogs[1]?.resolve({
+		protocols: [entry("a"), entry("x")],
+		applications: [],
+	});
+	await older;
+	expect(catalogs[2]?.signal?.aborted).toBe(true);
 });

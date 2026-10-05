@@ -39,29 +39,50 @@ export const FOCUS_READ_THROTTLE_MS = 30000;
 // A read that has not settled after this long counts as failed.
 export const READ_TIMEOUT_MS = 10_000;
 
-// Turns a read into a Loadable. A read that fails, or does not settle within
-// READ_TIMEOUT_MS, counts as failed. The returned function drops a result that
-// arrives after it is called, and so does the timeout.
+// Turns a read into a Loadable. The read gets a signal that stops its request.
+// A read that fails, or does not settle within READ_TIMEOUT_MS, counts as
+// failed: the timeout sets the state, then aborts the request. The returned
+// function aborts the request and drops a result that arrives after it is
+// called, and the timeout is dropped too. In every path `done` flips before
+// the abort, so the rejection that the abort causes changes nothing.
 export function settle<T>(
-	request: Promise<T>,
+	read: (signal: AbortSignal) => Promise<T>,
 	set: (state: Loadable<T>) => void,
 ): () => void {
-	let cancelled = false;
+	const controller = new AbortController();
+	let done = false;
+	// Set before `read` runs: `finish` may run during that call.
+	const timer = setTimeout(() => {
+		if (!done) {
+			done = true;
+			try {
+				set({ status: "failed" });
+			} finally {
+				controller.abort();
+			}
+		}
+	}, READ_TIMEOUT_MS);
 	function finish(state: Loadable<T>) {
-		if (!cancelled) {
-			cancelled = true;
+		if (!done) {
+			done = true;
 			clearTimeout(timer);
 			set(state);
 		}
 	}
-	const timer = setTimeout(() => finish({ status: "failed" }), READ_TIMEOUT_MS);
-	request.then(
-		(value) => finish({ status: "ready", value }),
-		() => finish({ status: "failed" }),
-	);
+	try {
+		read(controller.signal).then(
+			(value) => finish({ status: "ready", value }),
+			() => finish({ status: "failed" }),
+		);
+	} catch {
+		finish({ status: "failed" });
+	}
 	return () => {
-		cancelled = true;
-		clearTimeout(timer);
+		if (!done) {
+			done = true;
+			clearTimeout(timer);
+			controller.abort();
+		}
 	};
 }
 
@@ -110,6 +131,9 @@ export function createServerStore(
 	let timer: unknown = null;
 	// The pending catalog read that a retry started, so a newer one replaces it.
 	let cancelCatalog: (() => void) | null = null;
+	// Cancels the Dailies read in progress (one step of `refreshDailies`), so a
+	// newer read replaces it.
+	let cancelRead: (() => void) | null = null;
 
 	// Each change replaces the snapshot, so `getSnapshot` is stable between
 	// changes.
@@ -145,10 +169,17 @@ export function createServerStore(
 		);
 	}
 
-	// A read that fails, or does not settle in time, rejects.
-	function within<T>(request: Promise<T>): Promise<T> {
+	// A read that fails, or does not settle in time, rejects. So does a read
+	// that `cancelRead` cancels, so the caller never waits for ever. The handle
+	// is installed before `settle` runs, and it works before `settle` returns.
+	function within<T>(read: (signal: AbortSignal) => Promise<T>): Promise<T> {
 		return new Promise((resolve, reject) => {
-			settle(request, (state) =>
+			let cancel: (() => void) | undefined;
+			cancelRead = () => {
+				cancel?.();
+				reject(new Error("read cancelled"));
+			};
+			cancel = settle(read, (state) =>
 				state.status === "ready"
 					? resolve(state.value)
 					: reject(new Error("read failed")),
@@ -160,7 +191,10 @@ export function createServerStore(
 	// the catalog.
 	function readCatalog(remote: Remote) {
 		cancelCatalog?.();
-		cancelCatalog = settle(remote.readCatalog(), (catalog) => set({ catalog }));
+		cancelCatalog = settle(
+			(signal) => remote.readCatalog(signal),
+			(catalog) => set({ catalog }),
+		);
 	}
 
 	function missesEntry(catalog: Catalog, dailies: CurrentDailies): boolean {
@@ -177,18 +211,27 @@ export function createServerStore(
 			return;
 		}
 		const mine = ++sequence;
+		// Aborts the request of the read that this one replaces.
+		cancelRead?.();
 		inFlight = true;
 		// Only a read after a loaded Daily may reload the catalog: a missing entry
 		// on the first load or a retry is the Daily's own panel (`rejectCatalog`).
 		const background = data.dailies.status === "ready";
 		try {
-			const dailies = await within(remote.readCurrentDailies());
+			const dailies = await within((signal) =>
+				remote.readCurrentDailies(signal),
+			);
+			// A newer read may start between the two steps: stop before the
+			// second catalog read, which would replace its cancel handle.
+			if (mine !== sequence) {
+				return;
+			}
 			const loaded = data.catalog;
 			const catalog =
 				background &&
 				loaded.status === "ready" &&
 				missesEntry(loaded.value, dailies)
-					? await within(remote.readCatalog())
+					? await within((signal) => remote.readCatalog(signal))
 					: undefined;
 			if (mine !== sequence) {
 				return;

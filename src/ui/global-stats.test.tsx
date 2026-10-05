@@ -237,3 +237,28 @@ test("a read that answers after the player left leaves the new screen without a 
 	expect(screen.queryByRole("heading", { name: "Global stats" })).toBeNull();
 	expect(screen.getByRole("navigation", { name: "Main" })).toBeTruthy();
 });
+
+test("leaving the screen aborts the request of the read, and a late answer shows nothing", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote();
+	const release = remote.holdDailyStats();
+	const read = remote.readDailyStats;
+	const signals: Array<AbortSignal | undefined> = [];
+	remote.readDailyStats = (category, date, signal) => {
+		signals.push(signal);
+		return read(category, date, signal);
+	};
+	const persist = createPersist(memoryStore());
+	persist.writeDaily("mixed", UTC_TODAY, wonIn(2, false));
+	await renderDaily({ remote, persist });
+	await screen.findByText("Loading global stats…");
+	expect(signals).toHaveLength(1);
+	expect(signals[0]?.aborted).toBe(false);
+	await user.click(screen.getByRole("link", { name: "Protocols" }));
+	expect(signals[0]?.aborted).toBe(true);
+	release();
+	await waitFor(() =>
+		expect(screen.queryByText("Loading global stats…")).toBeNull(),
+	);
+	expect(screen.queryByRole("heading", { name: "Global stats" })).toBeNull();
+});

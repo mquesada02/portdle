@@ -953,6 +953,10 @@ function publicRemote(replies: Array<{ ok?: boolean; body: unknown }>) {
 	});
 	const fetch = vi.fn(async (url: string, init?: RequestInit) => {
 		calls.push({ url, init });
+		// A real `fetch` rejects when its signal is aborted.
+		if (init?.signal?.aborted) {
+			throw new DOMException("The operation was aborted.", "AbortError");
+		}
 		const reply = replies[calls.length - 1] ?? { body: [] };
 		return {
 			ok: reply.ok ?? true,
@@ -1175,4 +1179,42 @@ test("readSchedule rejects an unknown category", async () => {
 			{ body: [{ category: "other", day: "d", entry_id: "x" }] },
 		]).remote.readSchedule(),
 	).rejects.toThrow("Unknown Schedule category");
+});
+
+test("each public read passes its signal to fetch", async () => {
+	const { signal } = new AbortController();
+	const { remote, calls } = publicRemote([
+		{ body: [] },
+		{ body: DAILY_ROWS },
+		{ body: [] },
+		{ body: [] },
+	]);
+	await remote.readCatalog(signal);
+	await remote.readCurrentDailies(signal);
+	await remote.readSchedule(signal);
+	await remote.readDailyStats("mixed", "2026-10-02", signal);
+	expect(calls).toHaveLength(4);
+	for (const call of calls) {
+		expect(call.init?.signal).toBe(signal);
+	}
+});
+
+test("a read with an aborted signal rejects", async () => {
+	const controller = new AbortController();
+	controller.abort();
+	const { remote } = publicRemote([{ body: [] }]);
+	await expect(remote.readCatalog(controller.signal)).rejects.toThrow(
+		"aborted",
+	);
+});
+
+test("a paged read passes the signal to every page", async () => {
+	const { signal } = new AbortController();
+	const rows = Array.from({ length: 1000 }, (_, index) =>
+		catalogRow(`p${index}`, "protocol"),
+	);
+	const { remote, calls } = publicRemote([{ body: rows }, { body: [] }]);
+	await remote.readCatalog(signal);
+	expect(calls).toHaveLength(2);
+	expect(calls.map((call) => call.init?.signal)).toEqual([signal, signal]);
 });
