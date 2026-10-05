@@ -252,7 +252,7 @@ test("leaving the screen aborts the request of the read, and a late answer shows
 	persist.writeDaily("mixed", UTC_TODAY, wonIn(2, false));
 	await renderDaily({ remote, persist });
 	await screen.findByText("Loading global stats…");
-	expect(signals).toHaveLength(1);
+	await waitFor(() => expect(signals).toHaveLength(1));
 	expect(signals[0]?.aborted).toBe(false);
 	await user.click(screen.getByRole("link", { name: "Protocols" }));
 	expect(signals[0]?.aborted).toBe(true);

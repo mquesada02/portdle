@@ -41,49 +41,45 @@ export const READ_TIMEOUT_MS = 10_000;
 
 // Turns a read into a Loadable. The read gets a signal that stops its request.
 // A read that fails, or does not settle within READ_TIMEOUT_MS, counts as
-// failed: the timeout sets the state, then aborts the request. The returned
-// function aborts the request and drops a result that arrives after it is
-// called, and the timeout is dropped too. In every path `done` flips before
-// the abort, so the rejection that the abort causes changes nothing.
+// failed. The timeout sets the state, then aborts the request. The returned
+// function aborts the request and drops a late result. `done` flips before
+// every abort, so the rejection that the abort causes changes nothing.
 export function settle<T>(
 	read: (signal: AbortSignal) => Promise<T>,
 	set: (state: Loadable<T>) => void,
 ): () => void {
 	const controller = new AbortController();
 	let done = false;
-	// Set before `read` runs: `finish` may run during that call.
-	const timer = setTimeout(() => {
-		if (!done) {
-			done = true;
-			try {
-				set({ status: "failed" });
-			} finally {
+	function end(state: Loadable<T> | undefined, abort: boolean) {
+		if (done) {
+			return;
+		}
+		done = true;
+		clearTimeout(timer);
+		try {
+			if (state) {
+				set(state);
+			}
+		} finally {
+			if (abort) {
 				controller.abort();
 			}
 		}
-	}, READ_TIMEOUT_MS);
-	function finish(state: Loadable<T>) {
-		if (!done) {
-			done = true;
-			clearTimeout(timer);
-			set(state);
-		}
 	}
+	// Set before `read` runs: `end` may run during that call.
+	const timer = setTimeout(
+		() => end({ status: "failed" }, true),
+		READ_TIMEOUT_MS,
+	);
 	try {
 		read(controller.signal).then(
-			(value) => finish({ status: "ready", value }),
-			() => finish({ status: "failed" }),
+			(value) => end({ status: "ready", value }, false),
+			() => end({ status: "failed" }, false),
 		);
 	} catch {
-		finish({ status: "failed" });
+		end({ status: "failed" }, false);
 	}
-	return () => {
-		if (!done) {
-			done = true;
-			clearTimeout(timer);
-			controller.abort();
-		}
-	};
+	return () => end(undefined, true);
 }
 
 // Runs `retry` when the connection comes back and when the player returns to
@@ -133,7 +129,7 @@ export function createServerStore(
 	let cancelCatalog: (() => void) | null = null;
 	// Cancels the Dailies read in progress (one step of `refreshDailies`), so a
 	// newer read replaces it.
-	let cancelRead: (() => void) | null = null;
+	let cancelDailiesRead: (() => void) | null = null;
 
 	// Each change replaces the snapshot, so `getSnapshot` is stable between
 	// changes.
@@ -169,13 +165,12 @@ export function createServerStore(
 		);
 	}
 
-	// A read that fails, or does not settle in time, rejects. So does a read
-	// that `cancelRead` cancels, so the caller never waits for ever. The handle
-	// is installed before `settle` runs, and it works before `settle` returns.
+	// A read that fails, does not settle in time, or is cancelled rejects. The
+	// cancel handle is set before `settle` runs, so it works during `settle`.
 	function within<T>(read: (signal: AbortSignal) => Promise<T>): Promise<T> {
 		return new Promise((resolve, reject) => {
 			let cancel: (() => void) | undefined;
-			cancelRead = () => {
+			cancelDailiesRead = () => {
 				cancel?.();
 				reject(new Error("read cancelled"));
 			};
@@ -212,7 +207,7 @@ export function createServerStore(
 		}
 		const mine = ++sequence;
 		// Aborts the request of the read that this one replaces.
-		cancelRead?.();
+		cancelDailiesRead?.();
 		inFlight = true;
 		// Only a read after a loaded Daily may reload the catalog: a missing entry
 		// on the first load or a retry is the Daily's own panel (`rejectCatalog`).

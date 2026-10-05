@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { createSupabaseRemote } from "../remote/supabase";
 import { createFakeRemote } from "../test/fake-remote";
+import { createRemoteOnFetch } from "../test/supabase-remote";
 import {
 	createServerStore,
 	type Loadable,
@@ -159,24 +159,7 @@ function storeOnFetch() {
 					} as Response),
 			});
 		})) as unknown as typeof globalThis.fetch;
-	const remote = createSupabaseRemote(
-		{ url: "https://x.supabase.test", anonKey: "anon" },
-		{
-			storage: { getItem: () => null, removeItem: () => {} },
-			location: {
-				pathname: "/",
-				search: "",
-				hash: "",
-				origin: "https://x.example",
-			},
-			history: { replaceState: () => {} },
-			baseUrl: "/",
-			loadLibrary: async () => {
-				throw new Error("the library must stay lazy");
-			},
-			fetch,
-		},
-	);
+	const remote = createRemoteOnFetch(fetch);
 	const store = createServerStore(remote);
 	const dailiesRequests = () =>
 		requests.filter((request) => request.url.includes("current_dailies"));

@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { createRemoteOnFetch } from "../test/supabase-remote";
 import { AccountGoneError } from "./remote";
 import {
 	createSupabaseRemote,
@@ -964,22 +965,7 @@ function publicRemote(replies: Array<{ ok?: boolean; body: unknown }>) {
 			json: async () => reply.body,
 		} as Response;
 	}) as unknown as typeof globalThis.fetch;
-	const remote = createSupabaseRemote(
-		{ url: URL, anonKey: "anon" },
-		{
-			storage: { getItem: () => null, removeItem: () => {} },
-			location: {
-				pathname: "/",
-				search: "",
-				hash: "",
-				origin: "https://x.example",
-			},
-			history: { replaceState: () => {} },
-			baseUrl: "/",
-			loadLibrary,
-			fetch,
-		},
-	);
+	const remote = createRemoteOnFetch(fetch, { url: URL, loadLibrary });
 	return { remote, calls, loadLibrary };
 }
 
