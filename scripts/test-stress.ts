@@ -2,7 +2,6 @@
 // default), each beside two CPU burners per core, and prints the name of each
 // failed test. A burner is a process that loops and uses one full core. The
 // stress loop is the proof that the suite stays stable on a loaded machine.
-// pnpm puts the vitest binary on PATH for package scripts.
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
@@ -51,8 +50,14 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 function runSuite(reportFile: string): Promise<number | null> {
 	return new Promise((resolve) => {
 		suite = spawn(
-			"vitest",
-			["run", "--reporter=json", `--outputFile=${reportFile}`],
+			"pnpm",
+			[
+				"exec",
+				"vitest",
+				"run",
+				"--reporter=json",
+				`--outputFile=${reportFile}`,
+			],
 			{ stdio: ["ignore", "ignore", "inherit"] },
 		);
 		suite.on("error", () => resolve(null));

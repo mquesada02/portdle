@@ -514,15 +514,21 @@ const CROWDED_PORTS = Object.keys(CROWDED_BLURBS).map(Number);
 
 const NO_SWAP = 0.999999;
 
+// The start pool of a default Mixed run: answer Entries without the three
+// Daily answers, in catalog order.
+function blitzPool(): CatalogEntry[] {
+	const dailyIds = DAILY_CATEGORIES.map((category) => dailyOn(category).id);
+	return answerPool(catalog).filter(
+		(candidate) => !dailyIds.includes(candidate.id),
+	);
+}
+
 // A random source that makes the engine's shuffle put `entry` first in the
 // start pool of a default Mixed run. The shuffle walks from the last index
 // down to 1, so call k uses index n - 1 - k. At the index where `entry` sits,
 // the source picks swap target 0. Everywhere else it picks no swap.
 function dealPrompt(entry: CatalogEntry): () => number {
-	const dailyIds = DAILY_CATEGORIES.map((category) => dailyOn(category).id);
-	const pool = answerPool(catalog).filter(
-		(candidate) => !dailyIds.includes(candidate.id),
-	);
+	const pool = blitzPool();
 	const entryIndex = pool.findIndex((candidate) => candidate.id === entry.id);
 	if (entryIndex < 0) {
 		throw new Error(`${entry.id} is not in the Blitz pool`);
@@ -536,10 +542,7 @@ function dealPrompt(entry: CatalogEntry): () => number {
 }
 
 function firstInPool(matches: (entry: CatalogEntry) => boolean) {
-	const dailyIds = DAILY_CATEGORIES.map((category) => dailyOn(category).id);
-	const entry = answerPool(catalog).find(
-		(candidate) => !dailyIds.includes(candidate.id) && matches(candidate),
-	);
+	const entry = blitzPool().find(matches);
 	if (!entry) {
 		throw new Error("no matching Entry in the Blitz pool");
 	}
