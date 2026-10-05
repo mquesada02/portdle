@@ -84,9 +84,10 @@ export const PLAYED: Saved[] = [
 	},
 ];
 
-// Writes the records to `localStorage` before the page loads. A marker in
-// `sessionStorage` makes it run once per session, so a reload keeps the
-// progress that the test makes.
+// Writes the records to `localStorage` before the page loads. The key and
+// `late: false` mirror src/persist/storage.ts (its key builder is private).
+// A marker in `sessionStorage` makes it run once per session, so a reload
+// keeps the progress that the test makes.
 async function seedDailies(page: Page, records: Saved[]): Promise<void> {
 	await page.addInitScript((seed) => {
 		if (sessionStorage.getItem("gate:seeded")) {
