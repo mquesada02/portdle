@@ -69,14 +69,22 @@ async function holdThroughCdp(page: Page): Promise<{
 	cdp.on("Animation.animationStarted", ({ animation }) =>
 		started.push({ id: animation.id, name: animation.name }),
 	);
-	await cdp.send("Animation.enable");
-	await cdp.send("Animation.setPlaybackRate", { playbackRate: 0 });
+	try {
+		await cdp.send("Animation.enable");
+		await cdp.send("Animation.setPlaybackRate", { playbackRate: 0 });
+	} catch (error) {
+		await cdp.detach();
+		throw error;
+	}
 	return {
 		started,
 		cdp,
 		release: async () => {
-			await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
-			await cdp.detach();
+			try {
+				await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
+			} finally {
+				await cdp.detach();
+			}
 		},
 	};
 }
@@ -152,11 +160,13 @@ export async function pauseClock(page: Page): Promise<void> {
 
 // Runs `interact`, then freezes the animations it starts. `target` names the
 // animation to wait for: a keyframe name such as `pop`, a pseudo-element such
-// as `::view-transition-new(screen)`, a CSS transition by property name
-// such as `transition:opacity`, or `DETAILS_CONTENT_TARGET` (Chromium only). Earlier motion (for example a
-// focus-ring transition from the pointer) must end first, or the helper would
-// freeze it instead of the target. It holds the animations that `interact`
-// starts first (see `holdStarts`), and releases the hold after the last frame.
+// as `::view-transition-new(screen)`, a CSS transition by property name such
+// as `transition:opacity`, or `DETAILS_CONTENT_TARGET` (Chromium only). Earlier
+// motion (for example a focus-ring transition from the pointer) must end
+// first, or the helper would freeze it instead of the target. It holds the
+// animations that `interact` starts first (see `holdStarts`; the CDP target
+// holds the document timeline instead, see `holdThroughCdp`), and releases the
+// hold after the last frame.
 // Each frame is `<name>-<time>ms.png`.
 export async function shootMotion(
 	page: Page,

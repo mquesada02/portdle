@@ -8,7 +8,7 @@ import { expectEndFrame } from "./state.ts";
 // The frames of a 150 ms motion (`rise`, `pop`, a view transition, a dialog enter).
 export const TIMES_150 = [0, 40, 75, 110, 150];
 
-// The frames of a 200 ms motion (the Rounds disclosure height).
+// The frames of a 200 ms motion (the Rounds disclosure height in src/styles.css).
 export const TIMES_200 = [0, 50, 100, 150, 200];
 
 // A frame at rest, taken once the animations ended.
@@ -71,13 +71,12 @@ export async function shootDisclosure(
 	await done();
 	if (reduced) {
 		// The motion log cannot see this transition: it fires no event.
-		const duration = await page.evaluate(
-			() =>
-				getComputedStyle(
-					document.querySelector("details") as Element,
-					"::details-content",
-				).transitionDuration,
-		);
+		const duration = await page
+			.locator("details")
+			.evaluate(
+				(details) =>
+					getComputedStyle(details, "::details-content").transitionDuration,
+			);
 		expect(duration, "transition duration of the content").toBe("0s");
 		await expectEndFrame(page, name);
 		return;
