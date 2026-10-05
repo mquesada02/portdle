@@ -88,11 +88,38 @@ export async function shootDisclosure(
 // close sequence. A style tag removes the transition for the click, and goes
 // before the freeze starts. The tag removal changes no computed height, so no
 // transition starts.
-export async function openAtRest(page: Page): Promise<void> {
+async function openAtRest(page: Page): Promise<void> {
 	const style = await page.addStyleTag({
 		content: "details::details-content { transition: none }",
 	});
 	await page.getByText("Rounds (4)").click();
 	await expect(page.getByText("you typed").first()).toBeVisible();
 	await style.evaluate((node) => node.parentNode?.removeChild(node));
+}
+
+// The open or the close sequence of the "Rounds (4)" disclosure of the stored
+// last run. `closing` starts from an open disclosure at rest.
+export async function shootRoundsToggle(
+	page: Page,
+	options: {
+		name: string;
+		closing: boolean;
+		reduced: boolean;
+		browserName: string;
+	},
+): Promise<void> {
+	const { name, closing, reduced, browserName } = options;
+	await expect(page.getByText("Rounds (4)")).toBeVisible();
+	if (closing) {
+		await openAtRest(page);
+	}
+	const log = page.getByText("you typed").first();
+	await shootDisclosure(page, {
+		name,
+		interact: () => page.getByText("Rounds (4)").click(),
+		done: () =>
+			closing ? expect(log).toBeHidden() : expect(log).toBeVisible(),
+		reduced,
+		browserName,
+	});
 }

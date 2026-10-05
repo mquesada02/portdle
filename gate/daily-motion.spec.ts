@@ -3,10 +3,9 @@
 // come from the current durations (Spec 3, "Durations and easing"). With reduced
 // motion, each test takes one end frame and asserts that no animation started.
 
-import type { Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import { pauseClock, shootMotion, waitForQuiet } from "./freeze.ts";
-import { openAtRest, shootDisclosure, TIMES_150 } from "./motion.ts";
+import { shootRoundsToggle, TIMES_150 } from "./motion.ts";
 import { seedStorage } from "./seed.ts";
 import {
 	expectEndFrame,
@@ -223,34 +222,20 @@ test.describe("Rounds disclosure in History", () => {
 		await seedStorage(page);
 	});
 
-	async function openHistory(page: Page, testInfo: TestInfo) {
-		const reduced = await openGame(page, testInfo, {
-			path: "/portdle/history/blitz",
-		});
-		await expect(page.getByText("Rounds (4)")).toBeVisible();
-		return reduced;
+	for (const closing of [false, true]) {
+		test(
+			closing ? "closes" : "opens",
+			async ({ page, browserName }, testInfo) => {
+				const reduced = await openGame(page, testInfo, {
+					path: "/portdle/history/blitz",
+				});
+				await shootRoundsToggle(page, {
+					name: `history-rounds-${closing ? "close" : "open"}`,
+					closing,
+					reduced,
+					browserName,
+				});
+			},
+		);
 	}
-
-	test("opens", async ({ page, browserName }, testInfo) => {
-		const reduced = await openHistory(page, testInfo);
-		await shootDisclosure(page, {
-			name: "history-rounds-open",
-			interact: () => page.getByText("Rounds (4)").click(),
-			done: () => expect(page.getByText("you typed").first()).toBeVisible(),
-			reduced,
-			browserName,
-		});
-	});
-
-	test("closes", async ({ page, browserName }, testInfo) => {
-		const reduced = await openHistory(page, testInfo);
-		await openAtRest(page);
-		await shootDisclosure(page, {
-			name: "history-rounds-close",
-			interact: () => page.getByText("Rounds (4)").click(),
-			done: () => expect(page.getByText("you typed").first()).toBeHidden(),
-			reduced,
-			browserName,
-		});
-	});
 });
