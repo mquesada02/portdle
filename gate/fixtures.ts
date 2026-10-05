@@ -89,6 +89,13 @@ export const test = base.extend<{ account: AccountOption | null }>({
 			new URL(baseURL).origin,
 			signedIn,
 		);
+		// The browser's own `requestAnimationFrame`, saved before the clock fakes
+		// it. Register it before the clock install, or it saves the fake. freeze.ts
+		// syncs frames with it when a test pauses the clock.
+		await page.addInitScript(() => {
+			(window as unknown as Record<string, unknown>).nativeRaf =
+				window.requestAnimationFrame.bind(window);
+		});
 		await page.clock.install({ time: FIXED_TIME });
 		await page.addInitScript(initScript, colorScheme ?? "light");
 		if (signedIn) {
