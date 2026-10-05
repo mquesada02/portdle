@@ -124,7 +124,8 @@ export async function pauseClock(page: Page): Promise<void> {
 // such as `transition:opacity`. Earlier motion (for example a
 // focus-ring transition from the pointer) must end first, or the helper would
 // freeze it instead of the target. It holds the animations that `interact`
-// starts first (see `holdStarts`), and releases the hold after the last frame. Each frame is `<name>-<time>ms.png`.
+// starts first (see `holdStarts`), and releases the hold after the last frame.
+// Each frame is `<name>-<time>ms.png`.
 export async function shootMotion(
 	page: Page,
 	options: {
