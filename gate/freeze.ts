@@ -47,16 +47,12 @@ export async function waitForQuiet(page: Page): Promise<void> {
 
 type HoldWindow = Window & { __holdStarts?: boolean };
 
-// Holds the animations that `interact` starts, so a slow poll cannot miss them.
-// A poll can come after a 150 ms animation ends. The machine can be loaded, the
-// page can be loading, or hundreds of view-transition animations can slow the
-// page evaluation. For a view transition, every animation gets the rate 0 when
-// the transition is ready. For a keyframe, the animations of the element get
-// the rate 0 at its start event (an init script covers a page that `interact`
-// loads). A CSS transition target (`transition:`) is not held. An animation
-// with rate 0 still counts as running, so the poll finds it and pauses it.
-// `releaseStarts` ends the hold on the current document, so later animations on
-// it run as usual.
+// Holds the animations that `interact` starts (rate 0), so a slow poll on a
+// loaded machine cannot miss a 150 ms animation. A view transition is held when
+// it is ready. A keyframe animation or a CSS transition is held at its start or
+// run event (an init script covers a page that `interact` loads). A held
+// animation still counts as running, so the poll finds it and pauses it.
+// `releaseStarts` ends the hold, so later animations run as usual.
 async function holdStarts(page: Page, target: string): Promise<void> {
 	if (target.startsWith("::")) {
 		await page.evaluate(() => {
@@ -86,17 +82,18 @@ async function holdStarts(page: Page, target: string): Promise<void> {
 	}
 	const hold = () => {
 		(window as HoldWindow).__holdStarts = true;
-		document.addEventListener(
-			"animationstart",
-			(event) => {
-				if ((window as HoldWindow).__holdStarts) {
-					for (const a of (event.target as Element).getAnimations()) {
-						a.playbackRate = 0;
-					}
+		const holdTarget = (event: Event) => {
+			if ((window as HoldWindow).__holdStarts) {
+				// `subtree` adds the pseudo-elements, such as a dialog `::backdrop`.
+				for (const a of (event.target as Element).getAnimations({
+					subtree: true,
+				})) {
+					a.playbackRate = 0;
 				}
-			},
-			true,
-		);
+			}
+		};
+		document.addEventListener("animationstart", holdTarget, true);
+		document.addEventListener("transitionrun", holdTarget, true);
 	};
 	await page.addInitScript(hold);
 	await page.evaluate(hold);
