@@ -5,7 +5,7 @@
 import type { Page } from "@playwright/test";
 
 // A Mixed, Default, Sprint run that the clock ended: two correct rounds and two
-// misses, each miss a typed Wrong answer. Its time is the one the Arena shows.
+// misses, each miss a typed Wrong answer. The Arena shows its score and `endedAt`.
 const LAST_RUN = {
 	category: "mixed",
 	orientation: "default",

@@ -52,7 +52,8 @@ export async function waitForQuiet(page: Page): Promise<void> {
 // the rate 0. A keyframe: at its start event, the animations of the element get
 // the rate 0 (an init script covers a page that `interact` loads). An animation
 // with rate 0 still counts as running, so the poll finds it and pauses it. The
-// hold stays for the life of the page.
+// hold stays for the life of the page. After `shootMotion`, the page still
+// counts those animations as running, so use one `shootMotion` per page.
 async function holdStarts(page: Page, target: string): Promise<void> {
 	if (target.startsWith("::")) {
 		await page.evaluate(() => {
@@ -107,7 +108,8 @@ export async function pauseClock(page: Page): Promise<void> {
 // as `::view-transition-new(screen)`, or a CSS transition by property name
 // such as `transition:opacity`. Earlier motion (for example a
 // focus-ring transition from the pointer) must end first, or the helper would
-// freeze it instead of the target. Each frame is `<name>-<time>ms.png`.
+// freeze it instead of the target. It holds the animations that `interact`
+// starts first (see `holdStarts`). Each frame is `<name>-<time>ms.png`.
 export async function shootMotion(
 	page: Page,
 	options: {
