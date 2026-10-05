@@ -122,6 +122,39 @@ test("theme control toggles opposite of effective theme onto html.dark", async (
 	expect(document.documentElement.classList.contains("dark")).toBe(false);
 });
 
+test("theme control still flips and stores the theme without the View Transitions API", async () => {
+	const user = userEvent.setup();
+	const original = document.startViewTransition;
+	// @ts-expect-error: the API is absent in the browsers this test stands for
+	document.startViewTransition = undefined;
+	try {
+		const persist = await renderApp({ prefersDark: false });
+		await user.click(
+			screen.getByRole("button", { name: "Toggle color theme" }),
+		);
+		expect(persist.readTheme()).toBe("dark");
+		expect(document.documentElement.classList.contains("dark")).toBe(true);
+	} finally {
+		document.startViewTransition = original;
+	}
+});
+
+test("theme control runs its change as a theme view transition", async () => {
+	const user = userEvent.setup();
+	const { calls, restore } = stubViewTransitions();
+	try {
+		const persist = await renderApp({ prefersDark: false });
+		await user.click(
+			screen.getByRole("button", { name: "Toggle color theme" }),
+		);
+		expect(calls).toEqual([["theme"]]);
+		expect(persist.readTheme()).toBe("dark");
+		expect(document.documentElement.classList.contains("dark")).toBe(true);
+	} finally {
+		restore();
+	}
+});
+
 test("nav links and theme control are present for keyboard users", async () => {
 	await renderApp({ persist: createPersist(memoryStore()) });
 	const names = ["Daily", "Blitz", "History", "Codex"];
