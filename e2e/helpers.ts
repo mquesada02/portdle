@@ -12,11 +12,15 @@ import {
 import { authStorageKey } from "../scripts/e2e-env.ts";
 import type { DailyCategory as Category } from "../src/engine/types.ts";
 
-const TEST_EMAIL = "test@portdle.local";
-// The fixed local password of the seeded user (supabase/seed.sql).
+// The fixed local password of the seeded users (supabase/seed.sql).
 const TEST_PASSWORD = "portdle-local-test";
 const FIRST_DAY = "2026-09-09";
 const DAY_MS = 86_400_000;
+
+// Each Playwright project has its own seeded test user, named after it.
+function testEmail(projectName: string): string {
+	return `test-${projectName.toLowerCase().replaceAll(" ", "-")}@portdle.local`;
+}
 
 export function stack(): { apiUrl: string; key: string } {
 	const apiUrl = process.env.E2E_API_URL;
@@ -131,13 +135,16 @@ export type SignedIn = {
 	storeIn: (context: BrowserContext) => Promise<void>;
 };
 
-// Signs the seeded test user in through the local auth API.
-export async function signIn(): Promise<SignedIn> {
+// Signs the project's seeded test user in through the local auth API.
+export async function signIn(projectName: string): Promise<SignedIn> {
 	const { apiUrl, key } = stack();
 	const response = await fetch(`${apiUrl}/auth/v1/token?grant_type=password`, {
 		method: "POST",
 		headers: { apikey: key, "Content-Type": "application/json" },
-		body: JSON.stringify({ email: TEST_EMAIL, password: TEST_PASSWORD }),
+		body: JSON.stringify({
+			email: testEmail(projectName),
+			password: TEST_PASSWORD,
+		}),
 	});
 	if (!response.ok) {
 		throw new Error(`Sign-in answered ${response.status}`);
@@ -217,13 +224,14 @@ export async function openFinishedBoard(
 	await expect(solved).toBeVisible();
 }
 
-// Runs a spec body on a page of a fresh context that holds the test user's
-// sign-in, and always closes the context.
+// Runs a spec body on a page of a fresh context that holds the project's test
+// user's sign-in, and always closes the context.
 export async function withSignedInPage(
 	browser: Browser,
+	projectName: string,
 	run: (page: Page, session: SignedIn) => Promise<void>,
 ): Promise<void> {
-	const session = await signIn();
+	const session = await signIn(projectName);
 	const context = await browser.newContext();
 	try {
 		await session.storeIn(context);
