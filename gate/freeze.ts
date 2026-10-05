@@ -90,9 +90,7 @@ export async function shootMotion(
 				}),
 			time,
 		);
-		await expect(page).toHaveScreenshot(`${name}-${time}ms.png`, {
-			animations: "allow",
-		});
+		await expect(page).toHaveScreenshot(`${name}-${time}ms.png`);
 	}
 }
 

@@ -32,9 +32,12 @@ function initScript(theme: string) {
 
 export const test = base.extend({
 	page: async ({ page, baseURL, colorScheme }, use) => {
+		if (!baseURL) {
+			throw new Error("The gate configuration sets no baseURL.");
+		}
 		const unstubbed = await stubBackend(
 			page.context(),
-			new URL(baseURL ?? "").origin,
+			new URL(baseURL).origin,
 		);
 		await page.clock.install({ time: FIXED_TIME });
 		await page.addInitScript(initScript, colorScheme ?? "light");

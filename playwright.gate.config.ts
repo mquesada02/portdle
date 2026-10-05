@@ -29,6 +29,7 @@ export default defineConfig({
 		["html", { open: "never", outputFolder: "gate-report" }],
 	],
 	expect: {
+		// "allow": the default ("disabled") would finish the paused animations.
 		toHaveScreenshot: { animations: "allow", threshold: 0, maxDiffPixels: 0 },
 	},
 	use: {

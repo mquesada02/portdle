@@ -18,25 +18,21 @@ test("fresh Daily at rest", async ({ page }, testInfo) => {
 	await page.goto("/portdle/");
 	await expect(page.getByLabel("Digit 1 of 2")).toBeVisible();
 	await waitForQuiet(page);
-	await expect(page).toHaveScreenshot("daily-fresh.png", {
-		animations: "allow",
-	});
+	await expect(page).toHaveScreenshot("daily-fresh.png");
 });
 
 test("tile pop of a missed guess", async ({ page }, testInfo) => {
 	await page.goto("/portdle/");
 	await page.getByLabel("Digit 1 of 2").click();
 	await page.keyboard.type("80");
-	await waitForQuiet(page);
 	if (isReduced(testInfo)) {
+		await waitForQuiet(page);
 		await page.keyboard.press("Enter");
 		// The counter changes only when the guess row exists.
 		await expect(page.getByText("1 / 6")).toBeVisible();
 		await waitForQuiet(page);
 		await expectNoMotion(page, "pop");
-		await expect(page).toHaveScreenshot("daily-tile-pop-end.png", {
-			animations: "allow",
-		});
+		await expect(page).toHaveScreenshot("daily-tile-pop-end.png");
 		return;
 	}
 	await shootMotion(page, {
