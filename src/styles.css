@@ -38,6 +38,24 @@
 	}
 }
 
+@keyframes fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
 @keyframes rise {
 	from {
 		opacity: 0;
@@ -70,9 +88,9 @@
 	/* View transitions (Spec 3: motion polish, issue #87). Screen changes
 	   (issue #89). Keyed on the router's transition types (src/router.tsx),
 	   never on route paths. The root and the two shell regions, the top bar
-	   (shell-top) and the nav (shell-nav), hold still under every type. Naming
-	   the shell gives it groups of its own, lifted above every content group
-	   with a z-index: the pseudo-tree appends regions that exist only in the
+	   (shell-top) and the nav (shell-nav), hold still under every type except
+	   theme (see Theme crossfade below). Naming the shell gives it groups of
+	   its own, lifted above every content group with a z-index: the pseudo-tree appends regions that exist only in the
 	   new state after the ones present in both, so without the lift the
 	   arriving Codex cards would sit above the shell and draw over the tab bar
 	   (issue #112). */
@@ -171,6 +189,24 @@
 		&::view-transition-new(shell-nav) {
 			animation: none;
 		}
+	}
+
+	/* --- Theme crossfade (Spec 6, issue #234) --- */
+
+	/* The whole page crossfades at once: every named region, the root, the top
+	   bar (shell-top), and the nav (shell-nav) included, which hold still under
+	   every other type. The plus-lighter blend makes the two snapshots add up
+	   to a full picture at every moment. */
+	:root:active-view-transition-type(theme)::view-transition-group(*) {
+		animation: none;
+	}
+	:root:active-view-transition-type(theme)::view-transition-old(*) {
+		animation: fade-out 250ms ease-out both;
+		mix-blend-mode: plus-lighter;
+	}
+	:root:active-view-transition-type(theme)::view-transition-new(*) {
+		animation: fade-in 250ms ease-out both;
+		mix-blend-mode: plus-lighter;
 	}
 
 	/* --- #92: switcher-content region --- */

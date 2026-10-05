@@ -16,6 +16,7 @@ import {
 	oppositeTheme,
 	prefersDarkScheme,
 } from "./theme";
+import { runViewTransition } from "./view-transition";
 
 const PERSON = "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0";
 
@@ -175,7 +176,7 @@ export function Shell() {
 								if (!result.ok) {
 									setSaveWarning(true);
 								}
-								setStoredTheme(next);
+								runViewTransition(["theme"], () => setStoredTheme(next));
 							}}
 						>
 							{effective === "dark" ? <MoonIcon /> : <SunIcon />}

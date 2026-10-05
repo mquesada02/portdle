@@ -95,13 +95,22 @@ export async function shootMotion(
 	}
 }
 
-// With reduced motion, no CSS animation of the target name may start.
+// With reduced motion, no animation of the target may start. `target` is a
+// keyframe name or a `::view-transition-*` pseudo-element, as in `shootMotion`.
 export async function expectNoMotion(
 	page: Page,
 	target: string,
 ): Promise<void> {
-	const names = await page.evaluate(() =>
-		document.getAnimations().map((a) => (a as CSSAnimation).animationName),
+	const names = await page.evaluate(
+		(wanted) =>
+			document
+				.getAnimations()
+				.map((a) =>
+					wanted.startsWith("::")
+						? (a.effect as KeyframeEffect | null)?.pseudoElement
+						: (a as CSSAnimation).animationName,
+				),
+		target,
 	);
 	expect(names, `animations named ${target}`).not.toContain(target);
 }
