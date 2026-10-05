@@ -119,10 +119,12 @@ export function GlobalStats({
 			return;
 		}
 		let current = true;
+		// Aborts the request when the screen goes away or the Daily changes.
+		const controller = new AbortController();
 		setResult({ status: "loading" });
 		sync
 			.refresh()
-			.then(() => remote.readDailyStats(category, date))
+			.then(() => remote.readDailyStats(category, date, controller.signal))
 			.then(
 				(stats: DailyGlobalStats) => {
 					if (current) {
@@ -137,6 +139,7 @@ export function GlobalStats({
 			);
 		return () => {
 			current = false;
+			controller.abort();
 		};
 	}, [remote, sync, category, date]);
 

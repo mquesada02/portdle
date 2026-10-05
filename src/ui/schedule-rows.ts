@@ -29,8 +29,9 @@ function useScheduleRows(remote: Remote | undefined): {
 		if (!remote) {
 			return;
 		}
-		return settle(remote.readSchedule(), (rows) =>
-			setState((current) => ({ ...current, rows })),
+		return settle(
+			(signal) => remote.readSchedule(signal),
+			(rows) => setState((current) => ({ ...current, rows })),
 		);
 	}, [remote, state.attempt]);
 	const retry = useCallback(() => {

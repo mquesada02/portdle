@@ -8,14 +8,18 @@ import {
 	withSignedInPage,
 } from "./helpers.ts";
 
-// The test account keeps what an earlier run synced (nothing can delete rows),
-// so each spec ends on the same asserted state on a first run and on a rerun.
+// Each project's test user keeps what an earlier run synced (nothing can
+// delete rows), so each spec ends on the same asserted state on a first run
+// and on a rerun.
 
-test("a signed-in late play syncs its late mark", async ({ browser }) => {
+test("a signed-in late play syncs its late mark", async ({
+	browser,
+}, testInfo) => {
+	const project = testInfo.project.name;
 	const yesterday = dayBefore(await serverToday());
 	const answer = await answerFor("applications", yesterday);
 
-	await withSignedInPage(browser, async (page, session) => {
+	await withSignedInPage(browser, project, async (page, session) => {
 		await openFinishedBoard(
 			page,
 			`/portdle/archive/applications/${yesterday}`,
@@ -36,11 +40,12 @@ test("a signed-in late play syncs its late mark", async ({ browser }) => {
 
 test("global stats appear after a signed-in on-day finish", async ({
 	browser,
-}) => {
+}, testInfo) => {
+	const project = testInfo.project.name;
 	const today = await serverToday();
 	const answer = await answerFor("protocols", today);
 
-	await withSignedInPage(browser, async (page) => {
+	await withSignedInPage(browser, project, async (page) => {
 		await openFinishedBoard(
 			page,
 			"/portdle/protocols",
