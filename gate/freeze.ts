@@ -48,14 +48,15 @@ export async function waitForQuiet(page: Page): Promise<void> {
 type HoldWindow = Window & { __holdStarts?: boolean };
 
 // Holds the animations that `interact` starts, so a slow poll cannot miss them.
-// A poll can come after a 150 ms animation ends: the machine can be loaded, the
+// A poll can come after a 150 ms animation ends. The machine can be loaded, the
 // page can be loading, or hundreds of view-transition animations can slow the
-// page evaluation. A view transition: when it is ready, every animation gets
-// the rate 0. A keyframe: at its start event, the animations of the element get
-// the rate 0 (an init script covers a page that `interact` loads). A CSS
-// transition target (`transition:`) is not held. An animation with rate 0 still
-// counts as running, so the poll finds it and pauses it. `releaseStarts` ends
-// the hold on the current document, so later animations on it run as usual.
+// page evaluation. For a view transition, every animation gets the rate 0 when
+// the transition is ready. For a keyframe, the animations of the element get
+// the rate 0 at its start event (an init script covers a page that `interact`
+// loads). A CSS transition target (`transition:`) is not held. An animation
+// with rate 0 still counts as running, so the poll finds it and pauses it.
+// `releaseStarts` ends the hold on the current document, so later animations on
+// it run as usual.
 async function holdStarts(page: Page, target: string): Promise<void> {
 	if (target.startsWith("::")) {
 		await page.evaluate(() => {
@@ -123,7 +124,7 @@ export async function pauseClock(page: Page): Promise<void> {
 // such as `transition:opacity`. Earlier motion (for example a
 // focus-ring transition from the pointer) must end first, or the helper would
 // freeze it instead of the target. It holds the animations that `interact`
-// starts first (see `holdStarts`). Each frame is `<name>-<time>ms.png`.
+// starts first (see `holdStarts`), and releases the hold after the last frame. Each frame is `<name>-<time>ms.png`.
 export async function shootMotion(
 	page: Page,
 	options: {
