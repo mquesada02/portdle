@@ -49,11 +49,12 @@ type HoldWindow = Window & { __holdStarts?: boolean };
 
 // Holds the animations that `interact` starts (rate 0), so a slow poll on a
 // loaded machine cannot miss a 150 ms animation. A view transition is held when
-// it is ready. A keyframe animation or a CSS transition is held at its start or
-// run event (an init script covers a page that `interact` loads; a view transition is held on the current document only). A held
-// animation still counts as running, so the poll finds it and pauses it.
-// `releaseStarts` ends the hold, so later animations run as usual. Call
-// `shootMotion` once per page: the hold cannot be removed from later documents.
+// it is ready, on the current document only. A keyframe animation or a CSS
+// transition is held at its start or run event (an init script covers a page
+// that `interact` loads). A held animation still counts as running, so the poll
+// finds it and pauses it. `releaseStarts` ends the hold, so later animations
+// run as usual. Call `shootMotion` once per page: the hold cannot be removed
+// from later documents.
 async function holdStarts(page: Page, target: string): Promise<void> {
 	if (target.startsWith("::")) {
 		await page.evaluate(() => {
