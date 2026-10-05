@@ -25,6 +25,7 @@ export type RouterContext = {
 	backend?: Backend;
 	remount: () => void;
 	serverStore: ServerStore;
+	random: () => number;
 };
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -127,6 +128,7 @@ export function createAppRouter(options: {
 	remount: () => void;
 	history?: RouterHistory;
 	serverStore: ServerStore;
+	random: () => number;
 }) {
 	return createRouter({
 		routeTree,
@@ -135,6 +137,7 @@ export function createAppRouter(options: {
 			backend: options.backend,
 			remount: options.remount,
 			serverStore: options.serverStore,
+			random: options.random,
 		},
 		basepath: "/portdle",
 		history: options.history,

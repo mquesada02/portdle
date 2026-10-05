@@ -502,7 +502,7 @@ function SetupDialog({
 const NO_ENTRIES: CatalogEntry[] = [];
 
 export function BlitzPage() {
-	const { persist, backend } = useRouteContext({
+	const { persist, backend, random } = useRouteContext({
 		from: "__root__",
 	});
 	// The Play tab waits for the catalog and the current Dailies. A run starts
@@ -577,7 +577,7 @@ export function BlitzPage() {
 						event: { type: "timeout" },
 						protocols,
 						applications,
-						rng: Math.random,
+						rng: random,
 						now: monotonicNow,
 					}).state;
 				});
@@ -598,7 +598,7 @@ export function BlitzPage() {
 			window.clearInterval(interval);
 			window.clearTimeout(timeout);
 		};
-	}, [deadline, protocols, applications]);
+	}, [deadline, protocols, applications, random]);
 
 	useEffect(() => {
 		if (!run?.ended) {
@@ -632,7 +632,7 @@ export function BlitzPage() {
 			dailyIds,
 			protocols,
 			applications,
-			rng: Math.random,
+			rng: random,
 			now: monotonicNow,
 		});
 		if ("error" in started) {
@@ -751,7 +751,7 @@ export function BlitzPage() {
 				event: { type: "default-guess", digits },
 				protocols,
 				applications,
-				rng: Math.random,
+				rng: random,
 				now: monotonicNow,
 			}),
 			promptId,
@@ -769,7 +769,7 @@ export function BlitzPage() {
 				event: { type: "inverted-guess", id },
 				protocols,
 				applications,
-				rng: Math.random,
+				rng: random,
 				now: monotonicNow,
 			}),
 			promptId,

@@ -8,6 +8,8 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
+import { answerPool } from "../engine/catalog";
+import { type CatalogEntry, DAILY_CATEGORIES } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { catalog, currentEntry, missThree } from "../test/blitz";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
@@ -25,6 +27,7 @@ async function renderBlitz(
 	options: {
 		persist?: ReturnType<typeof createPersist>;
 		reducedMotion?: boolean;
+		random?: () => number;
 	} = {},
 ) {
 	stubMatchMedia(false, options.reducedMotion ?? false);
@@ -34,7 +37,12 @@ async function renderBlitz(
 		initialEntries: ["/portdle/blitz"],
 	});
 	render(
-		<App persist={persist} remote={createFakeRemote()} history={history} />,
+		<App
+			persist={persist}
+			remote={createFakeRemote()}
+			history={history}
+			random={options.random}
+		/>,
 	);
 	await screen.findByRole("navigation", { name: "Main" });
 	await loaded();
@@ -381,8 +389,8 @@ async function startInverted(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(screen.getByRole("button", { name: "Start" }));
 }
 
-async function startInvertedFake() {
-	const persist = await renderBlitz();
+async function startInvertedFake(random?: () => number) {
+	const persist = await renderBlitz({ random });
 	fireEvent.click(screen.getByRole("button", { name: "New run" }));
 	fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
 	vi.useFakeTimers();
@@ -504,37 +512,47 @@ const CROWDED_BLURBS: Record<number, string[]> = {
 
 const CROWDED_PORTS = Object.keys(CROWDED_BLURBS).map(Number);
 
-async function startInvertedUntil(ports: number[]) {
-	for (let attempt = 0; attempt < 40; attempt += 1) {
-		cleanup();
-		document.documentElement.classList.remove("dark");
-		vi.useRealTimers();
-		await renderBlitz();
-		fireEvent.click(screen.getByRole("button", { name: "New run" }));
-		fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
-		vi.useFakeTimers();
-		fireEvent.click(screen.getByRole("button", { name: "Start" }));
-		const port = headingPort();
-		if (ports.includes(port)) {
-			return port;
-		}
+const NO_SWAP = 0.999999;
+
+// A random source that makes the engine's shuffle put `entry` first in the
+// start pool of a default Mixed run. The shuffle walks from the last index
+// down to 1, so call k uses index n - 1 - k. At the index where `entry` sits,
+// the source picks swap target 0. Everywhere else it picks no swap.
+function dealPrompt(entry: CatalogEntry): () => number {
+	const dailyIds = DAILY_CATEGORIES.map((category) => dailyOn(category).id);
+	const pool = answerPool(catalog).filter(
+		(candidate) => !dailyIds.includes(candidate.id),
+	);
+	const entryIndex = pool.findIndex((candidate) => candidate.id === entry.id);
+	if (entryIndex < 0) {
+		throw new Error(`${entry.id} is not in the Blitz pool`);
 	}
-	throw new Error(`no heading in ${ports.join(",")}`);
+	let calls = 0;
+	return () => {
+		const index = pool.length - 1 - calls;
+		calls += 1;
+		return index === entryIndex ? 0 : NO_SWAP;
+	};
+}
+
+function firstInPool(matches: (entry: CatalogEntry) => boolean) {
+	const dailyIds = DAILY_CATEGORIES.map((category) => dailyOn(category).id);
+	const entry = answerPool(catalog).find(
+		(candidate) => !dailyIds.includes(candidate.id) && matches(candidate),
+	);
+	if (!entry) {
+		throw new Error("no matching Entry in the Blitz pool");
+	}
+	return entry;
 }
 
 test("unique inverted heading shows the port number only", async () => {
-	const port = await startInvertedUntil(
-		catalog
-			.filter(
-				(entry) =>
-					entry.answerEligible &&
-					!entry.retired &&
-					!CROWDED_PORTS.includes(entry.port),
-			)
-			.map((entry) => entry.port),
+	const entry = firstInPool(
+		(candidate) => !CROWDED_PORTS.includes(candidate.port),
 	);
+	await startInvertedFake(dealPrompt(entry));
 	expect(
-		screen.getByRole("heading", { level: 1, name: String(port) }),
+		screen.getByRole("heading", { level: 1, name: String(entry.port) }),
 	).toBeTruthy();
 	for (const blurb of Object.values(CROWDED_BLURBS).flat()) {
 		expect(screen.queryByText(blurb)).toBeNull();
@@ -542,8 +560,12 @@ test("unique inverted heading shows the port number only", async () => {
 });
 
 test("crowded inverted heading shows that port's blurb", async () => {
-	const port = await startInvertedUntil(CROWDED_PORTS);
-	const blurbs = CROWDED_BLURBS[port];
+	const entry = firstInPool((candidate) =>
+		CROWDED_PORTS.includes(candidate.port),
+	);
+	await startInvertedFake(dealPrompt(entry));
+	expect(headingPort()).toBe(entry.port);
+	const blurbs = CROWDED_BLURBS[entry.port];
 	if (!blurbs) {
 		throw new Error("missing blurbs");
 	}
@@ -682,37 +704,16 @@ test("visiting History leaves the codex store unchanged", async () => {
 	});
 });
 
-async function startInvertedWhere(matches: (port: number) => boolean) {
-	for (let attempt = 0; attempt < 40; attempt += 1) {
-		cleanup();
-		document.documentElement.classList.remove("dark");
-		vi.useRealTimers();
-		const persist = await renderBlitz();
-		fireEvent.click(screen.getByRole("button", { name: "New run" }));
-		fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
-		vi.useFakeTimers();
-		fireEvent.click(screen.getByRole("button", { name: "Start" }));
-		const port = headingPort();
-		if (matches(port)) {
-			return { persist, port };
-		}
-	}
-	throw new Error("no matching heading found");
-}
-
 test("an Inverted miss on a unique port records the prompt as Missed and the pick as Identified", async () => {
-	const { persist, port } = await startInvertedWhere(
-		(candidate) => !CROWDED_PORTS.includes(candidate),
+	const promptEntry = firstInPool(
+		(candidate) => !CROWDED_PORTS.includes(candidate.port),
 	);
-	const promptEntry = catalog.find(
-		(entry) => entry.port === port && entry.answerEligible && !entry.retired,
-	);
-	if (!promptEntry) {
-		throw new Error("missing prompt entry");
-	}
+	const persist = await startInvertedFake(dealPrompt(promptEntry));
+	expect(headingPort()).toBe(promptEntry.port);
 	const pick =
-		catalog.find((entry) => entry.name === "HTTP" && entry.port !== port) ??
-		catalog.find((entry) => entry.port !== port);
+		catalog.find(
+			(entry) => entry.name === "HTTP" && entry.port !== promptEntry.port,
+		) ?? catalog.find((entry) => entry.port !== promptEntry.port);
 	if (!pick) {
 		throw new Error("missing miss row");
 	}
@@ -727,37 +728,26 @@ test("an Inverted miss on a unique port records the prompt as Missed and the pic
 	});
 });
 
-async function startInvertedSamePortMiss() {
-	// The dealt prompt among a crowded port's entries is not directly
-	// observable from the UI (Inverted shows only the port). A fixed
-	// same-port candidate is picked each attempt; if it happens to be the
-	// actual prompt (a real "correct" outcome, not a miss), the whole attempt
-	// is redone from a fresh run rather than picked again mid-round, since a
-	// correct guess advances to a new, possibly non-crowded, prompt.
-	for (let attempt = 0; attempt < 10; attempt += 1) {
-		const { persist, port } = await startInvertedWhere((candidate) =>
-			CROWDED_PORTS.includes(candidate),
-		);
-		const samePortPick = catalog.find((entry) => entry.port === port);
-		if (!samePortPick) {
-			throw new Error("missing same-port pick candidate");
-		}
-		await pickListed(samePortPick.name);
-		if (screen.queryByText("Wrong service, same port.")) {
-			return { persist, port, samePortPick };
-		}
-	}
-	throw new Error("could not produce a same-port miss");
-}
-
 test("a same-port Inverted pick records the prompt as Missed and the pick as Identified", async () => {
-	const { persist, port, samePortPick } = await startInvertedSamePortMiss();
+	const promptEntry = firstInPool((candidate) =>
+		CROWDED_PORTS.includes(candidate.port),
+	);
+	const persist = await startInvertedFake(dealPrompt(promptEntry));
+	expect(headingPort()).toBe(promptEntry.port);
+	const samePortPick = catalog.find(
+		(entry) => entry.port === promptEntry.port && entry.id !== promptEntry.id,
+	);
+	if (!samePortPick) {
+		throw new Error("missing same-port pick candidate");
+	}
+	await pickListed(samePortPick.name);
+	expect(screen.getByText("Wrong service, same port.")).toBeTruthy();
 	expect(persist.readCodex()[samePortPick.id]).toEqual({
 		state: "identified",
 		fresh: true,
 	});
 	const missedSiblings = catalog.filter((entry) => {
-		if (entry.port !== port || entry.id === samePortPick.id) {
+		if (entry.port !== promptEntry.port || entry.id === samePortPick.id) {
 			return false;
 		}
 		const record = persist.readCodex()[entry.id];
