@@ -292,7 +292,7 @@ async function shootHeld(
 		engine === "firefox" && options.target.startsWith("::view-transition")
 			? options.times.slice(-1)
 			: options.times;
-	const stylePath = options.stylePathIn?.engines.includes(engine)
+	const stylePath = options.stylePathIn?.engines.includes(engine) && process.env.DIAG_HIDE_NAV !== "0"
 		? options.stylePathIn.stylePath
 		: undefined;
 	await interact();

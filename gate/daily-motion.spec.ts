@@ -123,6 +123,9 @@ test("Daily switcher changes category", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "daily-switcher");
 		return;
 	}
+	if (process.env.DIAG_PREHOVER === "1") {
+		await link.hover();
+	}
 	await shootMotion(page, {
 		name: "daily-switcher",
 		target: "::view-transition-new(switcher-content)",
@@ -146,6 +149,9 @@ test("History switcher changes segment", async ({ page }, testInfo) => {
 		await expect(page.getByText("No runs yet.")).toBeVisible();
 		await expectEndFrame(page, "history-switcher");
 		return;
+	}
+	if (process.env.DIAG_PREHOVER === "1") {
+		await link.hover();
 	}
 	await shootMotion(page, {
 		name: "history-switcher",
@@ -172,6 +178,14 @@ test("Nav changes screen", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "nav-screen-change");
 		return;
 	}
+	if (process.env.DIAG_NONAVTRANS === "1") {
+		await page.addStyleTag({
+			content: "nav a { transition: none !important; }",
+		});
+	}
+	if (process.env.DIAG_PREHOVER === "1") {
+		await link.hover();
+	}
 	await shootMotion(page, {
 		name: "nav-screen-change",
 		target: "::view-transition-new(screen)",
@@ -195,6 +209,13 @@ test("How-to dialog opens", async ({ page }, testInfo) => {
 		await page.mouse.move(0, 0);
 		await expectEndFrame(page, "how-to-open");
 		return;
+	}
+	if (process.env.DIAG_PREHOVER === "1") {
+		await button.hover();
+	}
+	if (process.env.DIAG_PREBLUR === "1") {
+		await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+		await waitForQuiet(page);
 	}
 	await shootMotion(page, {
 		name: "how-to-open",
