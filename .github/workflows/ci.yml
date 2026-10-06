@@ -86,11 +86,16 @@ jobs:
           path: dist
       - id: deployment
         uses: actions/deploy-pages@v4
-  # The screenshot gate (gate/). On master it captures the baseline and uploads
-  # it. On a pull request it compares with the baseline of the merge-base
-  # commit. Keep the image tag equal to the @playwright/test version in
-  # package.json.
-  screenshots-chromium:
+  # The screenshot gate (gate/), one matrix entry per engine. On master it
+  # captures the baseline of its engine and uploads it. On a pull request it
+  # compares with the baseline of the merge-base commit. Keep the image tag
+  # equal to the @playwright/test version in package.json.
+  screenshots:
+    name: screenshots-${{ matrix.engine }}
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, webkit, firefox]
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     container:
@@ -100,6 +105,10 @@ jobs:
       contents: read
       actions: read
     env:
+      ENGINE: ${{ matrix.engine }}
+      # Firefox refuses to start when $HOME is not owned by root (the container
+      # sets /github/home). This is the workaround that Playwright names.
+      HOME: /root
       # The pull request's own commit, not the merge commit that GitHub builds:
       # a newer master must not change the frames.
       HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -117,11 +126,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Master push or manual run on master: capture the baseline. No compare.
       - if: github.event_name != 'pull_request'
-        run: pnpm gate:capture
+        run: pnpm gate:capture --project "$ENGINE-*"
       - if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: gate-baseline-chromium
+          name: gate-baseline-${{ matrix.engine }}
           path: gate-baseline
           retention-days: 30
           if-no-files-found: error
@@ -153,7 +162,7 @@ jobs:
                 owner,
                 repo,
                 run_id: run.id,
-                name: "gate-baseline-chromium",
+                name: `gate-baseline-${process.env.ENGINE}`,
               });
               if (found.artifacts.some((artifact) => !artifact.expired)) {
                 core.setOutput("run-id", String(run.id));
@@ -163,7 +172,7 @@ jobs:
       - if: github.event_name == 'pull_request' && steps.lookup.outputs.run-id != ''
         uses: actions/download-artifact@v4
         with:
-          name: gate-baseline-chromium
+          name: gate-baseline-${{ matrix.engine }}
           path: gate-baseline
           run-id: ${{ steps.lookup.outputs.run-id }}
           github-token: ${{ github.token }}
@@ -176,18 +185,28 @@ jobs:
         run: |
           git worktree add ../gate-base "$BASE_SHA"
           pnpm --dir ../gate-base install --frozen-lockfile
-          pnpm gate:capture --src ../gate-base
-      # A pull request with the visual-change label passes when frames differ.
+          pnpm gate:capture --src ../gate-base --project "$ENGINE-*"
+      # The runner exits with 2 when frames differ and no test errored, and with
+      # 1 on an error. The visual-change label excuses only code 2.
       - id: compare
         if: github.event_name == 'pull_request'
-        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name, 'visual-change') }}
-        run: pnpm gate
-      # `continue-on-error` hides a failure from `failure()`, so test the step.
-      - if: always() && steps.compare.outcome == 'failure'
+        env:
+          LABELED: ${{ contains(github.event.pull_request.labels.*.name, 'visual-change') }}
+        run: |
+          code=0
+          pnpm gate --project "$ENGINE-*" || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = 2 ] && [ "$LABELED" = true ]; then
+            exit 0
+          fi
+          exit "$code"
+      # A labelled run that passes with differences uploads them too.
+      - if: always() && steps.compare.outputs.code != '' && steps.compare.outputs.code != '0'
         uses: actions/upload-artifact@v4
         with:
-          name: gate-failure-chromium
+          name: gate-failure-${{ matrix.engine }}
           path: |
             test-results
             gate-report
+            gate-results.json
           retention-days: 14
