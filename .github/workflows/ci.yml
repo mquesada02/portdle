@@ -5,7 +5,39 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
+# A new run of a pull request cancels the older one. A push or a manual run is
+# keyed by its commit and never cancels a running run: a master run makes a
+# baseline.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # Tells the later jobs when a pull request changes only documents: every path
+  # is under docs/ or ends in .md. A renamed file counts by both of its paths.
+  # An empty list, a list of 3000 names or more (the API limit), a push, and a
+  # manual run all give false. A failed API call fails the job.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.docs.outputs.docs_only }}
+    steps:
+      - id: docs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          docs_only=false
+          if [ -n "$PR_NUMBER" ]; then
+            names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[] | .filename, (.previous_filename // empty)')
+            count=$(printf '%s\n' "$names" | grep -c . || true)
+            if [ "$count" -gt 0 ] && [ "$count" -lt 3000 ] && ! printf '%s\n' "$names" | grep -qvE '^docs/|\.md$'; then
+              docs_only=true
+            fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
   build:
     runs-on: ubuntu-latest
     permissions:
@@ -26,6 +58,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
   sql-tests:
+    needs: changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -47,8 +80,11 @@ jobs:
       # Compares the gate fixtures (gate/fixtures/) with the stack's real responses.
       - run: pnpm check:fixtures
       - run: scripts/run-sql-tests.sh
-      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      # The functional suite skips on a docs-only pull request.
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
       - id: e2e
+        if: needs.changes.outputs.docs_only != 'true'
         run: pnpm test:e2e
       - if: ${{ !cancelled() && steps.e2e.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
@@ -60,7 +96,7 @@ jobs:
           retention-days: 14
   deploy:
     if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: build
+    needs: [build, changes, sql-tests, screenshots]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -96,7 +132,8 @@ jobs:
       fail-fast: false
       matrix:
         engine: [chromium, webkit, firefox]
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    needs: changes
+    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/master') && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
