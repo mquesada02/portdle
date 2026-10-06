@@ -5,11 +5,24 @@
 // checkout (CI uses it to capture the merge-base commit); the gate tests are
 // always the ones in this checkout. No stack is needed: Playwright answers the
 // backend. `pnpm exec vite` runs the vite of the `--src` checkout; pnpm puts
-// the playwright binary on PATH for scripts.
+// the playwright binary on PATH for scripts. The run reports to
+// gate-results.json, which tells frame differences (exit code 2) from errors.
+// A capture with `--src` exits 0 when tests error: see isCaptureErrorsOnly.
 
 import { execFileSync, spawnSync } from "node:child_process";
+import { readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { STUB_KEY, STUB_URL } from "../gate/stub.ts";
+import {
+	classifyReport,
+	type GateOutcome,
+	isCaptureErrorsOnly,
+} from "./gate-report.ts";
+
+// Exit code when frames differ and no test errored (an error exits with 1).
+// The CI label step excuses only this code.
+const EXIT_DIFFERENCES = 2;
+const REPORT = "gate-results.json";
 
 let capture = false;
 let src = ".";
@@ -46,6 +59,7 @@ execFileSync(
 	},
 );
 
+rmSync(REPORT, { force: true });
 const result = spawnSync(
 	"playwright",
 	[
@@ -57,4 +71,23 @@ const result = spawnSync(
 	],
 	{ stdio: "inherit" },
 );
-process.exit(result.status ?? 1);
+const status = result.status ?? 1;
+if (status === 0) {
+	process.exit(0);
+}
+let report: unknown = null;
+try {
+	report = JSON.parse(readFileSync(REPORT, "utf8"));
+} catch {
+	// No readable report: it classifies as "errors".
+}
+// A capture of another checkout reports errored tests, but does not fail: their
+// frames are new frames in the compare. A capture of this checkout stays strict.
+if (capture && resolve(src) !== resolve(".") && isCaptureErrorsOnly(report)) {
+	console.error(
+		"gate: tests errored on the --src checkout; their frames stay uncaptured.",
+	);
+	process.exit(0);
+}
+const outcome: GateOutcome = classifyReport(report);
+process.exit(outcome === "differences" ? EXIT_DIFFERENCES : status);

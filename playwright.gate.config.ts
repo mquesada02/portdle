@@ -16,6 +16,27 @@ const VIEWPORTS = [
 	{ width: 1024, height: 768 },
 ];
 const THEMES = ["light", "dark"] as const;
+// One entry per engine; its name is the prefix of its project names. The
+// Chromium flags give grayscale text on the whole page. With LCD text, a paused
+// animation that moves between a composited layer and a normal paint changes
+// its text edges, and the same frame differs between runs.
+const ENGINES = [
+	{
+		name: "chromium",
+		device: "Desktop Chrome",
+		use: {
+			launchOptions: {
+				args: [
+					"--disable-lcd-text",
+					"--font-render-hinting=none",
+					"--disable-threaded-animation",
+				],
+			},
+		},
+	},
+	{ name: "webkit", device: "Desktop Safari", use: {} },
+	{ name: "firefox", device: "Desktop Firefox", use: {} },
+];
 
 export default defineConfig({
 	testDir: "gate",
@@ -28,6 +49,7 @@ export default defineConfig({
 	reporter: [
 		["list"],
 		["html", { open: "never", outputFolder: "gate-report" }],
+		["json", { outputFile: "gate-results.json" }],
 	],
 	expect: {
 		// "allow": the default ("disabled") would finish the paused animations.
@@ -36,30 +58,23 @@ export default defineConfig({
 	use: {
 		baseURL: ORIGIN,
 		trace: "retain-on-failure",
-		// Grayscale text everywhere. With LCD text, a paused animation that moves
-		// between a composited layer and a normal paint changes its text edges, and
-		// the same frame differs between runs.
-		launchOptions: {
-			args: [
-				"--disable-lcd-text",
-				"--font-render-hinting=none",
-				"--disable-threaded-animation",
-			],
-		},
 	},
 	projects: [false, true].flatMap((reduced) =>
 		VIEWPORTS.flatMap((viewport) =>
-			THEMES.map((theme) => ({
-				name: `chromium-${viewport.width}-${theme}${reduced ? "-reduced" : ""}`,
-				use: {
-					...devices["Desktop Chrome"],
-					viewport,
-					colorScheme: theme,
-					reducedMotion: reduced
-						? ("reduce" as const)
-						: ("no-preference" as const),
-				},
-			})),
+			THEMES.flatMap((theme) =>
+				ENGINES.map((engine) => ({
+					name: `${engine.name}-${viewport.width}-${theme}${reduced ? "-reduced" : ""}`,
+					use: {
+						...devices[engine.device],
+						...engine.use,
+						viewport,
+						colorScheme: theme,
+						reducedMotion: reduced
+							? ("reduce" as const)
+							: ("no-preference" as const),
+					},
+				})),
+			),
 		),
 	),
 	webServer: {

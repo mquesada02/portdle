@@ -8,6 +8,7 @@
 			"!dist-gate",
 			"!gate-baseline",
 			"!gate-report",
+			"!gate-results.json",
 			"!playwright-report",
 			"!test-results",
 			"!node_modules"
