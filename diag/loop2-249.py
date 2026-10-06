@@ -17,7 +17,7 @@ def docker_cmd(update,logtag):
     cmd=["docker","exec","-e","PATH=/work/node_modules/.bin:/usr/local/bin:/usr/bin:/bin","-e","DIAG_HIDE_NAV=0","-e","DIAG_LOG=1","-e",f"DIAG_TAG={logtag}"]
     for e in env: cmd+=["-e",e]
     pj=" ".join(f"--project {p}" for p in PROJECTS)
-    cmd+=["diag249","sh","-c",f"cd /work && playwright test -c playwright.gate.config.ts --update-snapshots={update} --reporter=line {pj} -g '{GREP}' 2>&1"]
+    cmd+=["diag249","sh","-c",f"cd /work && playwright test -c playwright.gate.config.ts --update-snapshots={update} --reporter=line {pj} -g '{GREP}' --grep-invert 'DIAG probe' 2>&1"]
     return cmd
 BURN="while :; do :; done"
 subprocess.run(["pkill","-STOP","-f",BURN])
