@@ -47,6 +47,7 @@ The gate runs in WebKit and Firefox too, in two new CI (continuous integration) 
   - `pnpm gate:capture` then `pnpm gate` for each engine in the pinned image: no difference, three runs (done for WebKit and Firefox on 2026-10-05; repeated at the end for all three engines);
   - a run with no baseline exits with code 2, and a run with a temporary unstubbed request exits with code 1 (local, not committed);
   - the Firefox rule check above;
+  - the merge-base capture rule: a temporary commit adds an app marker and a gate test that needs it. The merge-base app lacks the marker, so the test errors there, the capture step exits 0, and the compare step reports the frames as new. The three jobs pass with the `visual-change` label (run 37408865617, commit dropped after the check);
   - the three jobs on the pull request pass; a temporary commit with an unstubbed request in one test fails the job even with the `visual-change` label (dropped after the check, with `--force-with-lease`), and a temporary one-pixel change fails it without the label and passes it with the label;
   - `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
 - Prior art: the tracer's gate runner, `scripts/e2e-env.test.ts` and `scripts/stack-env.test.ts` (pure helpers beside the runner).
