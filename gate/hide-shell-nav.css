@@ -1,6 +1,0 @@
-/* TEMPORARY (#249): hides the nav snapshots of a view transition, because the
-   text of the nav links is unstable in WebKit. Used by `stylePathIn` of
-   `shootMotion`. */
-::view-transition-group(shell-nav) {
-	visibility: hidden;
-}

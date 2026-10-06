@@ -50,10 +50,7 @@ export async function waitForQuiet(page: Page): Promise<void> {
 	);
 }
 
-type HoldWindow = Window & {
-	__holdStarts?: boolean;
-	__pinTransitions?: boolean;
-};
+type HoldWindow = Window & { __holdStarts?: boolean };
 
 // Holds the animations that `interact` starts (rate 0), so a slow poll on a
 // loaded machine cannot miss a 150 ms animation. A view transition is held when
@@ -65,19 +62,18 @@ type HoldWindow = Window & {
 // from later documents.
 async function holdStarts(page: Page, target: string): Promise<void> {
 	if (target.startsWith("::")) {
-		await page.evaluate((pin) => {
+		await page.evaluate(() => {
 			if (typeof document.startViewTransition !== "function") {
 				return;
 			}
 			(window as HoldWindow).__holdStarts = true;
-			(window as HoldWindow).__pinTransitions = pin;
 			const start = document.startViewTransition.bind(document);
 			document.startViewTransition = (...args: Parameters<typeof start>) => {
-				// DIAG #249: pin every CSS transition at 0 before the old state is drawn.
-				if (
-					(window as HoldWindow).__pinTransitions &&
-					(window as HoldWindow).__holdStarts
-				) {
+				// The old state is drawn at the next frame. A color transition that the
+				// page started just before (the nav links change `aria-current`) would be
+				// drawn at a random time into it, and the new state at 0 ms shows the
+				// difference at the text edges. Pin every transition at 0 first.
+				if ((window as HoldWindow).__holdStarts) {
 					document.documentElement.getBoundingClientRect();
 					for (const a of document.getAnimations()) {
 						if (a instanceof CSSTransition) {
@@ -100,7 +96,7 @@ async function holdStarts(page: Page, target: string): Promise<void> {
 				);
 				return transition;
 			};
-		}, process.env.DIAG_PIN === "1");
+		});
 		return;
 	}
 	const hold = () => {
@@ -247,11 +243,6 @@ type ShootOptions = {
 	// frame, the last time. A test lists an engine on purpose, so a missing
 	// motion in any other engine still fails.
 	noMotionIn?: Engine[];
-	// TEMPORARY workaround (#249): in these engines every frame takes this
-	// stylesheet (a file path), because part of the page is unstable there.
-	// Remove it with that ticket. A `mask` does not work: the snapshots of a
-	// view transition draw above it. The `noMotionIn` path does not use it.
-	stylePathIn?: { engines: Engine[]; stylePath: string };
 };
 
 // Runs `interact`, then freezes the animations it starts. `target` names the
@@ -309,9 +300,6 @@ async function shootHeld(
 		engine === "firefox" && options.target.startsWith("::view-transition")
 			? options.times.slice(-1)
 			: options.times;
-	const stylePath = options.stylePathIn?.engines.includes(engine) && process.env.DIAG_HIDE_NAV !== "0"
-		? options.stylePathIn.stylePath
-		: undefined;
 	await interact();
 	await hold.waitStarted();
 	// Other animations of the same change can start a frame or two after the
@@ -366,18 +354,11 @@ async function shootHeld(
 				sync: !(pausedClock && engine !== "chromium"),
 			},
 		);
-		if (process.env.DIAG_LOG === "1") {
-			await page.evaluate(
-				(t) => (window as unknown as { __snap?: (l: string) => void }).__snap?.(`shot-${t}`),
-				time,
-			);
-		}
 		const tolerated =
 			toleranceOnAllFrames ||
 			(time !== options.times[0] && time !== options.times.at(-1));
 		await expect(page).toHaveScreenshot(`${name}-${time}ms.png`, {
 			fullPage,
-			stylePath,
 			// Left out for the first and last frame: an undefined value would
 			// replace the exact threshold of the gate configuration.
 			...(tolerated && { threshold: IN_FLIGHT_THRESHOLD }),

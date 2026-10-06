@@ -3,9 +3,8 @@
 // come from the current durations (Spec 3, "Durations and easing"). With reduced
 // motion, each test takes one end frame and asserts that no animation started.
 
-import { join } from "node:path";
+import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
-import { dumpNavLog, installNavLog } from "./diag-log.ts";
 import { pauseClock, shootMotion, waitForQuiet } from "./freeze.ts";
 import { shootRoundsToggle, TIMES_150 } from "./motion.ts";
 import { seedStorage } from "./seed.ts";
@@ -17,8 +16,13 @@ import {
 	PLAYED,
 } from "./state.ts";
 
-// TEMPORARY (#249): see "Nav changes screen".
-const HIDE_SHELL_NAV = join(import.meta.dirname, "hide-shell-nav.css");
+// The pointer of a click hovers the target, which starts a color transition
+// that no hold can pin once the view transition draws its old state. Hover
+// first, so the transition ends before the frames (see `shootMotion`).
+async function hoverFirst(target: Locator): Promise<void> {
+	await target.hover();
+	await waitForQuiet(target.page());
+}
 
 test("row shake of an empty guess", async ({ page }, testInfo) => {
 	const reduced = await openGame(page, testInfo);
@@ -124,9 +128,7 @@ test("Daily switcher changes category", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "daily-switcher");
 		return;
 	}
-	if (process.env.DIAG_PREHOVER === "1") {
-		await link.hover();
-	}
+	await hoverFirst(link);
 	await shootMotion(page, {
 		name: "daily-switcher",
 		target: "::view-transition-new(switcher-content)",
@@ -151,17 +153,13 @@ test("History switcher changes segment", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "history-switcher");
 		return;
 	}
-	if (process.env.DIAG_PREHOVER === "1") {
-		await link.hover();
-	}
+	await hoverFirst(link);
 	await shootMotion(page, {
 		name: "history-switcher",
 		target: "::view-transition-new(switcher-content)",
 		times: TIMES_150,
 		interact: () => link.click(),
 		toleranceOnAllFrames: true,
-		// TEMPORARY (#249): see "Nav changes screen".
-		stylePathIn: { engines: ["webkit"], stylePath: HIDE_SHELL_NAV },
 	});
 });
 
@@ -179,30 +177,13 @@ test("Nav changes screen", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "nav-screen-change");
 		return;
 	}
-	if (process.env.DIAG_CSS) {
-		await page.addStyleTag({ content: process.env.DIAG_CSS });
-	}
-	if (process.env.DIAG_PREHOVER === "1") {
-		await link.hover();
-	}
-	if (process.env.DIAG_LOG === "1") {
-		await installNavLog(page);
-	}
-	try {
-		await shootMotion(page, {
-			name: "nav-screen-change",
-			target: "::view-transition-new(screen)",
-			times: TIMES_150,
-			interact: () => link.click(),
-			// TEMPORARY (#249): in WebKit the text of the nav links is unstable in 40
-			// to 90 pixels, in rare runs. The rest of the frame stays guarded.
-			stylePathIn: { engines: ["webkit"], stylePath: HIDE_SHELL_NAV },
-		});
-	} finally {
-		if (process.env.DIAG_LOG === "1") {
-			await dumpNavLog(page, testInfo);
-		}
-	}
+	await hoverFirst(link);
+	await shootMotion(page, {
+		name: "nav-screen-change",
+		target: "::view-transition-new(screen)",
+		times: TIMES_150,
+		interact: () => link.click(),
+	});
 });
 
 test("How-to dialog opens", async ({ page }, testInfo) => {
@@ -218,13 +199,10 @@ test("How-to dialog opens", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "how-to-open");
 		return;
 	}
-	if (process.env.DIAG_PREHOVER === "1") {
-		await button.hover();
-	}
-	if (process.env.DIAG_PREBLUR === "1") {
-		await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
-		await waitForQuiet(page);
-	}
+	// Opening the dialog blurs the focused digit slot: its border-color
+	// transition must end before the frames, or the hold starts it too late.
+	await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+	await hoverFirst(button);
 	await shootMotion(page, {
 		name: "how-to-open",
 		target: "transition:opacity",
