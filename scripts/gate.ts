@@ -7,12 +7,17 @@
 // backend. `pnpm exec vite` runs the vite of the `--src` checkout; pnpm puts
 // the playwright binary on PATH for scripts. The run reports to
 // gate-results.json, which tells frame differences (exit code 2) from errors.
+// A capture with `--src` exits 0 when tests error: see isCaptureErrorsOnly.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { STUB_KEY, STUB_URL } from "../gate/stub.ts";
-import { classifyReport, type GateOutcome } from "./gate-report.ts";
+import {
+	classifyReport,
+	type GateOutcome,
+	isCaptureErrorsOnly,
+} from "./gate-report.ts";
 
 // Exit code when frames differ and no test errored (an error exits with 1).
 // The CI label step excuses only this code.
@@ -71,9 +76,20 @@ if (status === 0) {
 	process.exit(0);
 }
 let outcome: GateOutcome = "errors";
+let captureErrorsOnly = false;
 try {
-	outcome = classifyReport(JSON.parse(readFileSync(REPORT, "utf8")));
+	const report: unknown = JSON.parse(readFileSync(REPORT, "utf8"));
+	outcome = classifyReport(report);
+	captureErrorsOnly = isCaptureErrorsOnly(report);
 } catch {
 	// No readable report: keep "errors".
+}
+// A capture of another checkout reports errored tests, but does not fail: their
+// frames are new frames in the compare. A capture of this checkout stays strict.
+if (capture && src !== "." && captureErrorsOnly) {
+	console.error(
+		"gate: tests errored on the --src checkout; their frames stay uncaptured.",
+	);
+	process.exit(0);
 }
 process.exit(outcome === "differences" ? EXIT_DIFFERENCES : status);

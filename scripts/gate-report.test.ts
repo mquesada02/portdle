@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyReport } from "./gate-report.ts";
+import { classifyReport, isCaptureErrorsOnly } from "./gate-report.ts";
 
 type Status = "passed" | "failed" | "timedOut" | "interrupted" | "skipped";
 
@@ -121,5 +121,40 @@ describe("classifyReport", () => {
 		expect(classifyReport(null)).toBe("errors");
 		expect(classifyReport({})).toBe("errors");
 		expect(classifyReport("text")).toBe("errors");
+	});
+});
+
+describe("isCaptureErrorsOnly", () => {
+	it("excuses failed and timed-out tests", () => {
+		expect(
+			isCaptureErrorsOnly(
+				report([
+					{ status: "passed" },
+					{ status: "failed", errors: ["Error: locator not found"] },
+					{ status: "timedOut" },
+				]),
+			),
+		).toBe(true);
+	});
+
+	it("excuses a clean report", () => {
+		expect(isCaptureErrorsOnly(report([{ status: "passed" }]))).toBe(true);
+	});
+
+	it("does not excuse an interrupted run", () => {
+		expect(isCaptureErrorsOnly(report([{ status: "interrupted" }]))).toBe(
+			false,
+		);
+	});
+
+	it("does not excuse a report-level error", () => {
+		expect(
+			isCaptureErrorsOnly(report([{ status: "failed" }], [{ message: "x" }])),
+		).toBe(false);
+	});
+
+	it("does not excuse a malformed report", () => {
+		expect(isCaptureErrorsOnly(null)).toBe(false);
+		expect(isCaptureErrorsOnly({})).toBe(false);
 	});
 });
