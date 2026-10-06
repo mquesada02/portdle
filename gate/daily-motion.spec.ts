@@ -5,6 +5,7 @@
 
 import { join } from "node:path";
 import { expect, test } from "./fixtures.ts";
+import { dumpNavLog, installNavLog } from "./diag-log.ts";
 import { pauseClock, shootMotion, waitForQuiet } from "./freeze.ts";
 import { shootRoundsToggle, TIMES_150 } from "./motion.ts";
 import { seedStorage } from "./seed.ts";
@@ -178,23 +179,30 @@ test("Nav changes screen", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "nav-screen-change");
 		return;
 	}
-	if (process.env.DIAG_NONAVTRANS === "1") {
-		await page.addStyleTag({
-			content: "nav a { transition: none !important; }",
-		});
+	if (process.env.DIAG_CSS) {
+		await page.addStyleTag({ content: process.env.DIAG_CSS });
 	}
 	if (process.env.DIAG_PREHOVER === "1") {
 		await link.hover();
 	}
-	await shootMotion(page, {
-		name: "nav-screen-change",
-		target: "::view-transition-new(screen)",
-		times: TIMES_150,
-		interact: () => link.click(),
-		// TEMPORARY (#249): in WebKit the text of the nav links is unstable in 40
-		// to 90 pixels, in rare runs. The rest of the frame stays guarded.
-		stylePathIn: { engines: ["webkit"], stylePath: HIDE_SHELL_NAV },
-	});
+	if (process.env.DIAG_LOG === "1") {
+		await installNavLog(page);
+	}
+	try {
+		await shootMotion(page, {
+			name: "nav-screen-change",
+			target: "::view-transition-new(screen)",
+			times: TIMES_150,
+			interact: () => link.click(),
+			// TEMPORARY (#249): in WebKit the text of the nav links is unstable in 40
+			// to 90 pixels, in rare runs. The rest of the frame stays guarded.
+			stylePathIn: { engines: ["webkit"], stylePath: HIDE_SHELL_NAV },
+		});
+	} finally {
+		if (process.env.DIAG_LOG === "1") {
+			await dumpNavLog(page, testInfo);
+		}
+	}
 });
 
 test("How-to dialog opens", async ({ page }, testInfo) => {

@@ -50,7 +50,10 @@ export async function waitForQuiet(page: Page): Promise<void> {
 	);
 }
 
-type HoldWindow = Window & { __holdStarts?: boolean };
+type HoldWindow = Window & {
+	__holdStarts?: boolean;
+	__pinTransitions?: boolean;
+};
 
 // Holds the animations that `interact` starts (rate 0), so a slow poll on a
 // loaded machine cannot miss a 150 ms animation. A view transition is held when
@@ -62,13 +65,27 @@ type HoldWindow = Window & { __holdStarts?: boolean };
 // from later documents.
 async function holdStarts(page: Page, target: string): Promise<void> {
 	if (target.startsWith("::")) {
-		await page.evaluate(() => {
+		await page.evaluate((pin) => {
 			if (typeof document.startViewTransition !== "function") {
 				return;
 			}
 			(window as HoldWindow).__holdStarts = true;
+			(window as HoldWindow).__pinTransitions = pin;
 			const start = document.startViewTransition.bind(document);
 			document.startViewTransition = (...args: Parameters<typeof start>) => {
+				// DIAG #249: pin every CSS transition at 0 before the old state is drawn.
+				if (
+					(window as HoldWindow).__pinTransitions &&
+					(window as HoldWindow).__holdStarts
+				) {
+					document.documentElement.getBoundingClientRect();
+					for (const a of document.getAnimations()) {
+						if (a instanceof CSSTransition) {
+							a.pause();
+							a.currentTime = 0;
+						}
+					}
+				}
 				const transition = start(...args);
 				// The empty rejection handler is for a skipped transition.
 				transition.ready.then(
@@ -83,7 +100,7 @@ async function holdStarts(page: Page, target: string): Promise<void> {
 				);
 				return transition;
 			};
-		});
+		}, process.env.DIAG_PIN === "1");
 		return;
 	}
 	const hold = () => {
@@ -349,6 +366,12 @@ async function shootHeld(
 				sync: !(pausedClock && engine !== "chromium"),
 			},
 		);
+		if (process.env.DIAG_LOG === "1") {
+			await page.evaluate(
+				(t) => (window as unknown as { __snap?: (l: string) => void }).__snap?.(`shot-${t}`),
+				time,
+			);
+		}
 		const tolerated =
 			toleranceOnAllFrames ||
 			(time !== options.times[0] && time !== options.times.at(-1));
