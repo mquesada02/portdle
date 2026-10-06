@@ -86,7 +86,7 @@ try {
 }
 // A capture of another checkout reports errored tests, but does not fail: their
 // frames are new frames in the compare. A capture of this checkout stays strict.
-if (capture && src !== "." && captureErrorsOnly) {
+if (capture && resolve(src) !== resolve(".") && captureErrorsOnly) {
 	console.error(
 		"gate: tests errored on the --src checkout; their frames stay uncaptured.",
 	);

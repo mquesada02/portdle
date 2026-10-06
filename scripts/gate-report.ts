@@ -71,17 +71,20 @@ export function classifyReport(report: unknown): GateOutcome {
 // Capture of another checkout (`--src`, the merge-base): a test that errors
 // there, for example a test for a motion that only the pull request adds,
 // takes no frame. The frame is then a new frame in the compare step. So that
-// run excuses failed and timed-out tests. Other trouble (report-level error,
+// run excuses failed and timed-out tests, and needs at least one. Other trouble (report-level error,
 // interrupted run, unreadable report) keeps the Playwright exit code.
 export function isCaptureErrorsOnly(report: unknown): boolean {
 	const { errors, suites } = (report ?? {}) as Report;
 	if (!Array.isArray(suites) || (Array.isArray(errors) && errors.length > 0)) {
 		return false;
 	}
+	let errored = false;
 	for (const result of results(suites)) {
-		if (!["passed", "skipped", "failed", "timedOut"].includes(result.status)) {
+		if (result.status === "failed" || result.status === "timedOut") {
+			errored = true;
+		} else if (result.status !== "passed" && result.status !== "skipped") {
 			return false;
 		}
 	}
-	return true;
+	return errored;
 }

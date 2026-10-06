@@ -137,8 +137,9 @@ describe("isCaptureErrorsOnly", () => {
 		).toBe(true);
 	});
 
-	it("excuses a clean report", () => {
-		expect(isCaptureErrorsOnly(report([{ status: "passed" }]))).toBe(true);
+	it("does not excuse a report with no errored test", () => {
+		expect(isCaptureErrorsOnly(report([{ status: "passed" }]))).toBe(false);
+		expect(isCaptureErrorsOnly(report([]))).toBe(false);
 	});
 
 	it("does not excuse an interrupted run", () => {
