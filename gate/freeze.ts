@@ -3,8 +3,9 @@
 // Every wait polls from the test process: a page evaluation, then a real Node
 // sleep (the one fixed wait is `LATE_START_MS` in `shootHeld`). The polls
 // never use page timers, which the installed clock fakes (see fixtures.ts).
-// The frame sync in `shootHeld` does use
-// `requestAnimationFrame`, so it needs a running clock, or `pausedClock`.
+// The frame sync in `shootHeld` does use `requestAnimationFrame`, so it needs a
+// running clock, or `pausedClock`. With `pausedClock` in WebKit and Firefox the
+// sync is left out (see `shootHeld`).
 
 import { setTimeout as sleep } from "node:timers/promises";
 import { type CDPSession, expect, type Page } from "@playwright/test";
@@ -15,14 +16,16 @@ const POLL_MS = 10;
 const TIMEOUT_MS = 10_000;
 // The color tolerance of the frames between a motion's first and last time.
 // Rarely, a frame in a compositor layer differs by one or two color levels.
-// The first frame, the last frame, and the frames at rest stay exact, and
-// `maxDiffPixels` stays 0 everywhere.
+// The first and the last time of a motion, and the frames at rest, stay
+// exact, and `maxDiffPixels` stays 0 everywhere.
 const IN_FLIGHT_THRESHOLD = 0.02;
 // A fixed wait, not a poll: animations of the same change can start late.
 const LATE_START_MS = 100;
 const TRANSITION_PREFIX = "transition:";
 // The target of a Rounds disclosure height change (Chromium only).
 export const DETAILS_CONTENT_TARGET = "::details-content";
+
+type Engine = "chromium" | "webkit" | "firefox";
 
 async function pollUntil(
 	label: string,
@@ -221,6 +224,17 @@ type ShootOptions = {
 	// switcher view transitions need it: the tab label drew one level off in
 	// the first frame and in the last frame, in rare runs.
 	toleranceOnAllFrames?: boolean;
+	// Engines where the target motion does not exist (for example, WebKit and
+	// Firefox have no exit transition on a dialog, and no `::details-content`
+	// height change). There the change is instant: the helper takes only the end
+	// frame, the last time. A test lists an engine on purpose, so a missing
+	// motion in any other engine still fails.
+	noMotionIn?: Engine[];
+	// TEMPORARY workaround (#249): in these engines every frame takes this
+	// stylesheet (a file path), because part of the page is unstable there.
+	// Remove it with that ticket. A `mask` does not work: the snapshots of a
+	// view transition draw above it. The `noMotionIn` path does not use it.
+	stylePathIn?: { engines: Engine[]; stylePath: string };
 };
 
 // Runs `interact`, then freezes the animations it starts. `target` names the
@@ -237,6 +251,15 @@ export async function shootMotion(
 	options: ShootOptions,
 ): Promise<void> {
 	await waitForQuiet(page);
+	if (options.noMotionIn?.includes(engineOf(page))) {
+		await options.interact();
+		await waitForQuiet(page);
+		await expect(page).toHaveScreenshot(
+			`${options.name}-${options.times.at(-1)}ms.png`,
+			{ fullPage: options.fullPage },
+		);
+		return;
+	}
 	const hold =
 		options.target === DETAILS_CONTENT_TARGET
 			? holdThroughCdp(page)
@@ -250,13 +273,28 @@ export async function shootMotion(
 	}
 }
 
+function engineOf(page: Page): Engine {
+	return page.context().browser()?.browserType().name() as Engine;
+}
+
 async function shootHeld(
 	page: Page,
 	options: ShootOptions,
 	hold: Hold,
 ): Promise<void> {
-	const { name, times, interact, pausedClock, fullPage, toleranceOnAllFrames } =
+	const { name, interact, pausedClock, fullPage, toleranceOnAllFrames } =
 		options;
+	const engine = engineOf(page);
+	// Firefox draws the live page, not the view-transition overlay, in a
+	// screenshot (cause unverified). For a view transition it takes only the
+	// end frame, the last time.
+	const times =
+		engine === "firefox" && options.target.startsWith("::view-transition")
+			? options.times.slice(-1)
+			: options.times;
+	const stylePath = options.stylePathIn?.engines.includes(engine)
+		? options.stylePathIn.stylePath
+		: undefined;
 	await interact();
 	await hold.waitStarted();
 	// Other animations of the same change can start a frame or two after the
@@ -280,14 +318,21 @@ async function shootHeld(
 		// the compositor's stale frame (at 0 ms, a tile already scaled up). This
 		// is a one-shot sync, not a poll. With a running clock it uses the page's
 		// `requestAnimationFrame`. With a paused clock that never fires, so it
-		// uses the browser's own (`window.nativeRaf`, saved in fixtures.ts).
+		// uses the browser's own (`window.nativeRaf`, saved in fixtures.ts). In
+		// WebKit and Firefox that one does not fire either under a paused clock
+		// (checked 2026-10-05), so there the sync is left out: `toHaveScreenshot`
+		// takes screenshots until two in a row match.
 		await page.evaluate(
-			({ ms, native }) =>
+			({ ms, native, sync }) =>
 				new Promise<void>((resolve) => {
 					for (const a of document.getAnimations()) {
 						if (a.playState === "paused") {
 							a.currentTime = ms;
 						}
+					}
+					if (!sync) {
+						resolve();
+						return;
 					}
 					const raf = native
 						? (
@@ -298,12 +343,18 @@ async function shootHeld(
 						: requestAnimationFrame;
 					raf(() => raf(() => resolve()));
 				}),
-			{ ms: time, native: pausedClock === true },
+			{
+				ms: time,
+				native: pausedClock === true,
+				sync: !(pausedClock && engine !== "chromium"),
+			},
 		);
 		const tolerated =
-			toleranceOnAllFrames || (time !== times[0] && time !== times.at(-1));
+			toleranceOnAllFrames ||
+			(time !== options.times[0] && time !== options.times.at(-1));
 		await expect(page).toHaveScreenshot(`${name}-${time}ms.png`, {
 			fullPage,
+			stylePath,
 			// Left out for the first and last frame: an undefined value would
 			// replace the exact threshold of the gate configuration.
 			...(tolerated && { threshold: IN_FLIGHT_THRESHOLD }),

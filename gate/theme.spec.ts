@@ -58,6 +58,12 @@ test("theme crossfade", async ({ page }, testInfo) => {
 		await expect(page).toHaveScreenshot("theme-crossfade-end.png");
 		return;
 	}
+	// The click blurs the focused digit slot and starts a border transition.
+	// In WebKit the view transition starts later, and that transition can end
+	// before the freeze. Blur first: `shootMotion` waits for it to end.
+	await page.evaluate(() =>
+		(document.activeElement as HTMLElement | null)?.blur(),
+	);
 	await shootMotion(page, {
 		name: "theme-crossfade",
 		target: NEW_PAGE,
