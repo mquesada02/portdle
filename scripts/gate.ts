@@ -75,21 +75,19 @@ const status = result.status ?? 1;
 if (status === 0) {
 	process.exit(0);
 }
-let outcome: GateOutcome = "errors";
-let captureErrorsOnly = false;
+let report: unknown = null;
 try {
-	const report: unknown = JSON.parse(readFileSync(REPORT, "utf8"));
-	outcome = classifyReport(report);
-	captureErrorsOnly = isCaptureErrorsOnly(report);
+	report = JSON.parse(readFileSync(REPORT, "utf8"));
 } catch {
-	// No readable report: keep "errors".
+	// No readable report: it classifies as "errors".
 }
 // A capture of another checkout reports errored tests, but does not fail: their
 // frames are new frames in the compare. A capture of this checkout stays strict.
-if (capture && resolve(src) !== resolve(".") && captureErrorsOnly) {
+if (capture && resolve(src) !== resolve(".") && isCaptureErrorsOnly(report)) {
 	console.error(
 		"gate: tests errored on the --src checkout; their frames stay uncaptured.",
 	);
 	process.exit(0);
 }
+const outcome: GateOutcome = classifyReport(report);
 process.exit(outcome === "differences" ? EXIT_DIFFERENCES : status);

@@ -37,6 +37,16 @@ function* results(suites: Suite[]): Generator<Result> {
 	}
 }
 
+// The suites of a readable report, or null when the report is unreadable or has
+// a report-level error.
+function readSuites(report: unknown): Suite[] | null {
+	const { errors, suites } = (report ?? {}) as Report;
+	if (!Array.isArray(suites) || (Array.isArray(errors) && errors.length > 0)) {
+		return null;
+	}
+	return suites;
+}
+
 function isFrameError(error: { message?: string }): boolean {
 	const message = stripVTControlCharacters(error.message ?? "");
 	return FRAME_ERROR.test(message.split("\n\nCall log:")[0] ?? "");
@@ -46,8 +56,8 @@ function isFrameError(error: { message?: string }): boolean {
 // that are all frame errors. Anything else that failed is `errors`. An
 // unreadable report is `errors`, so the caller fails safe.
 export function classifyReport(report: unknown): GateOutcome {
-	const { errors, suites } = (report ?? {}) as Report;
-	if (!Array.isArray(suites) || (Array.isArray(errors) && errors.length > 0)) {
+	const suites = readSuites(report);
+	if (!suites) {
 		return "errors";
 	}
 	let differences = false;
@@ -71,11 +81,12 @@ export function classifyReport(report: unknown): GateOutcome {
 // Capture of another checkout (`--src`, the merge-base): a test that errors
 // there, for example a test for a motion that only the pull request adds,
 // takes no frame. The frame is then a new frame in the compare step. So that
-// run excuses failed and timed-out tests, and needs at least one. Other trouble (report-level error,
-// interrupted run, unreadable report) keeps the Playwright exit code.
+// run excuses failed and timed-out tests, and needs at least one. Other
+// trouble (report-level error, interrupted run, unreadable report) keeps the
+// Playwright exit code.
 export function isCaptureErrorsOnly(report: unknown): boolean {
-	const { errors, suites } = (report ?? {}) as Report;
-	if (!Array.isArray(suites) || (Array.isArray(errors) && errors.length > 0)) {
+	const suites = readSuites(report);
+	if (!suites) {
 		return false;
 	}
 	let errored = false;
