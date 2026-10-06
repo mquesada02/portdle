@@ -9,7 +9,12 @@ import { join } from "node:path";
 import type { Page, TestInfo } from "@playwright/test";
 import { expect, isReduced, test } from "./fixtures.ts";
 import { waitForQuiet } from "./freeze.ts";
-import { restShot, shootOrEnd, TIMES_150 } from "./motion.ts";
+import {
+	restShot,
+	shootOrEnd,
+	shootRoundsToggle,
+	TIMES_150,
+} from "./motion.ts";
 import { seedStorage } from "./seed.ts";
 import { openGame } from "./state.ts";
 
@@ -27,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function openArena(page: Page, testInfo: TestInfo) {
-	await openGame(page, testInfo, { path: "/portdle/blitz" });
+	return openGame(page, testInfo, { path: "/portdle/blitz" });
 }
 
 async function openSetup(page: Page, testInfo: TestInfo) {
@@ -155,14 +160,17 @@ test("End card at rest, then Play again: End card to Arena", async ({
 	});
 });
 
-test("Rounds disclosure of the last run", async ({ page }, testInfo) => {
-	await openArena(page, testInfo);
-	await expect(page.getByText("Rounds (4)")).toBeVisible();
-	await shootOrEnd(page, isReduced(testInfo), {
-		name: "blitz-rounds-rise",
-		target: "rise",
-		times: TIMES_150,
-		interact: () => page.getByText("Rounds (4)").click(),
-		done: () => expect(page.getByText("you typed").first()).toBeVisible(),
+for (const closing of [false, true]) {
+	test(`Rounds disclosure of the last run ${closing ? "closes" : "opens"}`, async ({
+		page,
+		browserName,
+	}, testInfo) => {
+		const reduced = await openArena(page, testInfo);
+		await shootRoundsToggle(page, {
+			name: `blitz-rounds-${closing ? "close" : "open"}`,
+			closing,
+			reduced,
+			browserName,
+		});
 	});
-});
+}

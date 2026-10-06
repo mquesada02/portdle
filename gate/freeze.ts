@@ -1,13 +1,13 @@
 // Freezes motion at fixed times and takes one frame per time.
 //
 // Every wait polls from the test process: a page evaluation, then a real Node
-// sleep (the one fixed wait is `LATE_START_MS` in `shootMotion`). The polls
+// sleep (the one fixed wait is `LATE_START_MS` in `shootHeld`). The polls
 // never use page timers, which the installed clock fakes (see fixtures.ts).
-// The frame sync in `shootMotion` does use
+// The frame sync in `shootHeld` does use
 // `requestAnimationFrame`, so it needs a running clock, or `pausedClock`.
 
 import { setTimeout as sleep } from "node:timers/promises";
-import { expect, type Page } from "@playwright/test";
+import { type CDPSession, expect, type Page } from "@playwright/test";
 
 const POLL_MS = 10;
 // A wall-clock budget for every wait below: a loaded runner starts an
@@ -21,6 +21,8 @@ const IN_FLIGHT_THRESHOLD = 0.02;
 // A fixed wait, not a poll: animations of the same change can start late.
 const LATE_START_MS = 100;
 const TRANSITION_PREFIX = "transition:";
+// The target of a Rounds disclosure height change (Chromium only).
+export const DETAILS_CONTENT_TARGET = "::details-content";
 
 async function pollUntil(
 	label: string,
@@ -106,53 +108,17 @@ async function releaseStarts(page: Page): Promise<void> {
 	});
 }
 
-// Pauses the installed clock one second ahead. Use it after `waitForQuiet` and
-// after all typing, before the interaction: the jump runs the timers that are
-// due in that second. With a paused clock, no page timer fires, so a timer
-// cannot change the page while its animations are frozen. Pass
-// `pausedClock: true` to `shootMotion` afterwards.
-export async function pauseClock(page: Page): Promise<void> {
-	const now = await page.evaluate(() => Date.now());
-	await page.clock.pauseAt(new Date(now + 1000));
-}
+// How `shootMotion` holds the animations of a change and freezes them at the
+// frame times. `arm` runs before the interaction, `waitStarted` after it.
+type Hold = {
+	arm: () => Promise<void>;
+	waitStarted: () => Promise<void>;
+	seek: (time: number) => Promise<void>;
+	release: () => Promise<void>;
+};
 
-// Runs `interact`, then freezes the animations it starts. `target` names the
-// animation to wait for: a keyframe name such as `pop`, a pseudo-element such
-// as `::view-transition-new(screen)`, or a CSS transition by property name
-// such as `transition:opacity`. Earlier motion (for example a
-// focus-ring transition from the pointer) must end first, or the helper would
-// freeze it instead of the target. It holds the animations that `interact`
-// starts first (see `holdStarts`), and releases the hold after the last frame.
-// Each frame is `<name>-<time>ms.png`.
-export async function shootMotion(
-	page: Page,
-	options: {
-		name: string;
-		target: string;
-		times: number[];
-		interact: () => Promise<void>;
-		// The test paused the clock (see `pauseClock`).
-		pausedClock?: boolean;
-		// Shoot the whole page, not the viewport.
-		fullPage?: boolean;
-		// Every frame takes the color tolerance, also the first and the last. The
-		// switcher view transitions need it: the tab label drew one level off in
-		// the first frame and in the last frame, in rare runs.
-		toleranceOnAllFrames?: boolean;
-	},
-): Promise<void> {
-	const {
-		name,
-		target,
-		times,
-		interact,
-		pausedClock,
-		fullPage,
-		toleranceOnAllFrames,
-	} = options;
-	await waitForQuiet(page);
-	await holdStarts(page, target);
-	await interact();
+// Waits for the target animation, then pauses every running animation.
+async function waitForTarget(page: Page, target: string): Promise<void> {
 	await pollUntil(`no animation named ${target} started`, TIMEOUT_MS, () =>
 		page.evaluate(
 			({ wanted, prefix }) => {
@@ -177,6 +143,122 @@ export async function shootMotion(
 			{ wanted: target, prefix: TRANSITION_PREFIX },
 		),
 	);
+}
+
+// The default hold: the page events of `holdStarts`, and the page seek that
+// `shootHeld` does for every frame.
+function holdByEvents(page: Page, target: string): Hold {
+	return {
+		arm: () => holdStarts(page, target),
+		waitStarted: () => waitForTarget(page, target),
+		seek: async () => {},
+		release: () => releaseStarts(page),
+	};
+}
+
+// The hold for `DETAILS_CONTENT_TARGET`. Chromium lists no such transition in
+// `getAnimations()` and fires no event for it, so this hold uses the CDP
+// (Chrome DevTools Protocol) Animation domain: the document timeline runs at
+// rate 0 before the interaction, and `seek` sets the time of every started
+// animation.
+function holdThroughCdp(page: Page): Hold {
+	const started: string[] = [];
+	let cdp: CDPSession | undefined;
+	return {
+		arm: async () => {
+			if (page.context().browser()?.browserType().name() !== "chromium") {
+				throw new Error(`${DETAILS_CONTENT_TARGET} needs Chromium (CDP)`);
+			}
+			cdp = await page.context().newCDPSession(page);
+			cdp.on("Animation.animationStarted", ({ animation }) =>
+				started.push(animation.id),
+			);
+			await cdp.send("Animation.enable");
+			await cdp.send("Animation.setPlaybackRate", { playbackRate: 0 });
+		},
+		waitStarted: () =>
+			pollUntil(
+				`no ${DETAILS_CONTENT_TARGET} animation started`,
+				TIMEOUT_MS,
+				() => Promise.resolve(started.length > 0),
+			),
+		seek: async (time) => {
+			await cdp?.send("Animation.seekAnimations", {
+				animations: started,
+				currentTime: time,
+			});
+		},
+		release: async () => {
+			try {
+				await cdp?.send("Animation.setPlaybackRate", { playbackRate: 1 });
+			} finally {
+				await cdp?.detach();
+			}
+		},
+	};
+}
+
+// Pauses the installed clock one second ahead. Use it after `waitForQuiet` and
+// after all typing, before the interaction: the jump runs the timers that are
+// due in that second. With a paused clock, no page timer fires, so a timer
+// cannot change the page while its animations are frozen. Pass
+// `pausedClock: true` to `shootMotion` afterwards.
+export async function pauseClock(page: Page): Promise<void> {
+	const now = await page.evaluate(() => Date.now());
+	await page.clock.pauseAt(new Date(now + 1000));
+}
+
+type ShootOptions = {
+	name: string;
+	target: string;
+	times: number[];
+	interact: () => Promise<void>;
+	// The test paused the clock (see `pauseClock`).
+	pausedClock?: boolean;
+	// Shoot the whole page, not the viewport.
+	fullPage?: boolean;
+	// Every frame takes the color tolerance, also the first and the last. The
+	// switcher view transitions need it: the tab label drew one level off in
+	// the first frame and in the last frame, in rare runs.
+	toleranceOnAllFrames?: boolean;
+};
+
+// Runs `interact`, then freezes the animations it starts. `target` names the
+// animation to wait for: a keyframe name such as `pop`, a pseudo-element such
+// as `::view-transition-new(screen)`, a CSS transition by property name such
+// as `transition:opacity`, or `DETAILS_CONTENT_TARGET`. Earlier motion (for
+// example a focus-ring transition from the pointer) must end first, or the
+// helper would freeze it instead of the target. It holds the animations that
+// `interact` starts first (see `Hold`), and releases the hold after the last
+// frame.
+// Each frame is `<name>-<time>ms.png`.
+export async function shootMotion(
+	page: Page,
+	options: ShootOptions,
+): Promise<void> {
+	await waitForQuiet(page);
+	const hold =
+		options.target === DETAILS_CONTENT_TARGET
+			? holdThroughCdp(page)
+			: holdByEvents(page, options.target);
+	try {
+		await hold.arm();
+		await shootHeld(page, options, hold);
+	} finally {
+		// A failed release must not hide the error of the test.
+		await hold.release().catch(() => {});
+	}
+}
+
+async function shootHeld(
+	page: Page,
+	options: ShootOptions,
+	hold: Hold,
+): Promise<void> {
+	const { name, times, interact, pausedClock, fullPage, toleranceOnAllFrames } =
+		options;
+	await interact();
+	await hold.waitStarted();
 	// Other animations of the same change can start a frame or two after the
 	// target (the color transitions of the Nav and the switchers). Wait, then
 	// pause them too: a transition that keeps running changes the frames.
@@ -193,6 +275,7 @@ export async function shootMotion(
 		return Promise.all(animations.map((a) => a.ready));
 	});
 	for (const time of times) {
+		await hold.seek(time);
 		// Two drawn frames after the change: a screenshot taken sooner can show
 		// the compositor's stale frame (at 0 ms, a tile already scaled up). This
 		// is a one-shot sync, not a poll. With a running clock it uses the page's
@@ -226,7 +309,6 @@ export async function shootMotion(
 			...(tolerated && { threshold: IN_FLIGHT_THRESHOLD }),
 		});
 	}
-	await releaseStarts(page);
 }
 
 // With reduced motion, no animation of the target may start. `target` is a

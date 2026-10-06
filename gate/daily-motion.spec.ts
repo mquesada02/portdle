@@ -5,7 +5,8 @@
 
 import { expect, test } from "./fixtures.ts";
 import { pauseClock, shootMotion, waitForQuiet } from "./freeze.ts";
-import { TIMES_150 } from "./motion.ts";
+import { shootRoundsToggle, TIMES_150 } from "./motion.ts";
+import { seedStorage } from "./seed.ts";
 import {
 	expectEndFrame,
 	holdGlobalStats,
@@ -210,4 +211,31 @@ test("How-to dialog closes", async ({ page }, testInfo) => {
 		times: [0, 25, 50, 75, 100],
 		interact: () => gotIt.click(),
 	});
+});
+
+// The Rounds disclosure of a Blitz run in History. The run is the stored last
+// run of `seedStorage`; its time shows in the local time zone.
+test.describe("Rounds disclosure in History", () => {
+	test.use({ timezoneId: "UTC" });
+
+	test.beforeEach(async ({ page }) => {
+		await seedStorage(page);
+	});
+
+	for (const closing of [false, true]) {
+		test(
+			closing ? "closes" : "opens",
+			async ({ page, browserName }, testInfo) => {
+				const reduced = await openGame(page, testInfo, {
+					path: "/portdle/history/blitz",
+				});
+				await shootRoundsToggle(page, {
+					name: `history-rounds-${closing ? "close" : "open"}`,
+					closing,
+					reduced,
+					browserName,
+				});
+			},
+		);
+	}
 });
