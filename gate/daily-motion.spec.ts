@@ -3,7 +3,7 @@
 // come from the current durations (Spec 3, "Durations and easing"). With reduced
 // motion, each test takes one end frame and asserts that no animation started.
 
-import type { Locator, Page } from "@playwright/test";
+import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import { pauseClock, shootMotion, waitForQuiet } from "./freeze.ts";
 import { shootRoundsToggle, TIMES_150 } from "./motion.ts";
@@ -23,15 +23,6 @@ import {
 async function hoverFirst(target: Locator): Promise<void> {
 	await target.hover();
 	await waitForQuiet(target.page());
-}
-
-// The game focuses its first digit slot. The click of a test would blur it and
-// start a border-color transition, which the hold would start too late. Blur
-// it first.
-async function blurFocused(page: Page): Promise<void> {
-	await page.evaluate(() =>
-		(document.activeElement as HTMLElement | null)?.blur(),
-	);
 }
 
 test("row shake of an empty guess", async ({ page }, testInfo) => {
@@ -95,9 +86,9 @@ test("Miss popover opens", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "daily-popover-open");
 		return;
 	}
-	// No hover first: a hover opens this popover, so the click would not start
-	// the animation.
-	await blurFocused(page);
+	// Same blur as "How-to dialog opens". No hover first: a hover opens this
+	// popover, so the click would not start the animation.
+	await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
 	await waitForQuiet(page);
 	await shootMotion(page, {
 		name: "daily-popover-open",
@@ -213,7 +204,9 @@ test("How-to dialog opens", async ({ page }, testInfo) => {
 		await expectEndFrame(page, "how-to-open");
 		return;
 	}
-	await blurFocused(page);
+	// Blur the focused digit slot first. Opening the dialog would blur it and
+	// start a border-color transition, which the hold would start too late.
+	await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
 	await hoverFirst(button);
 	await shootMotion(page, {
 		name: "how-to-open",
