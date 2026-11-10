@@ -13,3 +13,13 @@ Default role names: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context: root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+## Testing
+
+### Test command
+
+The checks of the `build` job in `.github/workflows/ci.yml`, without the build, with Vitest at 2 workers.
+
+```
+pnpm lint && pnpm typecheck && pnpm test --maxWorkers=2
+```
