@@ -7,16 +7,14 @@
 # with the tests on the same cores, and Playwright --workers=2.
 set -euo pipefail
 
-burners=()
-stop_burners() {
-	kill "${burners[@]}" 2>/dev/null || true
-}
-trap stop_burners EXIT
+# The burners are this shell's only background jobs.
+trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
 
 for _ in $(seq "$(nproc)"); do
 	# The job timeout stops the job first; this bound is a second guard.
 	timeout 3600 sh -c 'while :; do :; done' &
-	burners+=("$!")
 done
 
+# --workers=2 overrides the committed workers: 1 (and rule COST-06) on purpose:
+# the local loaded runs that found #249 and #253 used 2 workers.
 pnpm gate --project "webkit-*" --workers=2

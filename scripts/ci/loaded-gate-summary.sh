@@ -13,10 +13,13 @@ fi
 # Every compare job that did not succeed counts as failed, also a cancelled one.
 failed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" \
 	-q '.jobs[] | select(.name | startswith(env.COMPARE_JOB)) | select(.conclusion != "success") | .name')
-echo "Failed runs: $(grep -c . <<<"$failed" || true) of $RUNS"
+if [ -z "$failed" ]; then
+	echo "Failed runs: 0 of $RUNS"
+	exit 0
+fi
+echo "Failed runs: $(wc -l <<<"$failed") of $RUNS"
 
 while IFS= read -r name; do
-	[ -n "$name" ] || continue
 	run=${name#"$COMPARE_JOB"}
 	report=$dir/$FAILURE_ARTIFACT${run%)}/gate-results.json
 	echo "- $name"
