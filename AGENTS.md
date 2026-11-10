@@ -13,3 +13,13 @@ Default role names: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context: root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+## Testing
+
+### Test command
+
+The checks of the CI build job, without the build. Vitest has no committed worker limit, so the command passes 2 workers (the PC is shared).
+
+```
+pnpm lint && pnpm typecheck && pnpm test --maxWorkers=2
+```
