@@ -11,6 +11,8 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Each job's timeout-minutes is about 3 times its longest successful run (at
+# least 5), so a hung step fails in minutes, not after GitHub's 6 hours (#261).
 jobs:
   # Tells the later jobs when a pull request changes only documents: every path
   # is under docs/ or ends in .md. A renamed file counts by both of its paths.
@@ -18,6 +20,7 @@ jobs:
   # manual run all give false. A failed API call fails the job.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       pull-requests: read
     outputs:
@@ -40,6 +43,7 @@ jobs:
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -60,6 +64,7 @@ jobs:
   sql-tests:
     needs: changes
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
@@ -98,6 +103,7 @@ jobs:
     if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: [build, changes, sql-tests, screenshots]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pages: write
@@ -135,6 +141,7 @@ jobs:
     needs: changes
     if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/master') && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 50
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --ipc=host
