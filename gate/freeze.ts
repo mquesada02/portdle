@@ -42,6 +42,8 @@ async function pollUntil(
 }
 
 // Waits until no animation is running. Use it before a frame at rest.
+// `getAnimations` lists no `::details-content` transition, so a disclosure
+// close needs its own wait (`shootRoundsToggle` in motion.ts, #253).
 export async function waitForQuiet(page: Page): Promise<void> {
 	await pollUntil("animations still running", TIMEOUT_MS, () =>
 		page.evaluate(() =>

@@ -54,6 +54,19 @@ async function openAtRest(page: Page): Promise<void> {
 	await style.evaluate((node) => node.parentNode?.removeChild(node));
 }
 
+// One computed style of the content of the page's one Rounds disclosure.
+function contentStyle(
+	page: Page,
+	property: "contentVisibility" | "transitionDuration",
+): Promise<string> {
+	return page
+		.locator("details")
+		.evaluate(
+			(details, [name, target]) => getComputedStyle(details, target)[name],
+			[property, DETAILS_CONTENT_TARGET] as const,
+		);
+}
+
 // The open or the close sequence of the "Rounds (4)" disclosure of the stored
 // last run. `closing` starts from an open disclosure at rest. With reduced
 // motion, `done` also checks that the page sets no transition on the content:
@@ -83,26 +96,13 @@ export async function shootRoundsToggle(
 			// 200 ms of src/styles.css. No browser lists that transition in
 			// `getAnimations`, so `waitForQuiet` cannot wait for it (#253).
 			await expect
-				.poll(() =>
-					page
-						.locator("details")
-						.evaluate(
-							(details) =>
-								getComputedStyle(details, "::details-content")
-									.contentVisibility,
-						),
-				)
+				.poll(() => contentStyle(page, "contentVisibility"))
 				.toBe("hidden");
 		} else {
 			await expect(log).toBeVisible();
 		}
 		if (reduced) {
-			const duration = await page
-				.locator("details")
-				.evaluate(
-					(details) =>
-						getComputedStyle(details, "::details-content").transitionDuration,
-				);
+			const duration = await contentStyle(page, "transitionDuration");
 			expect(duration, "transition duration of the content").toBe("0s");
 		}
 	};
