@@ -50,6 +50,8 @@ function RoundLine({ round }: { round: Round }) {
 
 export function RoundLog({ rounds }: { rounds: Round[] }) {
 	return (
+		// Padding, not margin: in a closing disclosure, a top margin escapes the
+		// clipped content until its transition ends, and the card snaps (#253).
 		<ul className="pt-4 space-y-1.5 text-left">
 			{rounds.map((round, index) => (
 				// biome-ignore lint/suspicious/noArrayIndexKey: a round's id is the prompt entry's catalog id, which can repeat across rounds; RoundLine holds no state, so index-derived keys are safe here.
