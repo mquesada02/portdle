@@ -158,18 +158,30 @@ export async function expectEndFrame(
 	await expect(page).toHaveScreenshot(`${name}-end.png`, options);
 }
 
-// Holds the Global stats read until the returned function runs. The stats
-// load after a Daily finishes and change the page height, so a frame sequence
-// holds them. Call the function before the test ends: the read then reaches
-// the stub like any other.
-export async function holdGlobalStats(page: Page): Promise<() => void> {
+// Holds every request that matches `url` until the returned function runs.
+// Call the function before the test ends: the read then reaches the stub like
+// any other.
+async function holdReads(page: Page, url: string): Promise<() => void> {
 	let release = () => {};
 	const released = new Promise<void>((resolve) => {
 		release = resolve;
 	});
-	await page.route("**/rest/v1/daily_global_stats*", async (route) => {
+	await page.route(url, async (route) => {
 		await released;
 		await route.fallback();
 	});
 	return release;
+}
+
+// Holds the Global stats read. The stats load after a Daily finishes and
+// change the page height, so a frame sequence holds them.
+export function holdGlobalStats(page: Page): Promise<() => void> {
+	return holdReads(page, "**/rest/v1/daily_global_stats*");
+}
+
+// Holds the past Schedule rows read. The Archive screens read them on every
+// mount, so a change into the Archive lands on its loading status. Holding the
+// read keeps it there for the whole frame sequence (#246).
+export function holdSchedule(page: Page): Promise<() => void> {
+	return holdReads(page, "**/rest/v1/schedule?*");
 }

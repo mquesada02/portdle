@@ -11,6 +11,7 @@ import { seedStorage } from "./seed.ts";
 import {
 	expectEndFrame,
 	holdGlobalStats,
+	holdSchedule,
 	IDENTIFIED_MISS,
 	openGame,
 	PLAYED,
@@ -166,6 +167,61 @@ test("History switcher changes segment", async ({ page }, testInfo) => {
 		interact: () => link.click(),
 		toleranceOnAllFrames: true,
 	});
+});
+
+// The Archive screens read the past Schedule rows on mount. The read is held,
+// so each change lands on the loading status, which rises in the place of the
+// switcher content (#246). The read is released after the frames.
+test("Daily opens the Archive", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo);
+	await expect(page.getByLabel("Digit 1 of 2")).toBeVisible();
+	const link = page.getByRole("link", { name: "Archive", exact: true });
+	const release = await holdSchedule(page);
+	if (reduced) {
+		await link.click();
+		await expect(page.getByRole("status")).toHaveText("Loading...");
+		await expectEndFrame(page, "daily-archive");
+		release();
+		return;
+	}
+	await hoverFirst(link);
+	await shootMotion(page, {
+		name: "daily-archive",
+		target: "::view-transition-new(switcher-content)",
+		times: TIMES_150,
+		interact: () => link.click(),
+		toleranceOnAllFrames: true,
+	});
+	release();
+});
+
+test("Archive list opens a board", async ({ page }, testInfo) => {
+	const reduced = await openGame(page, testInfo, {
+		path: "/portdle/archive",
+		records: PLAYED,
+	});
+	// An unplayed Daily, as in the Archive board frame at rest.
+	const link = page
+		.getByRole("list", { name: "2026-10-09" })
+		.getByRole("link", { name: /^Applications/ });
+	await expect(link).toBeVisible();
+	const release = await holdSchedule(page);
+	if (reduced) {
+		await link.click();
+		await expect(page.getByRole("status")).toHaveText("Loading...");
+		await expectEndFrame(page, "archive-board-open");
+		release();
+		return;
+	}
+	await hoverFirst(link);
+	await shootMotion(page, {
+		name: "archive-board-open",
+		target: "::view-transition-new(switcher-content)",
+		times: TIMES_150,
+		interact: () => link.click(),
+		toleranceOnAllFrames: true,
+	});
+	release();
 });
 
 test("Nav changes screen", async ({ page }, testInfo) => {
