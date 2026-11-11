@@ -29,7 +29,10 @@ import { ProgressNotice } from "./notice";
 import { LoadStatus, useServerData } from "./server-data";
 import { allReady } from "./server-store";
 
-const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
+export const ROUTE_FOR: Record<
+	DailyCategory,
+	"/" | "/protocols" | "/applications"
+> = {
 	mixed: "/",
 	protocols: "/protocols",
 	applications: "/applications",

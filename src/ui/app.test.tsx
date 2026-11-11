@@ -383,6 +383,37 @@ test("a Daily switcher tap starts a view transition with the switcher type", asy
 	}
 });
 
+// The Archive changes the frame around the switcher content: its heading and
+// its back link replace the switcher (#246).
+test("the Daily's Archive link starts a view transition with the screen type", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist });
+	const archiveLink = await screen.findByRole("link", { name: "Archive" });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(archiveLink);
+		expect(calls).toEqual([["screen"]]);
+	} finally {
+		restore();
+	}
+});
+
+test("an Archive board's back link starts a view transition with the screen type", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist, path: "/portdle/archive/mixed/2026-09-10" });
+	const { calls, restore } = stubViewTransitions();
+	try {
+		await user.click(screen.getByRole("link", { name: "Back to the Archive" }));
+		expect(calls).toEqual([["screen"]]);
+	} finally {
+		restore();
+	}
+});
+
 test("a History switcher tap starts a view transition with the switcher type", async () => {
 	const user = userEvent.setup();
 	const persist = createPersist(memoryStore());

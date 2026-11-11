@@ -128,7 +128,7 @@ function BlitzSegmentList({ runs }: { runs: BlitzRun[] }) {
 	);
 }
 
-const HISTORY_SEGMENTS: Array<{
+export const HISTORY_SEGMENTS: Array<{
 	value: "daily" | "blitz";
 	to: "/history" | "/history/blitz";
 	label: string;

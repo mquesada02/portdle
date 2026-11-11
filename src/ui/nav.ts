@@ -33,9 +33,3 @@ export function onScreen(
 			pathname === path || (path !== "/" && pathname.startsWith(`${path}/`)),
 	);
 }
-
-// Looks up which nav screen a pathname belongs to, through the same match the
-// shell's active-link highlighting uses.
-export function screenFor(pathname: string): string | undefined {
-	return NAV.find((item) => onScreen(item, pathname))?.to;
-}
