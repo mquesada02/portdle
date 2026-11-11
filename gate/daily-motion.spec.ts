@@ -173,27 +173,38 @@ test("History switcher changes segment", async ({ page }, testInfo) => {
 // use the screen type: the whole new screen rises (#246). The Archive screens
 // read the past Schedule rows on mount. The read is held, so each change lands
 // on the loading status, and is released after the frames.
+async function shootArchiveMove(
+	link: Locator,
+	name: string,
+	reduced: boolean,
+): Promise<void> {
+	const page = link.page();
+	const release = await holdSchedule(page);
+	try {
+		if (reduced) {
+			await link.click();
+			await expect(page.getByRole("status")).toHaveText("Loading...");
+			await expectEndFrame(page, name);
+			return;
+		}
+		await hoverFirst(link);
+		await shootMotion(page, {
+			name,
+			target: "::view-transition-new(screen)",
+			times: TIMES_150,
+			interact: () => link.click(),
+			toleranceOnAllFrames: true,
+		});
+	} finally {
+		release();
+	}
+}
+
 test("Daily opens the Archive", async ({ page }, testInfo) => {
 	const reduced = await openGame(page, testInfo);
 	await expect(page.getByLabel("Digit 1 of 2")).toBeVisible();
 	const link = page.getByRole("link", { name: "Archive", exact: true });
-	const release = await holdSchedule(page);
-	if (reduced) {
-		await link.click();
-		await expect(page.getByRole("status")).toHaveText("Loading...");
-		await expectEndFrame(page, "daily-archive");
-		release();
-		return;
-	}
-	await hoverFirst(link);
-	await shootMotion(page, {
-		name: "daily-archive",
-		target: "::view-transition-new(screen)",
-		times: TIMES_150,
-		interact: () => link.click(),
-		toleranceOnAllFrames: true,
-	});
-	release();
+	await shootArchiveMove(link, "daily-archive", reduced);
 });
 
 test("Archive list opens a board", async ({ page }, testInfo) => {
@@ -206,23 +217,7 @@ test("Archive list opens a board", async ({ page }, testInfo) => {
 		.getByRole("list", { name: "2026-10-09" })
 		.getByRole("link", { name: /^Applications/ });
 	await expect(link).toBeVisible();
-	const release = await holdSchedule(page);
-	if (reduced) {
-		await link.click();
-		await expect(page.getByRole("status")).toHaveText("Loading...");
-		await expectEndFrame(page, "archive-board-open");
-		release();
-		return;
-	}
-	await hoverFirst(link);
-	await shootMotion(page, {
-		name: "archive-board-open",
-		target: "::view-transition-new(screen)",
-		times: TIMES_150,
-		interact: () => link.click(),
-		toleranceOnAllFrames: true,
-	});
-	release();
+	await shootArchiveMove(link, "archive-board-open", reduced);
 });
 
 test("Nav changes screen", async ({ page }, testInfo) => {
