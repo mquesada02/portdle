@@ -1,5 +1,5 @@
 name: Loaded gate
-run-name: Loaded gate (${{ inputs.ref }}, ${{ inputs.runs }} runs)
+run-name: Loaded gate (${{ inputs.ref }}, ${{ inputs.engine }}, ${{ inputs.runs }} runs)
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +7,12 @@ on:
         description: Git ref to test
         required: true
         default: master
+      engine:
+        description: Browser engine of the gate projects to run
+        required: true
+        type: choice
+        options: [webkit, chromium, firefox]
+        default: webkit
       runs:
         description: Number of loaded compares (1 to 20)
         required: true
@@ -19,6 +25,8 @@ permissions:
 env:
   # The name prefix of each compare's failure artifact; the summary reads it.
   FAILURE_ARTIFACT: loaded-gate-failure-
+  # The prefix of the gate project names to run; scripts/ci/loaded-gate.sh reads it.
+  ENGINE: ${{ inputs.engine }}
 
 jobs:
   baseline:
@@ -58,11 +66,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       # The baseline is an unloaded capture, as in the local loaded runs.
-      - name: Capture the WebKit baseline
-        run: pnpm gate:capture --project "webkit-*"
+      - name: Capture the baseline
+        run: pnpm gate:capture --project "$ENGINE-*"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: gate-baseline-webkit
+          name: gate-baseline-${{ inputs.engine }}
           path: gate-baseline
           retention-days: 1
           if-no-files-found: error
@@ -105,9 +113,9 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: gate-baseline-webkit
+          name: gate-baseline-${{ inputs.engine }}
           path: gate-baseline
-      - name: Compare WebKit frames under CPU load
+      - name: Compare the frames under CPU load
         run: .loaded-gate/scripts/ci/loaded-gate.sh
       - if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
