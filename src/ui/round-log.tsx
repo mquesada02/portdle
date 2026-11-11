@@ -50,7 +50,7 @@ function RoundLine({ round }: { round: Round }) {
 
 export function RoundLog({ rounds }: { rounds: Round[] }) {
 	return (
-		<ul className="mt-4 space-y-1.5 text-left">
+		<ul className="pt-4 space-y-1.5 text-left">
 			{rounds.map((round, index) => (
 				// biome-ignore lint/suspicious/noArrayIndexKey: a round's id is the prompt entry's catalog id, which can repeat across rounds; RoundLine holds no state, so index-derived keys are safe here.
 				<RoundLine key={`${round.id}-${index}`} round={round} />
