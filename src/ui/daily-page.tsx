@@ -357,7 +357,11 @@ export function DailyLoading({
 	return (
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
 			{top}
-			<LoadStatus state={state} onRetry={onRetry} />
+			{/* The board's region: a switcher change that lands on a loading
+			    board makes this status rise in its place (#246). */}
+			<div className="[view-transition-name:switcher-content]">
+				<LoadStatus state={state} onRetry={onRetry} />
+			</div>
 		</main>
 	);
 }
