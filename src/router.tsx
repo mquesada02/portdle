@@ -11,11 +11,26 @@ import type { Sync } from "./sync/sync";
 import { ArchiveBoardPage, ArchivePage } from "./ui/archive-page";
 import { BlitzPage } from "./ui/blitz-page";
 import { CodexPage } from "./ui/codex-page";
-import { DailyPage } from "./ui/daily-page";
-import { HistoryPage } from "./ui/history-page";
-import { screenFor } from "./ui/nav";
+import { DailyPage, ROUTE_FOR } from "./ui/daily-page";
+import { HISTORY_SEGMENTS, HistoryPage } from "./ui/history-page";
 import type { ServerStore } from "./ui/server-store";
 import { Shell } from "./ui/shell";
+
+// The paths of each switcher's links. A change between two paths of one
+// switcher is a switcher change: only its content region rises. Every other
+// change, the Archive's included, is a screen change, because the frame
+// around the content changes too (#246).
+const SWITCHER_PATHS: string[][] = [
+	Object.values(ROUTE_FOR),
+	HISTORY_SEGMENTS.map((segment) => segment.to),
+];
+
+function isSwitcherChange(from: string, to: string): boolean {
+	return (
+		from === to ||
+		SWITCHER_PATHS.some((paths) => paths.includes(from) && paths.includes(to))
+	);
+}
 
 // Absent on a build with no hosted backend; present, it holds both halves.
 export type Backend = { remote: Remote; sync: Sync };
@@ -153,9 +168,9 @@ export function createAppRouter(options: {
 				if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
 					return false;
 				}
-				const fromScreen = screenFor(fromLocation.pathname);
-				const toScreen = screenFor(toLocation.pathname);
-				return fromScreen === toScreen ? ["switcher"] : ["screen"];
+				return isSwitcherChange(fromLocation.pathname, toLocation.pathname)
+					? ["switcher"]
+					: ["screen"];
 			},
 		},
 	});

@@ -29,7 +29,10 @@ import { ProgressNotice } from "./notice";
 import { LoadStatus, useServerData } from "./server-data";
 import { allReady } from "./server-store";
 
-const ROUTE_FOR: Record<DailyCategory, "/" | "/protocols" | "/applications"> = {
+export const ROUTE_FOR: Record<
+	DailyCategory,
+	"/" | "/protocols" | "/applications"
+> = {
 	mixed: "/",
 	protocols: "/protocols",
 	applications: "/applications",
@@ -357,11 +360,7 @@ export function DailyLoading({
 	return (
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
 			{top}
-			{/* The board's region: a switcher change that lands on a loading
-			    board makes this status rise in its place (#246). */}
-			<div className="[view-transition-name:switcher-content]">
-				<LoadStatus state={state} onRetry={onRetry} />
-			</div>
+			<LoadStatus state={state} onRetry={onRetry} />
 		</main>
 	);
 }

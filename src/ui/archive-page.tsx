@@ -49,11 +49,7 @@ export function ArchivePage() {
 					)}
 				/>
 			) : (
-				// The list's region: the Archive reads its rows on mount, so the
-				// change from the Daily lands here and this status rises (#246).
-				<div className="[view-transition-name:switcher-content]">
-					<LoadStatus state={data.status} onRetry={retry} />
-				</div>
+				<LoadStatus state={data.status} onRetry={retry} />
 			)}
 		</main>
 	);
