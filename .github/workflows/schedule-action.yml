@@ -44,3 +44,24 @@ jobs:
             2[0-9][0-9]) ;;
             *) exit 1 ;;
           esac
+  # GitHub turns off this schedule after 60 days with no repository activity,
+  # with no failed run and no promised email (#256). The heartbeat service
+  # emails the owner when the daily ping stops. Manual runs do not ping, so
+  # they cannot hide a schedule that GitHub turned off.
+  heartbeat:
+    needs: [generate, keep-alive]
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Ping the heartbeat check
+        env:
+          HEARTBEAT_URL: ${{ secrets.HEARTBEAT_URL }}
+        run: |
+          set -e
+          if [ -z "$HEARTBEAT_URL" ]; then
+            echo "::error::HEARTBEAT_URL is empty; a stop of this schedule goes unnoticed"
+            exit 1
+          fi
+          curl -fsS -o /dev/null --max-time 30 --retry 3 "$HEARTBEAT_URL"
