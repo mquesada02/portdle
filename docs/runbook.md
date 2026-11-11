@@ -2,7 +2,7 @@
 
 Three jobs: edit entries, run the Schedule Action by hand, and fix a real mistake in a past answer. The Schedule Action is the GitHub workflow `.github/workflows/schedule-action.yml`. It runs the Schedule generator every day at 00:05 UTC.
 
-Repository secrets the Action uses: `SCHEDULE_DATABASE_URL` and `SCHEDULE_SEED`. Repository variables the keep-alive job uses: `SUPABASE_URL` and `SUPABASE_ANON_KEY`. This runbook holds no value of any of them.
+Repository secrets the Action uses: `SCHEDULE_DATABASE_URL` and `SCHEDULE_SEED`. Repository variables the keep-alive job uses: `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Repository secret the heartbeat job uses: `HEARTBEAT_URL`, the ping URL of a healthchecks.io check (period 1 day, grace 1 day). This runbook holds no value of any of them.
 
 ## 1. Edit entries
 
@@ -15,9 +15,14 @@ Repository secrets the Action uses: `SCHEDULE_DATABASE_URL` and `SCHEDULE_SEED`.
 
 1. Open the repository on GitHub, tab Actions, workflow "Schedule Action".
 2. Press "Run workflow". Pick the default branch (`master`). A manual run uses the code of the branch you pick.
-3. Wait for the run to end. Both jobs must be green: `generate` and `keep-alive`.
+3. Wait for the run to end. Both jobs must be green: `generate` and `keep-alive`. The `heartbeat` job is skipped on a manual run.
 
 A run fills every missing day, so this is also the fix after an outage. The Schedule reaches today + 7, so an outage shorter than seven days loses no Daily. A failed run sends GitHub's failure email.
+
+GitHub turns off the daily schedule after 60 days with no repository activity, and no run fails then. The healthchecks.io check emails you when the daily ping stops. On that email:
+
+1. Open the workflow "Schedule Action" in the Actions tab. If GitHub shows that it disabled the workflow, press "Enable workflow", or run `gh workflow enable schedule-action.yml`.
+2. Run the Schedule Action by hand, as above, to fill the missed days.
 
 ## 3. Fix a real mistake in a past answer
 
