@@ -79,6 +79,20 @@ export async function shootRoundsToggle(
 	const done = async () => {
 		if (closing) {
 			await expect(log).toBeHidden();
+			// The close ends when `content-visibility` turns `hidden`, after the
+			// 200 ms of src/styles.css. No browser lists that transition in
+			// `getAnimations`, so `waitForQuiet` cannot wait for it (#253).
+			await expect
+				.poll(() =>
+					page
+						.locator("details")
+						.evaluate(
+							(details) =>
+								getComputedStyle(details, "::details-content")
+									.contentVisibility,
+						),
+				)
+				.toBe("hidden");
 		} else {
 			await expect(log).toBeVisible();
 		}
