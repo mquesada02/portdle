@@ -52,6 +52,7 @@ jobs:
     needs: [generate, keep-alive]
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions: {}
     steps:
       - name: Ping the heartbeat check
