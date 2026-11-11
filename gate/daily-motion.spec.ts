@@ -169,9 +169,10 @@ test("History switcher changes segment", async ({ page }, testInfo) => {
 	});
 });
 
-// The Archive screens read the past Schedule rows on mount. The read is held,
-// so each change lands on the loading status, which rises in the place of the
-// switcher content (#246). The read is released after the frames.
+// The Archive changes the frame around the switcher content, so these changes
+// use the screen type: the whole new screen rises (#246). The Archive screens
+// read the past Schedule rows on mount. The read is held, so each change lands
+// on the loading status, and is released after the frames.
 test("Daily opens the Archive", async ({ page }, testInfo) => {
 	const reduced = await openGame(page, testInfo);
 	await expect(page.getByLabel("Digit 1 of 2")).toBeVisible();
@@ -187,7 +188,7 @@ test("Daily opens the Archive", async ({ page }, testInfo) => {
 	await hoverFirst(link);
 	await shootMotion(page, {
 		name: "daily-archive",
-		target: "::view-transition-new(switcher-content)",
+		target: "::view-transition-new(screen)",
 		times: TIMES_150,
 		interact: () => link.click(),
 		toleranceOnAllFrames: true,
@@ -216,7 +217,7 @@ test("Archive list opens a board", async ({ page }, testInfo) => {
 	await hoverFirst(link);
 	await shootMotion(page, {
 		name: "archive-board-open",
-		target: "::view-transition-new(switcher-content)",
+		target: "::view-transition-new(screen)",
 		times: TIMES_150,
 		interact: () => link.click(),
 		toleranceOnAllFrames: true,
