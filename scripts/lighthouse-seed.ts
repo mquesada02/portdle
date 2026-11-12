@@ -11,14 +11,14 @@
 // render.
 
 import { SCHEDULE_DAYS } from "../gate/answers.ts";
-import type {
-	BlitzBests,
-	BlitzRun,
-	DailyCategory,
-	DailyPersist,
+import {
+	type BlitzBests,
+	type BlitzRun,
+	DAILY_CATEGORIES,
+	type DailyCategory,
+	type DailyPersist,
 } from "../src/engine/types.ts";
 
-const CATEGORIES: DailyCategory[] = ["mixed", "protocols", "applications"];
 const RUN_COUNT = 20;
 
 // A won record with `misses` misses before the right port, or a lost one.
@@ -39,7 +39,9 @@ function dailyRecord(won: boolean, misses: number, day: number): DailyPersist {
 
 function blitzRun(index: number): BlitzRun {
 	return {
-		category: CATEGORIES[index % CATEGORIES.length] as DailyCategory,
+		category: DAILY_CATEGORIES[
+			index % DAILY_CATEGORIES.length
+		] as DailyCategory,
 		orientation: "default",
 		mode: index % 2 === 0 ? "sprint" : "survival",
 		ended: "timeout",
@@ -76,7 +78,7 @@ export function returningSeed(): Record<string, string> {
 		),
 	};
 	SCHEDULE_DAYS.forEach((day, dayIndex) => {
-		CATEGORIES.forEach((category, categoryIndex) => {
+		DAILY_CATEGORIES.forEach((category, categoryIndex) => {
 			const step = dayIndex + categoryIndex;
 			entries[`portdle:v1:daily:${category}:${day}`] = JSON.stringify(
 				dailyRecord(step % 4 !== 0, step % 5, dayIndex),

@@ -22,16 +22,14 @@ import lighthouse, { desktopConfig } from "lighthouse";
 import { STUB_KEY } from "../gate/stub.ts";
 import {
 	type Audit,
-	CATEGORIES,
-	describeLcpNode,
 	formatAudit,
 	guardExitCode,
 	launchWithRetry,
 	parseConfig,
 	planAudits,
 	type RunResult,
+	readRun,
 	runAudits,
-	type Scores,
 } from "./lighthouse-core.ts";
 import { returningSeed } from "./lighthouse-seed.ts";
 import { createPagesServer } from "./pages-server.ts";
@@ -98,19 +96,6 @@ async function seedStorage(port: number, origin: string): Promise<void> {
 	}
 }
 
-type Node = { selector?: string; snippet?: string };
-type Table = { items?: { node?: Node }[] };
-
-// The LCP element of a report, as the log shows it (see describeLcpNode).
-function lcpElement(lhr: {
-	audits: Record<string, { details?: unknown } | undefined>;
-}): string {
-	const list = lhr.audits["largest-contentful-paint-element"]?.details as
-		| { items?: Table[] }
-		| undefined;
-	return describeLcpNode(list?.items?.[0]?.items?.[0]?.node);
-}
-
 async function measure(audit: Audit, origin: string): Promise<RunResult> {
 	const chrome = await launchWithRetry(() =>
 		chromeLauncher.launch({
@@ -135,26 +120,10 @@ async function measure(audit: Audit, origin: string): Promise<RunResult> {
 		if (!result) {
 			throw new Error(`Lighthouse returned no result for ${audit.id}.`);
 		}
-		if (result.lhr.runtimeError) {
-			throw new Error(
-				`Lighthouse failed on ${audit.id}: ${result.lhr.runtimeError.message}`,
-			);
-		}
-		const scores = {} as Scores;
-		for (const category of CATEGORIES) {
-			const score = result.lhr.categories[category]?.score;
-			if (score === null || score === undefined) {
-				throw new Error(`No ${category} score for ${audit.id}.`);
-			}
-			scores[category] = Math.round(score * 100);
-		}
-		return {
-			scores,
-			lcp: lcpElement(result.lhr),
-			report: Array.isArray(result.report)
-				? (result.report[0] ?? "")
-				: result.report,
-		};
+		const report = Array.isArray(result.report)
+			? (result.report[0] ?? "")
+			: result.report;
+		return readRun(audit.id, result.lhr, report);
 	} finally {
 		await chrome.kill();
 	}
@@ -167,9 +136,11 @@ async function main(): Promise<number> {
 	mkdirSync(out, { recursive: true });
 
 	build();
-	const servers = [createStubServer(), createPagesServer(BUILD_DIR, BASE)];
-	await listen(servers[0] as Server, STUB_PORT);
-	await listen(servers[1] as Server, PAGES_PORT);
+	const stubServer = createStubServer();
+	const pagesServer = createPagesServer(BUILD_DIR, BASE);
+	const servers = [stubServer, pagesServer];
+	await listen(stubServer, STUB_PORT);
+	await listen(pagesServer, PAGES_PORT);
 	const origin = `http://${HOST}:${PAGES_PORT}`;
 	try {
 		const results = await runAudits(

@@ -9,6 +9,7 @@ import {
 	formatAudit,
 	guardExitCode,
 	LaunchError,
+	type Lhr,
 	launchWithRetry,
 	median,
 	medianScores,
@@ -16,6 +17,7 @@ import {
 	parseConfig,
 	planAudits,
 	type RunResult,
+	readRun,
 	runAudits,
 	type Scores,
 	summarize,
@@ -160,6 +162,61 @@ describe("describeLcpNode", () => {
 	test("says none when there is no element", () => {
 		expect(describeLcpNode(undefined)).toBe("none");
 		expect(describeLcpNode({})).toBe("none");
+	});
+});
+
+describe("readRun", () => {
+	function lhr(overrides: Partial<Lhr> = {}): Lhr {
+		return {
+			categories: {
+				performance: { score: 0.994 },
+				accessibility: { score: 1 },
+				"best-practices": { score: 1 },
+				seo: { score: 0.89 },
+			},
+			audits: {
+				"largest-contentful-paint-element": {
+					details: {
+						items: [
+							{ items: [{ node: { selector: "main > h1", snippet: "<h1>" } }] },
+						],
+					},
+				},
+			},
+			...overrides,
+		};
+	}
+
+	test("reads the scores on the 0-100 scale and the LCP element", () => {
+		const result = readRun("id", lhr(), "{}");
+		expect(result.scores).toEqual({
+			performance: 99,
+			accessibility: 100,
+			"best-practices": 100,
+			seo: 89,
+		});
+		expect(result.lcp).toBe("main > h1 <h1>");
+		expect(result.report).toBe("{}");
+	});
+
+	test("says none when the LCP audit has no element", () => {
+		expect(readRun("id", lhr({ audits: {} }), "{}").lcp).toBe("none");
+	});
+
+	test("throws on a run error", () => {
+		expect(() =>
+			readRun("id", lhr({ runtimeError: { message: "NO_FCP" } }), "{}"),
+		).toThrow("NO_FCP");
+	});
+
+	test("throws when a category has no score", () => {
+		expect(() =>
+			readRun(
+				"id",
+				lhr({ categories: { performance: { score: null } } }),
+				"{}",
+			),
+		).toThrow("performance");
 	});
 });
 

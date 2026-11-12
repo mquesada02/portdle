@@ -108,19 +108,17 @@ export function planAudits(pages: Page[], only?: string): Audit[] {
 	if (chosen.length === 0) {
 		throw new Error(`No page is named ${only}.`);
 	}
-	return chosen.flatMap((page) =>
-		(page.returning
-			? (["first", "returning"] as const)
-			: (["first"] as const)
-		).flatMap((state) =>
+	return chosen.flatMap((page) => {
+		const states: State[] = page.returning ? ["first", "returning"] : ["first"];
+		return states.flatMap((state) =>
 			FORM_FACTORS.map((formFactor) => ({
 				id: `${page.name}-${state}-${formFactor}`,
 				page,
 				state,
 				formFactor,
 			})),
-		),
-	);
+		);
+	});
 }
 
 // The middle value of the sorted values (the upper middle of an even count).
@@ -167,6 +165,41 @@ export function describeLcpNode(
 	const parts = [node?.selector, node?.snippet?.slice(0, SNIPPET_LENGTH)];
 	const shown = parts.filter((part) => part !== undefined && part !== "");
 	return shown.length === 0 ? "none" : shown.join(" ");
+}
+
+// The part of a Lighthouse result that the guard reads.
+export type Lhr = {
+	runtimeError?: { message: string };
+	categories: Record<string, { score: number | null } | undefined>;
+	audits: Record<string, { details?: unknown } | undefined>;
+};
+
+type LcpTable = {
+	items?: { node?: { selector?: string; snippet?: string } }[];
+};
+
+// One run of an audit from its Lighthouse result: the category scores on the
+// 0-100 scale and the LCP element. A run error or a missing score throws.
+export function readRun(id: string, lhr: Lhr, report: string): RunResult {
+	if (lhr.runtimeError) {
+		throw new Error(`Lighthouse failed on ${id}: ${lhr.runtimeError.message}`);
+	}
+	const scores = {} as Scores;
+	for (const category of CATEGORIES) {
+		const score = lhr.categories[category]?.score;
+		if (score === null || score === undefined) {
+			throw new Error(`No ${category} score for ${id}.`);
+		}
+		scores[category] = Math.round(score * 100);
+	}
+	const list = lhr.audits["largest-contentful-paint-element"]?.details as
+		| { items?: LcpTable[] }
+		| undefined;
+	return {
+		scores,
+		lcp: describeLcpNode(list?.items?.[0]?.items?.[0]?.node),
+		report,
+	};
 }
 
 export function summarize(
