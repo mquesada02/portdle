@@ -1,4 +1,6 @@
-// The one source of Archive board URLs: /archive/board?category=<c>&date=<d>.
+// The one builder of in-app links to an Archive board:
+// /archive/board?category=<c>&date=<d>. (`boardCanonical` in head.ts and
+// src/old-board-redirect.js write the same shape for their own purposes.)
 
 // The props of a link to one board, for `<Link {...boardLink(category, date)} />`.
 export function boardLink(category: string, date: string) {

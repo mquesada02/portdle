@@ -16,14 +16,16 @@ const HEAD_OPEN = /<head(?:\s[^>]*)?>/i;
 // script as literal text: `$&` in it is not a replacement pattern.
 export function copyIndexHtmlTo404(outputDir: string): void {
 	const index = readFileSync(join(outputDir, "index.html"), "utf8");
-	if (!HEAD_OPEN.test(index)) {
+	const script = readFileSync(REDIRECT_SCRIPT_PATH, "utf8").trim();
+	const html = index.replace(
+		HEAD_OPEN,
+		(head) => `${head}<script>${script}</script>`,
+	);
+	// The script is never empty, so an unchanged page had no <head>.
+	if (html === index) {
 		throw new Error("index.html has no <head> element.");
 	}
-	const script = readFileSync(REDIRECT_SCRIPT_PATH, "utf8").trim();
-	writeFileSync(
-		join(outputDir, "404.html"),
-		index.replace(HEAD_OPEN, (head) => `${head}<script>${script}</script>`),
-	);
+	writeFileSync(join(outputDir, "404.html"), html);
 }
 
 const entry = process.argv[1];
