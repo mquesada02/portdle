@@ -10,7 +10,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { createPagesServer, MANIFEST_FILE } from "./pages-server";
+import { createPagesServer, MANIFEST_FILE } from "./pages-server.ts";
 
 type Reply = {
 	status: number;

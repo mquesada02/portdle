@@ -40,11 +40,15 @@ const CONTENT_TYPES: Record<string, string> = {
 	".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
-// What the server answers: a file with a status, a redirect, or a plain text.
+const TEXT_HEADERS = { "Content-Type": "text/plain; charset=utf-8" };
+
+// What the server answers: a file with a status, a redirect, or a plain-text 404.
 type Answer =
 	| { kind: "file"; status: number; file: string }
 	| { kind: "redirect"; location: string }
-	| { kind: "text"; status: number; text: string };
+	| { kind: "notFound" };
+
+const NOT_FOUND: Answer = { kind: "notFound" };
 
 function isFile(path: string): boolean {
 	try {
@@ -52,10 +56,6 @@ function isFile(path: string): boolean {
 	} catch {
 		return false;
 	}
-}
-
-function plain(status: number, text: string): Answer {
-	return { kind: "text", status, text };
 }
 
 // `base` has a leading and a trailing slash, as "/portdle/".
@@ -67,16 +67,16 @@ function answer(dir: string, base: string, rawUrl: string): Answer {
 	try {
 		path = decodeURIComponent(rawPath);
 	} catch {
-		return plain(404, "Not found");
+		return NOT_FOUND;
 	}
 	if (path.includes("\0") || path.split("/").includes("..")) {
-		return plain(404, "Not found");
+		return NOT_FOUND;
 	}
 	if (path === base.slice(0, -1)) {
 		return { kind: "redirect", location: base + search };
 	}
 	if (!path.startsWith(base)) {
-		return plain(404, "Not found");
+		return NOT_FOUND;
 	}
 
 	const relative = path.slice(base.length);
@@ -94,14 +94,12 @@ function answer(dir: string, base: string, rawUrl: string): Answer {
 	if (!isFile(join(dir, MANIFEST_FILE))) {
 		const file = slashed ? undefined : fileAt(relative);
 		const found = file ?? existing("index.html");
-		return found
-			? { kind: "file", status: 200, file: found }
-			: plain(404, "Not found");
+		return found ? { kind: "file", status: 200, file: found } : NOT_FOUND;
 	}
 
 	const notFound = (): Answer => {
 		const file = existing("404.html");
-		return file ? { kind: "file", status: 404, file } : plain(404, "Not found");
+		return file ? { kind: "file", status: 404, file } : NOT_FOUND;
 	};
 	if (slashed) {
 		const index = fileAt(`${relative}index.html`);
@@ -134,7 +132,7 @@ function sendFile(
 			return;
 		}
 		response
-			.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" })
+			.writeHead(500, TEXT_HEADERS)
 			.end(head ? undefined : "Server error");
 	});
 	stream.on("open", (fd) => {
@@ -162,11 +160,9 @@ export function createPagesServer(dir: string, base: string): Server {
 		const head = request.method === "HEAD";
 		if (result.kind === "redirect") {
 			response.writeHead(301, { Location: result.location }).end();
-		} else if (result.kind === "text") {
-			response.writeHead(result.status, {
-				"Content-Type": "text/plain; charset=utf-8",
-			});
-			response.end(head ? undefined : result.text);
+		} else if (result.kind === "notFound") {
+			response.writeHead(404, TEXT_HEADERS);
+			response.end(head ? undefined : "Not found");
 		} else {
 			sendFile(response, result.file, result.status, head);
 		}
