@@ -7,10 +7,12 @@ import {
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import theme from "tailwindcss/theme.css?raw";
 import { afterEach, expect, test } from "vitest";
 import type { DailyPersist } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import type { AccountState, DailyGlobalStats } from "../remote/remote";
+import { lowestContrast, parsePalette } from "../test/contrast";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import {
 	createFakeRemote,
@@ -118,6 +120,59 @@ test("signed out: finishing shows the totals with the own bar highlighted", asyn
 	]);
 	expect(currentRows()).toEqual(["113%"]);
 	expect(remote.dailyStatsCalls).toBe(1);
+});
+
+function bars(): HTMLElement[] {
+	return within(block())
+		.getAllByRole("listitem")
+		.map((row) => row.querySelector(".flex-1 > div") as HTMLElement);
+}
+
+function expectBarContrast(all: HTMLElement[]) {
+	expect(
+		lowestContrast(
+			all.map((bar) => bar.className),
+			parsePalette(theme),
+		),
+	).toBeGreaterThanOrEqual(4.5);
+}
+
+test("every bar meets 4.5:1 in both themes and the own bar stays distinct (won)", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote();
+	remote.dailyStats[dailyStatsId("mixed", UTC_TODAY)] = TOTALS;
+	await renderDaily({ remote });
+	await winMixed(user);
+	await within(block()).findByText("8");
+	const all = bars();
+	expect(all).toHaveLength(7);
+	expectBarContrast(all);
+	expect(currentRows()).toEqual(["113%"]);
+	for (const [index, bar] of all.entries()) {
+		expect(bar.className.includes("bg-emerald-500")).toBe(index === 0);
+	}
+});
+
+test("every bar meets 4.5:1 in both themes and the own bar stays distinct (lost)", async () => {
+	const remote = createFakeRemote();
+	remote.dailyStats[dailyStatsId("mixed", UTC_TODAY)] = TOTALS;
+	const persist = createPersist(memoryStore());
+	persist.writeDaily("mixed", UTC_TODAY, {
+		status: "lost",
+		guesses: Array.from({ length: 6 }, (_, index) => ({
+			port: index + 1,
+			result: "miss" as const,
+			identified: null,
+		})),
+		late: false,
+	});
+	await renderDaily({ remote, persist });
+	await within(block()).findByText("8");
+	const all = bars();
+	expectBarContrast(all);
+	for (const [index, bar] of all.entries()) {
+		expect(bar.className.includes("bg-emerald-500")).toBe(index === 6);
+	}
 });
 
 test("a lost result highlights the Lost row", async () => {

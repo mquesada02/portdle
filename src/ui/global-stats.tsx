@@ -34,8 +34,10 @@ function Bar({
 			<span className="w-8 text-right text-zinc-500">{label}</span>
 			<div className="flex-1">
 				<div
-					className={`h-4 rounded-sm px-1.5 text-right leading-4 text-white ${
-						own ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"
+					className={`h-4 rounded-sm px-1.5 text-right leading-4 text-zinc-900 ${
+						own
+							? "bg-emerald-500"
+							: "bg-zinc-400 dark:bg-zinc-600 dark:text-white"
 					}`}
 					style={{ width: `${Math.max(8, value)}%` }}
 				>
