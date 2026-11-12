@@ -137,6 +137,8 @@ const routeTree = rootRoute.addChildren([
 	helpRoute,
 ]);
 
+export type AppRouter = ReturnType<typeof createAppRouter>;
+
 export function createAppRouter(options: {
 	persist: Persist;
 	backend?: Backend;

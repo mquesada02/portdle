@@ -4,7 +4,13 @@ import type { ServerData } from "./server-store";
 
 export function useServerData(): ServerData {
 	const { serverStore } = useRouteContext({ from: "__root__" });
-	return useSyncExternalStore(serverStore.subscribe, serverStore.getSnapshot);
+	// The store is in its creation state in the server render and in hydration
+	// (`load()` runs in an effect), so both sides read the same snapshot.
+	return useSyncExternalStore(
+		serverStore.subscribe,
+		serverStore.getSnapshot,
+		serverStore.getSnapshot,
+	);
 }
 
 function subscribeOnline(listener: () => void): () => void {
@@ -25,7 +31,13 @@ export const OFFLINE_MESSAGE =
 // the current Dailies could not load. The message follows the connection.
 export function ErrorPanel({ onRetry }: { onRetry?: () => void }) {
 	const { serverStore } = useRouteContext({ from: "__root__" });
-	const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine);
+	// The server render and hydration assume online; the client reads the
+	// connection right after.
+	const online = useSyncExternalStore(
+		subscribeOnline,
+		() => navigator.onLine,
+		() => true,
+	);
 	return (
 		<div role="status" className="py-16 text-center text-sm">
 			<p>{online ? SERVER_MESSAGE : OFFLINE_MESSAGE}</p>

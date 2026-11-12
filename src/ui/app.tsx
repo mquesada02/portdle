@@ -3,7 +3,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
-import { type Backend, createAppRouter } from "../router";
+import { type AppRouter, type Backend, createAppRouter } from "../router";
 import { createSync } from "../sync/sync";
 import { attachRetryTriggers, createServerStore } from "./server-store";
 
@@ -75,5 +75,11 @@ export function App({
 			}),
 		[sync, router, remount],
 	);
+	return appTree(router, generation);
+}
+
+// The tree that players get, for a given router. `generation` is the remount
+// key. The server render of a route and its hydration build the same tree.
+export function appTree(router: AppRouter, generation: number) {
 	return <RouterProvider key={generation} router={router} />;
 }
