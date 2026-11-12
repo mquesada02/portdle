@@ -2,7 +2,7 @@
 // measured with the colors of Tailwind's own theme file, so a test sees what a
 // player sees without a second copy of the palette.
 
-export type Theme = "light" | "dark";
+type Theme = "light" | "dark";
 type Rgb = readonly [number, number, number];
 type Palette = ReadonlyMap<string, Rgb>;
 
@@ -28,16 +28,10 @@ function oklchToLinearRgb(l: number, c: number, hueDegrees: number): Rgb {
 		(l - 0.0894841775 * a - 1.291485548 * b) ** 3,
 	] as const;
 	return [
-		clamp01(
-			4.0767416621 * lms[0] - 3.3077115913 * lms[1] + 0.2309699292 * lms[2],
-		),
-		clamp01(
-			-1.2684380046 * lms[0] + 2.6097574011 * lms[1] - 0.3413193965 * lms[2],
-		),
-		clamp01(
-			-0.0041960863 * lms[0] - 0.7034186147 * lms[1] + 1.707614701 * lms[2],
-		),
-	];
+		4.0767416621 * lms[0] - 3.3077115913 * lms[1] + 0.2309699292 * lms[2],
+		-1.2684380046 * lms[0] + 2.6097574011 * lms[1] - 0.3413193965 * lms[2],
+		-0.0041960863 * lms[0] - 0.7034186147 * lms[1] + 1.707614701 * lms[2],
+	].map(clamp01) as [number, number, number];
 }
 
 function parseColor(value: string): Rgb | null {
@@ -84,10 +78,9 @@ function luminance([r, g, b]: Rgb): number {
 	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-export function contrastRatio(first: Rgb, second: Rgb): number {
-	const [lighter, darker] = [luminance(first), luminance(second)].sort(
-		(x, y) => y - x,
-	) as [number, number];
+function contrastRatio(first: Rgb, second: Rgb): number {
+	const lighter = Math.max(luminance(first), luminance(second));
+	const darker = Math.min(luminance(first), luminance(second));
 	return (lighter + 0.05) / (darker + 0.05);
 }
 
@@ -108,20 +101,13 @@ export function classContrast(
 		dark: {},
 	};
 	for (const token of classes.split(/\s+/)) {
-		const prefixed = token.startsWith("dark:");
-		if (!prefixed && token.includes(":")) {
+		const parts = /^(dark:)?(bg|text)-(.+)$/.exec(token);
+		if (!parts) {
 			continue;
 		}
-		const body = prefixed ? token.slice("dark:".length) : token;
-		const utility: Utility | null = body.startsWith("bg-")
-			? "bg"
-			: body.startsWith("text-")
-				? "text"
-				: null;
-		if (!utility) {
-			continue;
-		}
-		const value = body.slice(utility.length + 1);
+		const prefixed = parts[1] !== undefined;
+		const utility = parts[2] as Utility;
+		const value = parts[3] ?? "";
 		if (value.startsWith("[")) {
 			throw new Error(`Cannot measure the arbitrary value in "${token}"`);
 		}

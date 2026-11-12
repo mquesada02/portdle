@@ -10,7 +10,7 @@ export default defineConfig({
 		globals: false,
 		// Vitest returns an empty string for a CSS import. The contrast test
 		// reads Tailwind's theme file as text, so this one file is let through.
-		css: { include: [/theme\.css/] },
+		css: { include: [/tailwindcss\/theme\.css/] },
 		// The Playwright specs in e2e/ run under `pnpm test:e2e`, and the ones in
 		// gate/ under `pnpm gate`, not Vitest.
 		exclude: [...configDefaults.exclude, "e2e/**", "gate/**"],
