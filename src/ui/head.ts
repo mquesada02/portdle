@@ -17,7 +17,7 @@ export const SITE_URL = "https://mquesada02.github.io/portdle";
 // not-found screen).
 export const DEFAULT_TITLE = "Portdle";
 
-function canonical(path: string): string {
+function pageUrl(path: string): string {
 	return `${SITE_URL}${path}`;
 }
 
@@ -26,23 +26,23 @@ export const HEAD: Record<string, Head> = {
 		title: "Portdle: guess the port of the day",
 		description:
 			"Guess the Daily port number in six tries. A new Mixed, Protocols and Applications Daily every day.",
-		canonical: canonical("/"),
+		canonical: pageUrl("/"),
 	},
 	"/protocols": {
 		title: "Protocols Daily - Portdle",
 		description: "Guess today's protocol port in six tries.",
-		canonical: canonical("/protocols"),
+		canonical: pageUrl("/protocols"),
 	},
 	"/applications": {
 		title: "Applications Daily - Portdle",
 		description: "Guess today's application port in six tries.",
-		canonical: canonical("/applications"),
+		canonical: pageUrl("/applications"),
 	},
 	"/archive": {
 		title: "Archive - Portdle",
 		description:
 			"Every past Daily of Mixed, Protocols and Applications, ready to play.",
-		canonical: canonical("/archive"),
+		canonical: pageUrl("/archive"),
 	},
 	// The board route's id until the board ticket moves it to /archive/board.
 	"/archive/$category/$date": {
@@ -54,23 +54,23 @@ export const HEAD: Record<string, Head> = {
 		title: "Blitz - Portdle",
 		description:
 			"Timed, lives-based port practice: name as many ports as you can.",
-		canonical: canonical("/blitz"),
+		canonical: pageUrl("/blitz"),
 	},
 	"/history": {
 		title: "History - Portdle",
 		description: "Every Daily you finished, with your stats and streaks.",
-		canonical: canonical("/history"),
+		canonical: pageUrl("/history"),
 	},
 	"/history/blitz": {
 		title: "Blitz history - Portdle",
 		description: "Every saved Blitz run and your Bests.",
-		canonical: canonical("/history/blitz"),
+		canonical: pageUrl("/history/blitz"),
 	},
 	"/codex": {
 		title: "Codex - Portdle",
 		description:
 			"Your collection of every port in the catalog, with its Codex state.",
-		canonical: canonical("/codex"),
+		canonical: pageUrl("/codex"),
 	},
 };
 
