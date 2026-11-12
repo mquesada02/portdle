@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { HEAD } from "../src/ui/head.ts";
+import { boardCanonical, HEAD } from "../src/ui/head.ts";
 import {
 	answerFor,
 	dayBefore,
@@ -80,10 +80,31 @@ test("the error panel shows when the stack is unreachable and recovers", async (
 	).toBeVisible();
 });
 
+test("a board opened from the Archive list has the new URL and its canonical link", async ({
+	page,
+}) => {
+	const yesterday = dayBefore(await serverToday());
+	const query = `category=applications&date=${yesterday}`;
+
+	await page.goto("/portdle/archive");
+	await dismissHowTo(page);
+	await page.locator(`a[href$="/archive/board?${query}"]`).click();
+	await expect(page).toHaveURL(`/portdle/archive/board?${query}`);
+	await expect(
+		page.getByText(`#${puzzleNumberFor(yesterday)} · ${yesterday}`),
+	).toBeVisible();
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		"href",
+		boardCanonical({ category: "applications", date: yesterday }),
+	);
+});
+
 test("an Archive late play appears in History", async ({ page }) => {
 	const yesterday = dayBefore(await serverToday());
 	const answer = await answerFor("applications", yesterday);
-	const row = page.locator(`a[href$="/archive/applications/${yesterday}"]`);
+	const row = page.locator(
+		`a[href$="/archive/board?category=applications&date=${yesterday}"]`,
+	);
 
 	await page.goto("/portdle/archive");
 	await dismissHowTo(page);

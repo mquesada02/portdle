@@ -1,11 +1,12 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { archiveRows, boardEntryId, dailyResult } from "../engine/archive";
 import { entryById } from "../engine/catalog";
 import { isDailyCategory } from "../engine/types";
 import { isValidUtcDate } from "../engine/utc";
 import { DailyBoard, DailyLoading, MissingPuzzle } from "./daily-page";
 import { DailyGroupList, DailyRowLink } from "./daily-row";
+import { boardCanonical } from "./head";
 import { useScheduleReads } from "./schedule-rows";
 import { LoadStatus } from "./server-data";
 
@@ -66,6 +67,23 @@ function NoDaily({ top }: { top: ReactNode }) {
 	);
 }
 
+// While a well-formed board address is shown (a Daily category and a valid UTC
+// date; the Schedule is not consulted), the head holds the board's canonical
+// link. It is added after the first render, so the frame is the same for every
+// board.
+function useBoardCanonical(category: string, date: string) {
+	useEffect(() => {
+		if (!isDailyCategory(category) || !isValidUtcDate(date)) {
+			return;
+		}
+		const link = document.createElement("link");
+		link.rel = "canonical";
+		link.href = boardCanonical({ category, date });
+		document.head.append(link);
+		return () => link.remove();
+	}, [category, date]);
+}
+
 export function ArchiveBoardPage({
 	category,
 	date,
@@ -73,6 +91,7 @@ export function ArchiveBoardPage({
 	category: string;
 	date: string;
 }) {
+	useBoardCanonical(category, date);
 	const { data, retry } = useScheduleReads();
 	const top = <BackLink />;
 	if (data.status !== "ready") {

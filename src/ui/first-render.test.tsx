@@ -49,6 +49,10 @@ const ROUTES: Route[] = [
 	{ name: "Applications", path: "/portdle/applications" },
 	{ name: "Archive", path: "/portdle/archive" },
 	{ name: "Archive board", path: "/portdle/archive/protocols/2026-09-09" },
+	{
+		name: "Archive board (new URL)",
+		path: "/portdle/archive/board?category=protocols&date=2026-09-09",
+	},
 	{ name: "Blitz", path: "/portdle/blitz" },
 	{
 		name: "History",

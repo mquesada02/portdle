@@ -44,7 +44,13 @@ export const HEAD: Record<string, Head> = {
 			"Every past Daily of Mixed, Protocols and Applications, ready to play.",
 		canonical: pageUrl("/archive"),
 	},
-	// The board route's id until the board ticket moves it to /archive/board.
+	"/archive/board": {
+		title: "Archive board - Portdle",
+		description: "A past Portdle Daily from the Archive.",
+		canonical: null,
+	},
+	// The old board route's id, removed with the route by the contract step of
+	// the board URL move.
 	"/archive/$category/$date": {
 		title: "Archive board - Portdle",
 		description: "A past Portdle Daily from the Archive.",
