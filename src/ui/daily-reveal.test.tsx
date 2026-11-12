@@ -1,10 +1,12 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import theme from "tailwindcss/theme.css?raw";
 import { afterEach, expect, test } from "vitest";
 import { digitLength } from "../engine/guess";
 import { puzzleNumber } from "../engine/puzzle-number";
 import { createPersist } from "../persist/storage";
+import { classContrast, parsePalette } from "../test/contrast";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
 import {
@@ -120,6 +122,18 @@ test("losing shows The answer was and an unhighlighted histogram", async () => {
 	expect(items).toHaveLength(6);
 	for (const item of items) {
 		expect(within(item as HTMLElement).getByText("0")).toBeTruthy();
+	}
+});
+
+test("the Share button text and background meet 4.5:1 in both themes", async () => {
+	const user = userEvent.setup();
+	await renderDaily();
+	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	const classes = screen.getByRole("button", { name: "Share" }).className;
+	const palette = parsePalette(theme);
+	for (const mode of ["light", "dark"] as const) {
+		expect(classContrast(classes, mode, palette)).toBeGreaterThanOrEqual(4.5);
 	}
 });
 

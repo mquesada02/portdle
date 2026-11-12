@@ -206,7 +206,7 @@ export function DailyReveal({
 				<button
 					type="button"
 					onClick={() => void share()}
-					className="mt-6 w-full rounded-lg bg-emerald-500 py-3 text-base font-semibold text-white"
+					className="mt-6 w-full rounded-lg bg-emerald-500 py-3 text-base font-semibold text-zinc-900"
 				>
 					{copied ? "Copied!" : "Share"}
 				</button>
