@@ -53,7 +53,7 @@ export type PersistChange =
 	  }
 	| { kind: "daily"; category: DailyCategory; date: string };
 
-const THEME_KEY = "portdle:v1:theme";
+export const THEME_KEY = "portdle:v1:theme";
 const HOW_TO_SEEN_KEY = "portdle:v1:howToSeen";
 const BLITZ_BESTS_KEY = "portdle:v1:blitzBests";
 const BLITZ_RUNS_KEY = "portdle:v1:blitzRuns";

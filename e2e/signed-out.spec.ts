@@ -102,3 +102,39 @@ test("an Archive late play appears in History", async ({ page }) => {
 	await expect(row).toContainText(answer.name);
 	await expect(row).toContainText(String(answer.port));
 });
+
+for (const [name, path, title] of [
+	["the app", "/portdle/", null],
+	["the privacy page", "/portdle/privacy.html", "Privacy - Portdle"],
+] as const) {
+	for (const [stored, scheme] of [
+		["dark", "light"],
+		["light", "dark"],
+	] as const) {
+		test(`${name} paints a stored ${stored} theme before the bundle loads`, async ({
+			page,
+		}) => {
+			// Hold every bundle request: the theme must come from the head script.
+			await page.route("**/portdle/assets/*.js", () => new Promise(() => {}));
+			await page.emulateMedia({ colorScheme: scheme });
+			await page.addInitScript((theme) => {
+				localStorage.setItem("portdle:v1:theme", JSON.stringify(theme));
+			}, stored);
+			// The default wait is the `load` event, which needs the held bundle.
+			const response = await page.goto(path, { waitUntil: "commit" });
+			expect(response?.status()).toBe(200);
+			// An inline script runs as soon as the parser reaches it, so an
+			// attached head script has already set the class.
+			await expect(page.locator("head script").first()).toBeAttached();
+			const html = page.locator("html");
+			if (stored === "dark") {
+				await expect(html).toHaveClass(/\bdark\b/);
+			} else {
+				await expect(html).not.toHaveClass(/\bdark\b/);
+			}
+			if (title) {
+				await expect(page).toHaveTitle(title);
+			}
+		});
+	}
+}
