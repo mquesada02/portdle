@@ -6,7 +6,7 @@ import { afterEach, expect, test } from "vitest";
 import { digitLength } from "../engine/guess";
 import { puzzleNumber } from "../engine/puzzle-number";
 import { createPersist } from "../persist/storage";
-import { classContrast, parsePalette } from "../test/contrast";
+import { classContrast, lowestContrast, parsePalette } from "../test/contrast";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
 import {
@@ -146,14 +146,12 @@ function histogramBars(): HTMLElement[] {
 }
 
 function expectBarContrast(bars: HTMLElement[]) {
-	const palette = parsePalette(theme);
-	for (const bar of bars) {
-		for (const mode of ["light", "dark"] as const) {
-			expect(
-				classContrast(bar.className, mode, palette),
-			).toBeGreaterThanOrEqual(4.5);
-		}
-	}
+	expect(
+		lowestContrast(
+			bars.map((bar) => bar.className),
+			parsePalette(theme),
+		),
+	).toBeGreaterThanOrEqual(4.5);
 }
 
 test("every histogram bar meets 4.5:1 in both themes after a win, and the highlight stays distinct", async () => {
@@ -161,9 +159,10 @@ test("every histogram bar meets 4.5:1 in both themes after a win, and the highli
 	await renderDaily();
 	await user.type(portDigits(), padToAnswer(mixedAnswer.port, mixedAnswer));
 	await user.click(screen.getByRole("button", { name: "Submit" }));
-	const [highlighted, ...others] = histogramBars();
+	const bars = histogramBars();
+	expectBarContrast(bars);
+	const [highlighted, ...others] = bars;
 	expect(others).toHaveLength(5);
-	expectBarContrast([highlighted as HTMLElement, ...others]);
 	expect((highlighted as HTMLElement).className).toContain("bg-emerald-500");
 	for (const bar of others) {
 		expect(bar.className).not.toContain("bg-emerald-500");
@@ -180,6 +179,9 @@ test("every histogram bar meets 4.5:1 in both themes after a loss", async () => 
 	const bars = histogramBars();
 	expect(bars).toHaveLength(6);
 	expectBarContrast(bars);
+	for (const bar of bars) {
+		expect(bar.className).not.toContain("bg-emerald-500");
+	}
 });
 
 test("Share reads Copied! after a successful copy", async () => {

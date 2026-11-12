@@ -12,7 +12,7 @@ import { afterEach, expect, test } from "vitest";
 import type { DailyPersist } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import type { AccountState, DailyGlobalStats } from "../remote/remote";
-import { classContrast, parsePalette } from "../test/contrast";
+import { lowestContrast, parsePalette } from "../test/contrast";
 import { dailyOn, padToAnswer, UTC_TODAY } from "../test/dailies";
 import {
 	createFakeRemote,
@@ -129,14 +129,12 @@ function bars(): HTMLElement[] {
 }
 
 function expectBarContrast(all: HTMLElement[]) {
-	const palette = parsePalette(theme);
-	for (const bar of all) {
-		for (const mode of ["light", "dark"] as const) {
-			expect(
-				classContrast(bar.className, mode, palette),
-			).toBeGreaterThanOrEqual(4.5);
-		}
-	}
+	expect(
+		lowestContrast(
+			all.map((bar) => bar.className),
+			parsePalette(theme),
+		),
+	).toBeGreaterThanOrEqual(4.5);
 }
 
 test("every bar meets 4.5:1 in both themes and the own bar stays distinct (won)", async () => {
@@ -149,12 +147,9 @@ test("every bar meets 4.5:1 in both themes and the own bar stays distinct (won)"
 	const all = bars();
 	expect(all).toHaveLength(7);
 	expectBarContrast(all);
-	const own = within(block())
-		.getAllByRole("listitem")
-		.findIndex((row) => row.getAttribute("aria-current") === "true");
-	expect(own).toBe(0);
+	expect(currentRows()).toEqual(["113%"]);
 	for (const [index, bar] of all.entries()) {
-		expect(bar.className.includes("bg-emerald-500")).toBe(index === own);
+		expect(bar.className.includes("bg-emerald-500")).toBe(index === 0);
 	}
 });
 

@@ -132,3 +132,17 @@ export function classContrast(
 	};
 	return contrastRatio(pick("bg"), pick("text"));
 }
+
+// The lowest contrast of the class strings across both themes.
+export function lowestContrast(
+	classStrings: readonly string[],
+	palette: Palette,
+): number {
+	return Math.min(
+		...classStrings.flatMap((classes) =>
+			(["light", "dark"] as const).map((theme) =>
+				classContrast(classes, theme, palette),
+			),
+		),
+	);
+}
