@@ -33,6 +33,12 @@ test("the redirect-only route has no head entry", () => {
 	expect(HEAD["/help"]).toBeUndefined();
 });
 
+test("the old board path is not a route", () => {
+	expect(Object.keys(router.routesById)).not.toContain(
+		"/archive/$category/$date",
+	);
+});
+
 test("the table has no entry for a route that does not exist", () => {
 	for (const id of Object.keys(HEAD)) {
 		expect(Object.keys(router.routesById), id).toContain(id);
@@ -40,10 +46,7 @@ test("the table has no entry for a route that does not exist", () => {
 });
 
 test("every title and description is filled and every title is its own", () => {
-	// The old board key shares the new one's title until the contract step.
-	const heads = Object.entries(HEAD)
-		.filter(([id]) => id !== "/archive/$category/$date")
-		.map(([, head]) => head);
+	const heads = Object.values(HEAD);
 	for (const head of heads) {
 		expect(head.title.trim()).not.toBe("");
 		expect(head.description.trim()).not.toBe("");
@@ -64,14 +67,10 @@ test("a canonical is under the base URL, with no .html", () => {
 });
 
 test("only the Archive board has no static canonical", () => {
-	// Two board routes exist until the contract step of the board URL move.
 	const boardIds = Object.keys(router.routesById).filter((id) =>
 		id.startsWith("/archive/"),
 	);
-	expect(boardIds.sort()).toEqual([
-		"/archive/$category/$date",
-		"/archive/board",
-	]);
+	expect(boardIds).toEqual(["/archive/board"]);
 	const withoutCanonical = Object.entries(HEAD)
 		.filter(([, head]) => head.canonical === null)
 		.map(([id]) => id);

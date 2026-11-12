@@ -7,6 +7,7 @@
 // scripts.
 
 import { execFileSync, spawnSync } from "node:child_process";
+import { copyIndexHtmlTo404 } from "./copy-index-html-to-404.ts";
 import { checkStack } from "./e2e-env.ts";
 import { parseStackEnv } from "./stack-env.ts";
 
@@ -33,6 +34,11 @@ execFileSync("vite", ["build", "--outDir", "dist-e2e", "--emptyOutDir"], {
 		VITE_SUPABASE_ANON_KEY: env.publishableKey,
 	},
 });
+
+// The Pages-like server answers an unknown path with 404.html, so an old
+// board link reaches its redirect script. The full build pipeline replaces
+// this step (ticket 288).
+copyIndexHtmlTo404("dist-e2e");
 
 const result = spawnSync("playwright", ["test", ...process.argv.slice(2)], {
 	stdio: "inherit",

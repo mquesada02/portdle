@@ -22,7 +22,7 @@ test("a signed-in late play syncs its late mark", async ({
 	await withSignedInPage(browser, project, async (page, session) => {
 		await openFinishedBoard(
 			page,
-			`/portdle/archive/applications/${yesterday}`,
+			`/portdle/archive/board?category=applications&date=${yesterday}`,
 			"applications",
 			yesterday,
 			answer.port,

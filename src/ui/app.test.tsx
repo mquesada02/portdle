@@ -405,7 +405,10 @@ test("an Archive board's back link starts a view transition with the screen type
 	const user = userEvent.setup();
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	await renderApp({ persist, path: "/portdle/archive/mixed/2026-09-10" });
+	await renderApp({
+		persist,
+		path: "/portdle/archive/board?category=mixed&date=2026-09-10",
+	});
 	const { calls, restore } = stubViewTransitions();
 	try {
 		await user.click(screen.getByRole("link", { name: "Back to the Archive" }));
@@ -499,13 +502,13 @@ test("in-app navigation sets the tab title from the head table", async () => {
 	await go("/codex", () => link("Main", "Codex"));
 	await go("/history", () => link("Main", "History"));
 	await go("/history/blitz", () => link("History switcher", "Blitz"));
-	// Every table entry has its in-app navigation, but the old board key: no
-	// in-app link opens the old board route until the contract step removes it.
-	expect(visited.sort()).toEqual(
-		Object.keys(HEAD)
-			.filter((id) => id !== "/archive/$category/$date")
-			.sort(),
-	);
+	expect(visited.sort()).toEqual(Object.keys(HEAD).sort());
+});
+
+test("the old board path shows the default not-found screen", async () => {
+	await renderApp({ path: "/portdle/archive/mixed/2026-09-10" });
+	expect(screen.getByText("Not Found")).toBeTruthy();
+	expect(screen.queryByText("No Daily on this day.")).toBeNull();
 });
 
 test("an unknown path keeps the default tab title", async () => {

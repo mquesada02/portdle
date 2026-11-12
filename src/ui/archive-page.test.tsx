@@ -160,7 +160,7 @@ test("the Daily nav item is current on the list and on a board", async () => {
 			.getAttribute("aria-current"),
 	).toBe("page");
 	cleanup();
-	await open(`/portdle/archive/mixed/${YESTERDAY}`);
+	await open(NEW_BOARD("mixed", YESTERDAY));
 	await loaded();
 	expect(
 		within(nav())
@@ -191,10 +191,10 @@ test("the Daily screen shows no Archive link while its reads fail", async () => 
 
 test("addresses with no Daily show the note and a link back", async () => {
 	const addresses = [
-		"/portdle/archive/nope/2026-09-10",
-		"/portdle/archive/mixed/2026-02-30",
-		"/portdle/archive/mixed/2026-09-08",
-		"/portdle/archive/mixed/2026-09-12",
+		NEW_BOARD("nope", "2026-09-10"),
+		NEW_BOARD("mixed", "2026-02-30"),
+		NEW_BOARD("mixed", "2026-09-08"),
+		NEW_BOARD("mixed", "2026-09-12"),
 	];
 	for (const address of addresses) {
 		await open(address);
@@ -209,7 +209,7 @@ test("addresses with no Daily show the note and a link back", async () => {
 	}
 	const remote = createFakeRemote();
 	remote.scheduleRows = [];
-	await open(`/portdle/archive/mixed/${YESTERDAY}`, { remote });
+	await open(NEW_BOARD("mixed", YESTERDAY), { remote });
 	await loaded();
 	expect(screen.getByText("No Daily on this day.")).toBeTruthy();
 });
@@ -217,7 +217,7 @@ test("addresses with no Daily show the note and a link back", async () => {
 test("an invalid address waits for the reads: a failed read shows the panel, not the note", async () => {
 	const remote = createFakeRemote();
 	remote.failSchedule = true;
-	await open("/portdle/archive/nope/2026-09-10", { remote });
+	await open(NEW_BOARD("nope", "2026-09-10"), { remote });
 	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
 	expect(screen.queryByText("No Daily on this day.")).toBeNull();
 });
@@ -227,7 +227,7 @@ test("a late play saves under its own date as late, shares with late, and leaves
 	const copied = captureShare();
 	const persist = createPersist(memoryStore());
 	saveDaily(persist, "mixed", TODAY, "won", 1, { late: false });
-	await open(`/portdle/archive/mixed/${YESTERDAY}`, { persist });
+	await open(NEW_BOARD("mixed", YESTERDAY), { persist });
 	await loaded();
 	await playWin(user, "mixed", YESTERDAY);
 	const record = persist.readDaily("mixed", YESTERDAY);
@@ -244,7 +244,7 @@ test("a late play saves under its own date as late, shares with late, and leaves
 
 test("a late play appears in History after it finishes", async () => {
 	const user = userEvent.setup();
-	await open(`/portdle/archive/mixed/${YESTERDAY}`);
+	await open(NEW_BOARD("mixed", YESTERDAY));
 	await loaded();
 	await playWin(user, "mixed", YESTERDAY);
 	await user.click(
@@ -266,7 +266,7 @@ test("an unfinished on-day Daily finished from the Archive stays on-day", async 
 		late: false,
 		guesses: [{ port: wrongPort, result: "miss", identified: null }],
 	});
-	await open(`/portdle/archive/mixed/${YESTERDAY}`, { persist });
+	await open(NEW_BOARD("mixed", YESTERDAY), { persist });
 	await loaded();
 	await playWin(user, "mixed", YESTERDAY);
 	expect(persist.readDaily("mixed", YESTERDAY)?.late).toBe(false);
@@ -279,7 +279,7 @@ test("an unfinished on-day Daily finished from the Archive stays on-day", async 
 test("today's unfinished Daily on its Archive address plays as on-day", async () => {
 	const user = userEvent.setup();
 	const persist = createPersist(memoryStore());
-	await open(`/portdle/archive/mixed/${TODAY}`, { persist });
+	await open(NEW_BOARD("mixed", TODAY), { persist });
 	await loaded();
 	await playWin(user, "mixed", TODAY);
 	expect(persist.readDaily("mixed", TODAY)?.late).toBe(false);
@@ -291,7 +291,7 @@ test("a finished Daily opens read-only with its Reveal and global stats", async 
 	saveDaily(persist, "mixed", YESTERDAY, "won", 2, { late: false });
 	for (const date of [YESTERDAY, TODAY]) {
 		const category = date === TODAY ? "protocols" : "mixed";
-		await open(`/portdle/archive/${category}/${date}`, { persist });
+		await open(NEW_BOARD(category, date), { persist });
 		await loaded();
 		expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
 		expect(screen.queryByRole("group", { name: "Port digits" })).toBeNull();
@@ -354,7 +354,7 @@ test("a board whose entry the catalog lacks shows the panel; Try again reloads t
 	remote.scheduleRows = [
 		{ category: "protocols", date: YESTERDAY, entryId: extra.id },
 	];
-	await open(`/portdle/archive/protocols/${YESTERDAY}`, { remote });
+	await open(NEW_BOARD("protocols", YESTERDAY), { remote });
 	expect(await screen.findByText(SERVER_MESSAGE)).toBeTruthy();
 	const catalog = fixtureCatalog();
 	remote.catalog = {

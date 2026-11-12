@@ -49,13 +49,6 @@ export const HEAD: Record<string, Head> = {
 		description: "A past Portdle Daily from the Archive.",
 		canonical: null,
 	},
-	// The old board route's id, removed with the route by the contract step of
-	// the board URL move.
-	"/archive/$category/$date": {
-		title: "Archive board - Portdle",
-		description: "A past Portdle Daily from the Archive.",
-		canonical: null,
-	},
 	"/blitz": {
 		title: "Blitz - Portdle",
 		description:
