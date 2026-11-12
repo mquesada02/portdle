@@ -21,7 +21,6 @@ function run(stored: string | null, prefersDark: boolean): boolean {
 afterEach(() => {
 	localStorage.clear();
 	document.documentElement.className = "";
-	document.documentElement.removeAttribute("data-x");
 });
 
 test("the script reads the app's stored theme key", () => {
