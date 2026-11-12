@@ -25,7 +25,7 @@ export default defineConfig({
 		{ name: "iPhone 14", use: { ...devices["iPhone 14"] } },
 	],
 	webServer: {
-		command: `vite preview --outDir dist-e2e --host 127.0.0.1 --port ${PORT} --strictPort`,
+		command: `tsx scripts/pages-server.ts --dir dist-e2e --port ${PORT}`,
 		url: `http://127.0.0.1:${PORT}/portdle/`,
 	},
 });
