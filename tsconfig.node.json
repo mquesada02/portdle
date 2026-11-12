@@ -33,6 +33,7 @@
 		"scripts/check-fixture-shapes.ts",
 		"scripts/fixture-shapes.ts",
 		"scripts/gate-report.ts",
-		"scripts/theme-script-plugin.ts"
+		"scripts/theme-script-plugin.ts",
+		"scripts/pages-server.ts"
 	]
 }

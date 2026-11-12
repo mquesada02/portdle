@@ -78,7 +78,7 @@ export default defineConfig({
 		),
 	),
 	webServer: {
-		command: `vite preview --outDir dist-gate --host 127.0.0.1 --port ${PORT} --strictPort`,
+		command: `tsx scripts/pages-server.ts --dir dist-gate --port ${PORT}`,
 		url: `${ORIGIN}/portdle/`,
 		reuseExistingServer: false,
 	},
