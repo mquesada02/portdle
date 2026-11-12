@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--theme-script-->
     <title>Privacy - Portdle</title>
     <meta
       name="description"
@@ -12,25 +13,9 @@
       rel="canonical"
       href="https://mquesada02.github.io/portdle/privacy"
     />
-    <link rel="icon" href="favicon.svg" type="image/svg+xml" sizes="any" />
-    <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <script>
-      (() => {
-        let dark;
-        let stored;
-        try {
-          stored = JSON.parse(localStorage.getItem("portdle:v1:theme"));
-          if (stored === "dark" || stored === "light") {
-            dark = stored === "dark";
-          }
-        } catch {}
-        if (dark === undefined) {
-          dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        }
-        document.documentElement.classList.toggle("dark", dark);
-      })();
-    </script>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <style>
       :root {
         --bg: #fafafa;
