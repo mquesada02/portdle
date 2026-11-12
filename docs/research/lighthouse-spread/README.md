@@ -12,7 +12,7 @@ Ticket: Task: measure Lighthouse spread on GitHub runners (#273), map "Lighthous
 ## Findings
 
 - **Only mobile performance spreads.** Accessibility, best practices and SEO gave the same score on every one of the 410 runs. Desktop performance stays at 98–100 (SD ≤ 0.9).
-- **Cold first run:** every run below 92 in all 3 attempts (17 runs, scores 54–90) is run 1 of the first audit in its job, that is the first Lighthouse run on a fresh runner. No other run scored below 92. A discarded warm-up run removes them.
+- **Cold first run:** every run below 92 in all 3 attempts (18 runs, scores 54–90) is run 1 of the first audit in its job, that is the first Lighthouse run on a fresh runner. No other run scored below 92. A discarded warm-up run removes them.
 - **Medians are stable:** median-of-3 and median-of-5 stay within 1–2 points across attempts and hours (SD ≤ 1.0 everywhere). Median-of-5 is not clearly better than median-of-3, even with the cold run inside it.
 - **Runners differ:** CPUs seen: AMD EPYC 7763 and 9V74, Intel Xeon Platinum 8370C and 8573C; `benchmarkIndex` 109–4241 (median ~2760; the lowest values are the cold runs).
 - **Launch flake:** 1 of 30 jobs (attempt 2, `daily-mixed`) failed before any audit: Chrome did not start (`waiting for dynamic debugging port in chrome-err.log`). A guard must retry a launch failure, separately from a low score.
