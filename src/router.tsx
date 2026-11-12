@@ -167,6 +167,10 @@ export function createAppRouter(options: {
 				if (!fromLocation) {
 					return false;
 				}
+				// A navigation on a server has no window.
+				if (typeof window === "undefined") {
+					return false;
+				}
 				if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
 					return false;
 				}

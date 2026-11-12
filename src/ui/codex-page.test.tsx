@@ -1,5 +1,6 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import {
+	act,
 	cleanup,
 	fireEvent,
 	render,
@@ -31,13 +32,20 @@ if (!ftpSource) {
 	throw new Error("FTP fixture entry has no source to test against");
 }
 
+let viewport: ReturnType<typeof stubMatchMedia>;
+
 async function renderCodex(
 	options: {
 		persist?: ReturnType<typeof createPersist>;
 		reducedMotion?: boolean;
+		width?: number;
 	} = {},
 ) {
-	stubMatchMedia(false, options.reducedMotion ?? false);
+	viewport = stubMatchMedia(
+		false,
+		options.reducedMotion ?? false,
+		options.width,
+	);
 	const persist = options.persist ?? createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/codex"] });
@@ -245,4 +253,53 @@ test("the fresh-flag clear writes the Codex stored at that moment, not the mount
 		http: { state: "correct", fresh: false },
 		ftp: { state: "missed", fresh: false },
 	});
+});
+
+// The popover opens against the right edge of the last column of a row, so
+// its side shows the column count the page uses. Card 1 of a list is the last
+// column of 2 columns, and not of 3 or 4.
+async function secondCardPanelSide(persist: ReturnType<typeof createPersist>) {
+	const list = screen.getByRole("list", { name: /Protocols/ });
+	const second = within(list).getAllByRole("listitem")[1];
+	const card = second && within(second).getByRole("button");
+	if (!card) {
+		throw new Error("no second card");
+	}
+	fireEvent.click(card);
+	const panel = screen.getByRole("note");
+	const side = panel.className.includes("right-0") ? "right" : "left";
+	fireEvent.click(card);
+	await waitForElementToBeRemoved(() => screen.queryByRole("note"));
+	return { side, persist };
+}
+
+function seedAllProtocols() {
+	const persist = createPersist(memoryStore());
+	persist.writeCodex(
+		Object.fromEntries(
+			protocols.map((entry) => [entry.id, { state: "missed", fresh: false }]),
+		) as CodexMap,
+	);
+	return persist;
+}
+
+test.each([
+	[0, "right"],
+	[700, "left"],
+	[1000, "left"],
+])(
+	"the Codex lays its columns out for a %ipx viewport after the first render",
+	async (width, side) => {
+		const persist = seedAllProtocols();
+		await renderCodex({ persist, width });
+		expect((await secondCardPanelSide(persist)).side).toBe(side);
+	},
+);
+
+test("the Codex follows a viewport change", async () => {
+	const persist = seedAllProtocols();
+	await renderCodex({ persist, width: 1000 });
+	expect((await secondCardPanelSide(persist)).side).toBe("left");
+	act(() => viewport.setWidth(500));
+	expect((await secondCardPanelSide(persist)).side).toBe("right");
 });

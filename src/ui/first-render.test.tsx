@@ -144,7 +144,7 @@ async function loadedApp(
 		random: () => 0.5,
 	});
 	await router.load();
-	return { serverStore, tree: appTree(router, 0) };
+	return { router, serverStore, tree: appTree(router, 0) };
 }
 
 // The server markup of a route, as the prerender produces it.
@@ -326,5 +326,141 @@ test.each([
 		const client = await loadedApp(persist, remote, path);
 		const { errors } = await hydrate(html, client.tree);
 		expect(errors).toEqual([]);
+	},
+);
+
+// A different day and a different viewport for the server render and for the
+// client: the first render reads neither, so the markup is the same.
+const SERVER_DAY = "2026-09-08T12:00:00Z";
+const CLIENT_DAY = "2026-10-10T23:59:00Z";
+
+test.each(ROUTES)(
+	"$name: hydrates with no mismatch on another clock day and another viewport",
+	async ({ path }) => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			const persist = storedPersist({ howToSeen: true });
+			const remote = createFakeRemote();
+			vi.setSystemTime(new Date(SERVER_DAY));
+			stubMatchMedia(false, false, 400);
+			const html = await serverHtml(persist, remote, path);
+			vi.setSystemTime(new Date(CLIENT_DAY));
+			stubMatchMedia(false, false, 1200);
+			const client = await loadedApp(persist, remote, path);
+			const { errors, consoleError } = await hydrate(html, client.tree);
+			expect(errors).toEqual([]);
+			expect(consoleError).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	},
+);
+
+// The clock reads of a function: `Date.now` and `new Date()` with no argument.
+// `Date.UTC`, `Date.parse` and `new Date(value)` are not clock reads.
+function clockReads(run: () => void) {
+	const reads: string[] = [];
+	const wrapped = new Proxy(Date, {
+		construct(target, args, newTarget) {
+			if (args.length === 0) {
+				reads.push("new Date()");
+			}
+			return Reflect.construct(target, args, newTarget);
+		},
+		get(target, property) {
+			if (property === "now") {
+				return () => {
+					reads.push("Date.now");
+					return target.now();
+				};
+			}
+			return Reflect.get(target, property, target);
+		},
+	});
+	vi.stubGlobal("Date", wrapped);
+	try {
+		run();
+	} finally {
+		vi.unstubAllGlobals();
+	}
+	return reads;
+}
+
+test.each(ROUTES)(
+	"$name: no first render reads the clock",
+	async ({ path }) => {
+		const { tree } = await loadedApp(
+			storedPersist({ theme: "dark", howToSeen: true }),
+			createFakeRemote(),
+			path,
+		);
+		expect(clockReads(() => renderToString(tree))).toEqual([]);
+	},
+);
+
+test.each(ROUTES)(
+	"$name: a server render with no window throws nothing",
+	async ({ path }) => {
+		const { tree } = await loadedApp(
+			storedPersist({ howToSeen: true }),
+			createFakeRemote(),
+			path,
+		);
+		vi.stubGlobal("window", undefined);
+		vi.stubGlobal("document", undefined);
+		try {
+			expect(() => renderToString(tree)).not.toThrow();
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	},
+);
+
+test("the view-transition callback runs with no window and plays no transition", async () => {
+	const { router } = await loadedApp(
+		createPersist(memoryStore()),
+		undefined,
+		"/portdle/",
+	);
+	const option = router.options.defaultViewTransition;
+	if (typeof option !== "object" || typeof option.types !== "function") {
+		throw new Error("the router has no view-transition types callback");
+	}
+	const types = option.types;
+	const location = (pathname: string) =>
+		({ pathname }) as Parameters<typeof types>[0]["toLocation"];
+	const change = {
+		fromLocation: location("/portdle/"),
+		toLocation: location("/portdle/blitz"),
+		pathChanged: true,
+		hrefChanged: true,
+		hashChanged: false,
+	};
+	expect(types(change)).toEqual(["screen"]);
+	vi.stubGlobal("window", undefined);
+	try {
+		expect(types(change)).toBe(false);
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+test.each(ROUTES)(
+	"$name: a redirect error opens the account menu after hydration, not in the first render",
+	async ({ path }) => {
+		const persist = storedPersist({ howToSeen: true });
+		const remote = createFakeRemote();
+		remote.setRedirectError("Denied");
+		const html = await serverHtml(persist, remote, path);
+		const probe = document.createElement("div");
+		probe.innerHTML = html;
+		expect(within(probe).queryByText("Denied")).toBeNull();
+		const client = await loadedApp(persist, remote, path);
+		const { errors, consoleError } = await hydrate(html, client.tree);
+		expect(errors).toEqual([]);
+		expect(consoleError).not.toHaveBeenCalled();
+		expect((await screen.findAllByRole("alert"))[0]?.textContent).toBe(
+			"Denied",
+		);
 	},
 );

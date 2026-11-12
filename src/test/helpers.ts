@@ -37,20 +37,57 @@ export function portDigits(): HTMLElement {
 export function stubMatchMedia(
 	prefersDark = false,
 	prefersReducedMotion = false,
+	width = 0,
 ) {
+	// `min-width` queries answer from the viewport width; `setWidth` changes it
+	// and fires the change event of each listener whose answer changed.
+	let viewport = width;
+	const minWidth = (query: string) => {
+		const found = /\(min-width: (\d+)px\)/.exec(query);
+		return found ? viewport >= Number(found[1]) : undefined;
+	};
+	const listeners = new Set<{
+		query: string;
+		was: boolean;
+		run: (event: Event) => void;
+	}>();
 	window.matchMedia = (query: string) => ({
-		matches:
-			(prefersDark && query.includes("prefers-color-scheme: dark")) ||
-			(prefersReducedMotion &&
-				query.includes("prefers-reduced-motion: reduce")),
+		get matches() {
+			return (
+				minWidth(query) ??
+				((prefersDark && query.includes("prefers-color-scheme: dark")) ||
+					(prefersReducedMotion &&
+						query.includes("prefers-reduced-motion: reduce")))
+			);
+		},
 		media: query,
 		onchange: null,
 		addListener: () => {},
 		removeListener: () => {},
-		addEventListener: () => {},
-		removeEventListener: () => {},
+		addEventListener: (_type: string, run: (event: Event) => void) => {
+			listeners.add({ query, was: minWidth(query) ?? false, run });
+		},
+		removeEventListener: (_type: string, run: (event: Event) => void) => {
+			for (const entry of listeners) {
+				if (entry.run === run && entry.query === query) {
+					listeners.delete(entry);
+				}
+			}
+		},
 		dispatchEvent: () => false,
 	});
+	return {
+		setWidth(next: number) {
+			viewport = next;
+			for (const entry of [...listeners]) {
+				const now = minWidth(entry.query) ?? false;
+				if (now !== entry.was) {
+					entry.was = now;
+					entry.run(new Event("change"));
+				}
+			}
+		},
+	};
 }
 
 // Installs a fake View Transitions API the way src/router.tsx's
