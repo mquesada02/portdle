@@ -12,6 +12,7 @@ import {
 	stubViewTransitions,
 } from "../test/helpers";
 import { App } from "./app";
+import { DEFAULT_TITLE, HEAD } from "./head";
 
 async function renderApp(options: {
 	persist?: ReturnType<typeof createPersist>;
@@ -449,4 +450,38 @@ test("with reduced motion stubbed to match, a nav tap starts no view transition"
 	} finally {
 		restore();
 	}
+});
+
+test.each(Object.entries(HEAD))(
+	"a first load of %s sets the tab title from the head table",
+	async (id, head) => {
+		const path = id
+			.replace("$category", "mixed")
+			.replace("$date", "2026-09-10");
+		await renderApp({ path: `/portdle${path}` });
+		expect(document.title).toBe(head.title);
+	},
+);
+
+test("in-app navigation sets the tab title from the head table", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	await renderApp({ persist });
+	const mainNav = screen.getByRole("navigation", { name: "Main" });
+	for (const [name, id] of [
+		["Blitz", "/blitz"],
+		["Codex", "/codex"],
+		["History", "/history"],
+		["Daily", "/"],
+	] as const) {
+		await user.click(within(mainNav).getByRole("link", { name }));
+		expect(document.title, name).toBe(HEAD[id]?.title);
+	}
+});
+
+test("an unknown path keeps the default tab title", async () => {
+	document.title = "Stale";
+	await renderApp({ path: "/portdle/nowhere" });
+	expect(document.title).toBe(DEFAULT_TITLE);
 });
