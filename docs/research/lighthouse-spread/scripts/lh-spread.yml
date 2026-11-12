@@ -1,0 +1,50 @@
+# Throwaway (never merged): measures the Lighthouse score spread on GitHub
+# runners for ticket #273. One job per page, one Lighthouse run at a time.
+name: Lighthouse spread (diag)
+on:
+  push:
+    branches: [diag/t273-lh-spread]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        page: [daily-mixed, daily-protocols, daily-applications, archive, board, blitz, history, history-blitz, codex, privacy]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      - name: Install Lighthouse
+        run: |
+          mkdir -p /tmp/lh && cp lh-diag/run.mjs /tmp/lh/
+          cd /tmp/lh && npm init -y >/dev/null && npm i --no-audit --no-fund lighthouse@12.8.2 chrome-launcher
+      - name: Runner facts
+        run: |
+          nproc; grep -m1 "model name" /proc/cpuinfo; google-chrome --version
+      - name: Audit
+        run: |
+          pnpm exec vite preview --port 4317 --strictPort &
+          curl -s -o /dev/null --retry 20 --retry-connrefused --retry-delay 1 http://localhost:4317/portdle/
+          start=$(date +%s)
+          LH_ORIGIN=http://localhost:4317 node /tmp/lh/run.mjs "$RUNNER_TEMP/out" 5 "$PAGE"
+          echo "seconds=$(( $(date +%s) - start ))"
+        env:
+          PAGE: ${{ matrix.page }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lh-${{ matrix.page }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out
+          retention-days: 14
