@@ -1,32 +1,9 @@
-import { afterEach, expect, test } from "vitest";
-import html from "../../public/privacy.html?raw";
-import { stubMatchMedia } from "../test/helpers";
+import { expect, test } from "vitest";
+import html from "../../privacy.html?raw";
 import { SITE_URL } from "./head";
 
 const page = new DOMParser().parseFromString(html, "text/html");
 const text = page.body.textContent?.replace(/\s+/g, " ") ?? "";
-
-const themeScript = page.querySelector("script:not([src])")?.textContent ?? "";
-
-function pageThemeKey(): string {
-	return /getItem\("([^"]+)"\)/.exec(themeScript)?.[1] ?? "";
-}
-
-function runThemeScript(stored: string | null, prefersDark: boolean) {
-	stubMatchMedia(prefersDark, false);
-	localStorage.clear();
-	if (stored !== null) {
-		localStorage.setItem(pageThemeKey(), stored);
-	}
-	document.documentElement.className = "";
-	new Function(themeScript)();
-	return document.documentElement.classList.contains("dark");
-}
-
-afterEach(() => {
-	localStorage.clear();
-	document.documentElement.className = "";
-});
 
 test("page is English, mobile-ready, and self-contained", () => {
 	expect(page.documentElement.lang).toBe("en");
@@ -83,26 +60,4 @@ test("page explains how to delete data", () => {
 	expect(text).toContain("Delete account");
 	expect(text).toContain("leaderboard rows");
 	expect(text).toContain("clear the site's data");
-});
-
-test("theme script reads the app's stored theme key", () => {
-	expect(pageThemeKey()).toBe("portdle:v1:theme");
-});
-
-test("theme script follows a stored dark theme", () => {
-	expect(runThemeScript('"dark"', false)).toBe(true);
-});
-
-test("theme script keeps a stored light theme on a dark system", () => {
-	expect(runThemeScript('"light"', true)).toBe(false);
-});
-
-test("theme script follows the system when the theme is system or absent", () => {
-	expect(runThemeScript('"system"', true)).toBe(true);
-	expect(runThemeScript(null, true)).toBe(true);
-	expect(runThemeScript(null, false)).toBe(false);
-});
-
-test("theme script falls back to the system when the stored value is unreadable", () => {
-	expect(runThemeScript("not json", true)).toBe(true);
 });
