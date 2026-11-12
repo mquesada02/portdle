@@ -1,6 +1,6 @@
 // The stub host: Playwright answers every request to it from the committed
 // fixtures. A request with no stub is aborted and recorded, and the fixture in
-// fixtures.ts fails the test on it. Requests to the preview server's own origin
+// fixtures.ts fails the test on it. Requests to the server's own origin
 // (the page, scripts, and styles of the stub build) go through.
 
 import { readFileSync } from "node:fs";
