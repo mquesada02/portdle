@@ -467,17 +467,40 @@ test("in-app navigation sets the tab title from the head table", async () => {
 	const user = userEvent.setup();
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	await renderApp({ persist });
-	const mainNav = screen.getByRole("navigation", { name: "Main" });
-	for (const [name, id] of [
-		["Blitz", "/blitz"],
-		["Codex", "/codex"],
-		["History", "/history"],
-		["Daily", "/"],
-	] as const) {
-		await user.click(within(mainNav).getByRole("link", { name }));
-		expect(document.title, name).toBe(HEAD[id]?.title);
+	// A day after the Schedule's first day, so the Archive lists a board.
+	await renderApp({ persist, utcToday: "2026-09-11" });
+	const link = (nav: string, name: string) =>
+		within(screen.getByRole("navigation", { name: nav })).getByRole("link", {
+			name,
+		});
+	const visited: string[] = [];
+	async function go(
+		id: string,
+		click: () => HTMLElement | Promise<HTMLElement>,
+	) {
+		await user.click(await click());
+		expect(document.title, id).toBe(HEAD[id]?.title);
+		visited.push(id);
 	}
+	await go("/protocols", () => link("Daily switcher", "Protocols"));
+	await go("/applications", () => link("Daily switcher", "Applications"));
+	await go("/", () => link("Daily switcher", "Mixed"));
+	await go("/archive", () => screen.getByRole("link", { name: "Archive" }));
+	await go("/archive/$category/$date", async () => {
+		const [first] = await within(
+			await screen.findByRole("list", { name: "Archive" }),
+		).findAllByRole("link");
+		if (!first) {
+			throw new Error("no board link");
+		}
+		return first;
+	});
+	await go("/blitz", () => link("Main", "Blitz"));
+	await go("/codex", () => link("Main", "Codex"));
+	await go("/history", () => link("Main", "History"));
+	await go("/history/blitz", () => link("History switcher", "Blitz"));
+	// Every table entry has its in-app navigation.
+	expect(visited.sort()).toEqual(Object.keys(HEAD).sort());
 });
 
 test("an unknown path keeps the default tab title", async () => {
