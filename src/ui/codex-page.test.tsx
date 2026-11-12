@@ -256,21 +256,32 @@ test("the fresh-flag clear writes the Codex stored at that moment, not the mount
 });
 
 // The popover opens against the right edge of the last column of a row, so
-// its side shows the column count the page uses. Card 1 of a list is the last
-// column of 2 columns, and not of 3 or 4.
-async function secondCardPanelSide(persist: ReturnType<typeof createPersist>) {
+// its side shows the column count the page uses. Card 1 is the last column of
+// 2 columns; card 2 is the last column of 3; card 3 is the last of 4.
+async function panelSide(index: number) {
 	const list = screen.getByRole("list", { name: /Protocols/ });
-	const second = within(list).getAllByRole("listitem")[1];
-	const card = second && within(second).getByRole("button");
+	const item = within(list).getAllByRole("listitem")[index];
+	const card = item && within(item).getByRole("button");
 	if (!card) {
-		throw new Error("no second card");
+		throw new Error("no card at the index");
 	}
 	fireEvent.click(card);
 	const panel = screen.getByRole("note");
 	const side = panel.className.includes("right-0") ? "right" : "left";
 	fireEvent.click(card);
 	await waitForElementToBeRemoved(() => screen.queryByRole("note"));
-	return { side, persist };
+	return side;
+}
+
+// The sides of cards 1, 2 and 3: 2, 3 and 4 columns.
+const COLUMNS = {
+	2: ["right", "left", "right"],
+	3: ["left", "right", "left"],
+	4: ["left", "left", "right"],
+};
+
+async function sides() {
+	return [await panelSide(1), await panelSide(2), await panelSide(3)];
 }
 
 function seedAllProtocols() {
@@ -284,22 +295,22 @@ function seedAllProtocols() {
 }
 
 test.each([
-	[0, "right"],
-	[700, "left"],
-	[1000, "left"],
-])(
+	[0, 2],
+	[700, 3],
+	[1000, 4],
+] as const)(
 	"the Codex lays its columns out for a %ipx viewport after the first render",
-	async (width, side) => {
-		const persist = seedAllProtocols();
-		await renderCodex({ persist, width });
-		expect((await secondCardPanelSide(persist)).side).toBe(side);
+	async (width, columns) => {
+		await renderCodex({ persist: seedAllProtocols(), width });
+		expect(await sides()).toEqual(COLUMNS[columns]);
 	},
 );
 
 test("the Codex follows a viewport change", async () => {
-	const persist = seedAllProtocols();
-	await renderCodex({ persist, width: 1000 });
-	expect((await secondCardPanelSide(persist)).side).toBe("left");
+	await renderCodex({ persist: seedAllProtocols(), width: 1000 });
+	expect(await sides()).toEqual(COLUMNS[4]);
+	act(() => viewport.setWidth(700));
+	expect(await sides()).toEqual(COLUMNS[3]);
 	act(() => viewport.setWidth(500));
-	expect((await secondCardPanelSide(persist)).side).toBe("right");
+	expect(await sides()).toEqual(COLUMNS[2]);
 });
