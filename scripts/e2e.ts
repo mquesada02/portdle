@@ -35,9 +35,10 @@ execFileSync("vite", ["build", "--outDir", "dist-e2e", "--emptyOutDir"], {
 	},
 });
 
-// The Pages-like server answers an unknown path with 404.html, so an old
-// board link reaches its redirect script. The full build pipeline replaces
-// this step (ticket 288).
+// Temporary: the build holds 404.html, as the Pages build does. The Pages-like
+// server serves it only for a build with a prerender manifest, so nothing in
+// the e2e suite reads it yet. Ticket 288 replaces this step with the full
+// build pipeline, which makes the old-link redirect testable.
 copyIndexHtmlTo404("dist-e2e");
 
 const result = spawnSync("playwright", ["test", ...process.argv.slice(2)], {

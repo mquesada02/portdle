@@ -31,6 +31,9 @@ const TODAY = "2026-09-11";
 const YESTERDAY = "2026-09-10";
 const EPOCH = "2026-09-09";
 
+const NEW_BOARD = (category: string, date: string) =>
+	`/portdle/archive/board?category=${category}&date=${date}`;
+
 async function open(
 	path: string,
 	options: { remote?: FakeRemote; persist?: Persist } = {},
@@ -368,22 +371,19 @@ test("a board whose entry the catalog lacks shows the panel; Try again reloads t
 	).toBeTruthy();
 });
 
-const NEW_BOARD = (category: string, date: string) =>
-	`/portdle/archive/board?category=${category}&date=${date}`;
-
 const canonicalLinks = () =>
 	[...document.head.querySelectorAll('link[rel="canonical"]')].map((link) =>
 		link.getAttribute("href"),
 	);
 
-test("a board opens on the new URL", async () => {
+test("a board opens from its address", async () => {
 	await open(NEW_BOARD("mixed", YESTERDAY));
 	expect(
 		await screen.findByRole("group", { name: "Port digits" }),
 	).toBeTruthy();
 });
 
-test("the Daily nav item is current on a board at the new URL", async () => {
+test("the Daily nav item is current on a board address", async () => {
 	await open(NEW_BOARD("mixed", YESTERDAY));
 	await loaded();
 	expect(
@@ -401,7 +401,7 @@ test.each([
 	["a numeric date", NEW_BOARD("mixed", "20260910")],
 	["a date before the Schedule", NEW_BOARD("mixed", "2026-09-08")],
 	["a date after the Schedule", NEW_BOARD("mixed", "2026-09-12")],
-])("%s on the new URL show the note and a link back", async (_name, path) => {
+])("%s show the note and a link back", async (_name, path) => {
 	await open(path);
 	await loaded();
 	expect(screen.getByText("No Daily on this day.")).toBeTruthy();
