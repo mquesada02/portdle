@@ -10,7 +10,12 @@ import { createAppRouter } from "../router";
 import { createSync } from "../sync/sync";
 import { saveDaily } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
-import { loaded, memoryStore, stubMatchMedia } from "../test/helpers";
+import {
+	loaded,
+	memoryStore,
+	SERVER_MESSAGE,
+	stubMatchMedia,
+} from "../test/helpers";
 import { appTree } from "./app";
 import { createServerStore } from "./server-store";
 
@@ -25,6 +30,8 @@ type Route = {
 };
 
 const SAVED_DATE = "2026-09-08";
+
+const THEME_BUTTON = 'button[aria-label="Toggle color theme"]';
 
 const LAST_RUN: BlitzRun = {
 	category: "protocols",
@@ -140,6 +147,21 @@ async function loadedApp(
 	return { serverStore, tree: appTree(router, 0) };
 }
 
+// The server markup of a route, as the prerender produces it.
+async function serverHtml(
+	persist: Persist,
+	remote: ReturnType<typeof createFakeRemote> | undefined,
+	path: string,
+) {
+	return renderToString((await loadedApp(persist, remote, path)).tree);
+}
+
+// The class records that show the theme class leaving <html>: any change of
+// the class attribute whose old value held `dark`.
+function darkClassRemoved(records: MutationRecord[]) {
+	return records.filter((record) => (record.oldValue ?? "").includes("dark"));
+}
+
 async function hydrate(html: string, tree: ReturnType<typeof appTree>) {
 	const container = document.createElement("div");
 	container.innerHTML = html;
@@ -197,15 +219,15 @@ test.each(ROUTES)(
 	async ({ path, showsStored }) => {
 		const persist = storedPersist({ theme: "dark", howToSeen: true });
 		const remote = createFakeRemote();
-		const server = await loadedApp(persist, remote, path);
-		const html = renderToString(server.tree);
+		const html = await serverHtml(persist, remote, path);
 
 		// The server markup holds none of the stored state.
 		const probe = document.createElement("div");
 		probe.innerHTML = html;
 		expect(within(probe).queryByText(SAVED_DATE)).toBeNull();
 		expect(within(probe).queryByText("Score 7")).toBeNull();
-		expect(probe.querySelector("svg circle")).not.toBeNull();
+		// The theme button shows the sun (it has a circle) until the theme is read.
+		expect(probe.querySelector(`${THEME_BUTTON} svg circle`)).not.toBeNull();
 		expect(probe.querySelector("dialog")?.hasAttribute("open")).toBe(false);
 
 		// The head script has set the theme before the client runs.
@@ -215,10 +237,11 @@ test.each(ROUTES)(
 		expect(errors).toEqual([]);
 		expect(consoleError).not.toHaveBeenCalled();
 		// Nothing took the theme class off <html>, in the first commit or after.
-		expect(
-			records.filter((record) => (record.oldValue ?? "").includes("dark")),
-		).toEqual([]);
+		expect(darkClassRemoved(records)).toEqual([]);
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
+		// The stored dark theme shows the moon (no circle) after the read.
+		expect(document.querySelector(`${THEME_BUTTON} svg circle`)).toBeNull();
+		expect(document.querySelector(`${THEME_BUTTON} svg path`)).not.toBeNull();
 		expect(document.querySelector("dialog")?.hasAttribute("open")).toBe(false);
 		showsStored?.();
 	},
@@ -230,14 +253,12 @@ test.each(ROUTES)(
 		stubMatchMedia(true, false);
 		const persist = storedPersist({ howToSeen: true });
 		const remote = createFakeRemote();
-		const html = renderToString((await loadedApp(persist, remote, path)).tree);
+		const html = await serverHtml(persist, remote, path);
 		document.documentElement.classList.add("dark");
 		const client = await loadedApp(persist, remote, path);
 		const { errors, records } = await hydrate(html, client.tree);
 		expect(errors).toEqual([]);
-		expect(
-			records.filter((record) => (record.oldValue ?? "").includes("dark")),
-		).toEqual([]);
+		expect(darkClassRemoved(records)).toEqual([]);
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
 	},
 );
@@ -247,13 +268,14 @@ test.each(ROUTES)(
 	async ({ path }) => {
 		const persist = createPersist(memoryStore());
 		const remote = createFakeRemote();
-		const html = renderToString((await loadedApp(persist, remote, path)).tree);
+		const html = await serverHtml(persist, remote, path);
 		const probe = document.createElement("div");
 		probe.innerHTML = html;
 		expect(probe.querySelector("dialog")?.hasAttribute("open")).toBe(false);
 		const client = await loadedApp(persist, remote, path);
-		const { errors } = await hydrate(html, client.tree);
+		const { errors, consoleError } = await hydrate(html, client.tree);
 		expect(errors).toEqual([]);
+		expect(consoleError).not.toHaveBeenCalled();
 		expect(
 			screen.getByRole("dialog", { name: "How-to" }).hasAttribute("open"),
 		).toBe(true);
@@ -264,7 +286,7 @@ test("Blitz: the setup of the last run applies after hydration", async () => {
 	const persist = storedPersist({ howToSeen: true });
 	const remote = createFakeRemote();
 	const path = "/portdle/blitz";
-	const html = renderToString((await loadedApp(persist, remote, path)).tree);
+	const html = await serverHtml(persist, remote, path);
 	const client = await loadedApp(persist, remote, path);
 	const { errors } = await hydrate(html, client.tree);
 	expect(errors).toEqual([]);
@@ -290,7 +312,7 @@ test.each([
 		const persist = storedPersist({ howToSeen: true });
 		const path = "/portdle/blitz";
 		const remote = makeRemote();
-		const html = renderToString((await loadedApp(persist, remote, path)).tree);
+		const html = await serverHtml(persist, remote, path);
 		// The server render did not abort into a client-render fallback.
 		expect(html).not.toContain("<!--$!-->");
 		const probe = document.createElement("div");
@@ -299,7 +321,7 @@ test.each([
 		if (text) {
 			expect(status.textContent).toBe(text);
 		} else {
-			expect(status.textContent).toContain("Try again");
+			expect(status.textContent).toContain(SERVER_MESSAGE);
 		}
 		const client = await loadedApp(persist, remote, path);
 		const { errors } = await hydrate(html, client.tree);
