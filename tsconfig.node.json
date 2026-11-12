@@ -34,6 +34,10 @@
 		"scripts/fixture-shapes.ts",
 		"scripts/gate-report.ts",
 		"scripts/theme-script-plugin.ts",
-		"scripts/pages-server.ts"
+		"scripts/pages-server.ts",
+		"scripts/stub-server.ts",
+		"scripts/lighthouse.ts",
+		"scripts/lighthouse-core.ts",
+		"scripts/lighthouse-seed.ts"
 	]
 }
