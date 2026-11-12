@@ -10,6 +10,7 @@ import type { Remote } from "./remote/remote";
 import type { Sync } from "./sync/sync";
 import { ArchiveBoardPage, ArchivePage } from "./ui/archive-page";
 import { BlitzPage } from "./ui/blitz-page";
+import { parseBoardSearch } from "./ui/board-url";
 import { CodexPage } from "./ui/codex-page";
 import { DailyPage, ROUTE_FOR } from "./ui/daily-page";
 import { HISTORY_SEGMENTS, HistoryPage } from "./ui/history-page";
@@ -79,9 +80,21 @@ const archiveRoute = createRoute({
 
 const archiveBoardRoute = createRoute({
 	getParentRoute: () => rootRoute,
-	path: "/archive/$category/$date",
+	path: "/archive/board",
+	validateSearch: parseBoardSearch,
 	component: function ArchiveBoard() {
-		const { category, date } = archiveBoardRoute.useParams();
+		const { category, date } = archiveBoardRoute.useSearch();
+		return <ArchiveBoardPage category={category} date={date} />;
+	},
+});
+
+// The old board address, kept until the contract step of the board URL move
+// removes it.
+const archiveBoardPathRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/archive/$category/$date",
+	component: function ArchiveBoardByPath() {
+		const { category, date } = archiveBoardPathRoute.useParams();
 		return <ArchiveBoardPage category={category} date={date} />;
 	},
 });
@@ -130,6 +143,7 @@ const routeTree = rootRoute.addChildren([
 	applicationsRoute,
 	archiveRoute,
 	archiveBoardRoute,
+	archiveBoardPathRoute,
 	blitzRoute,
 	historyRoute,
 	historyBlitzRoute,

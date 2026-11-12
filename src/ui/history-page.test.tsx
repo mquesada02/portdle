@@ -113,7 +113,7 @@ test("a Daily finished today is listed and links to its Archive board", async ()
 		within(row as HTMLElement)
 			.getByRole("link")
 			.getAttribute("href"),
-	).toBe(`/portdle/archive/protocols/${UTC_TODAY}`);
+	).toBe(`/portdle/archive/board?category=protocols&date=${UTC_TODAY}`);
 });
 
 test("a finished Daily with no Schedule row stays listed and links to the no-Daily note", async () => {

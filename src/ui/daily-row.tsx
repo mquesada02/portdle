@@ -4,6 +4,7 @@ import { type DailyResult, resultLabel } from "../engine/archive";
 import { puzzleNumber } from "../engine/puzzle-number";
 import { CATEGORY_LABEL } from "../engine/share";
 import type { DailyCategory } from "../engine/types";
+import { boardLink } from "./board-url";
 
 type DailyGroup<Row extends { date: string }> = {
 	date: string;
@@ -40,7 +41,7 @@ export function DailyRowLink({
 	answer?: { name: string; port: number };
 }) {
 	return (
-		<Link to="/archive/$category/$date" params={{ category, date }}>
+		<Link {...boardLink(category, date)}>
 			<span className="mr-2 inline-block rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
 				{CATEGORY_LABEL[category]}
 			</span>

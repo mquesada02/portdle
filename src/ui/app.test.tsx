@@ -486,7 +486,7 @@ test("in-app navigation sets the tab title from the head table", async () => {
 	await go("/applications", () => link("Daily switcher", "Applications"));
 	await go("/", () => link("Daily switcher", "Mixed"));
 	await go("/archive", () => screen.getByRole("link", { name: "Archive" }));
-	await go("/archive/$category/$date", async () => {
+	await go("/archive/board", async () => {
 		const [first] = await within(
 			await screen.findByRole("list", { name: "Archive" }),
 		).findAllByRole("link");
@@ -499,8 +499,13 @@ test("in-app navigation sets the tab title from the head table", async () => {
 	await go("/codex", () => link("Main", "Codex"));
 	await go("/history", () => link("Main", "History"));
 	await go("/history/blitz", () => link("History switcher", "Blitz"));
-	// Every table entry has its in-app navigation.
-	expect(visited.sort()).toEqual(Object.keys(HEAD).sort());
+	// Every table entry has its in-app navigation, but the old board key: no
+	// in-app link opens the old board route until the contract step removes it.
+	expect(visited.sort()).toEqual(
+		Object.keys(HEAD)
+			.filter((id) => id !== "/archive/$category/$date")
+			.sort(),
+	);
 });
 
 test("an unknown path keeps the default tab title", async () => {

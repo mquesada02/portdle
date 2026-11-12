@@ -144,9 +144,9 @@ test("every row links to its board address", async () => {
 		screen.getByRole("list", { name: YESTERDAY }),
 	).getAllByRole("link");
 	expect(links.map((link) => link.getAttribute("href"))).toEqual([
-		`/portdle/archive/mixed/${YESTERDAY}`,
-		`/portdle/archive/protocols/${YESTERDAY}`,
-		`/portdle/archive/applications/${YESTERDAY}`,
+		`/portdle/archive/board?category=mixed&date=${YESTERDAY}`,
+		`/portdle/archive/board?category=protocols&date=${YESTERDAY}`,
+		`/portdle/archive/board?category=applications&date=${YESTERDAY}`,
 	]);
 });
 
@@ -366,4 +366,102 @@ test("a board whose entry the catalog lacks shows the panel; Try again reloads t
 	expect(
 		await screen.findByRole("group", { name: "Port digits" }),
 	).toBeTruthy();
+});
+
+const NEW_BOARD = (category: string, date: string) =>
+	`/portdle/archive/board?category=${category}&date=${date}`;
+
+const canonicalLinks = () =>
+	[...document.head.querySelectorAll('link[rel="canonical"]')].map((link) =>
+		link.getAttribute("href"),
+	);
+
+test("a board opens on the new URL", async () => {
+	await open(NEW_BOARD("mixed", YESTERDAY));
+	expect(
+		await screen.findByRole("group", { name: "Port digits" }),
+	).toBeTruthy();
+});
+
+test("the Daily nav item is current on a board at the new URL", async () => {
+	await open(NEW_BOARD("mixed", YESTERDAY));
+	await loaded();
+	expect(
+		within(screen.getByRole("navigation", { name: "Main" }))
+			.getByRole("link", { name: "Daily" })
+			.getAttribute("aria-current"),
+	).toBe("page");
+});
+
+test.each([
+	["missing params", "/portdle/archive/board"],
+	["a missing date", "/portdle/archive/board?category=mixed"],
+	["an unknown category", NEW_BOARD("nope", "2026-09-10")],
+	["a malformed date", NEW_BOARD("mixed", "2026-02-30")],
+	["a numeric date", NEW_BOARD("mixed", "20260910")],
+	["a date before the Schedule", NEW_BOARD("mixed", "2026-09-08")],
+	["a date after the Schedule", NEW_BOARD("mixed", "2026-09-12")],
+])("%s on the new URL show the note and a link back", async (_name, path) => {
+	await open(path);
+	await loaded();
+	expect(screen.getByText("No Daily on this day.")).toBeTruthy();
+	expect(
+		screen
+			.getByRole("link", { name: "Back to the Archive" })
+			.getAttribute("href"),
+	).toBe("/portdle/archive");
+});
+
+test("a board holds its canonical link while it is shown", async () => {
+	const user = userEvent.setup();
+	await open(NEW_BOARD("protocols", YESTERDAY));
+	await loaded();
+	expect(canonicalLinks()).toEqual([
+		`https://mquesada02.github.io/portdle/archive/board?category=protocols&date=${YESTERDAY}`,
+	]);
+	await user.click(screen.getByRole("link", { name: "Back to the Archive" }));
+	await screen.findByRole("list", { name: YESTERDAY });
+	expect(canonicalLinks()).toEqual([]);
+});
+
+test("the canonical link is replaced when the board params change", async () => {
+	stubMatchMedia();
+	const remote = createFakeRemote();
+	remote.today = TODAY;
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	const history = createMemoryHistory({
+		initialEntries: [NEW_BOARD("protocols", YESTERDAY)],
+	});
+	render(<App persist={persist} remote={remote} history={history} />);
+	await loaded();
+	expect(canonicalLinks()).toEqual([
+		`https://mquesada02.github.io/portdle/archive/board?category=protocols&date=${YESTERDAY}`,
+	]);
+	act(() => history.push(NEW_BOARD("mixed", YESTERDAY)));
+	await waitFor(() =>
+		expect(canonicalLinks()).toEqual([
+			`https://mquesada02.github.io/portdle/archive/board?category=mixed&date=${YESTERDAY}`,
+		]),
+	);
+});
+
+test("a board address with no Daily still gets its canonical link, a malformed one gets none", async () => {
+	await open(NEW_BOARD("mixed", "2026-09-12"));
+	await loaded();
+	expect(canonicalLinks()).toEqual([
+		"https://mquesada02.github.io/portdle/archive/board?category=mixed&date=2026-09-12",
+	]);
+	cleanup();
+	expect(canonicalLinks()).toEqual([]);
+	for (const path of [
+		"/portdle/archive/board",
+		NEW_BOARD("nope", YESTERDAY),
+		NEW_BOARD("mixed", "2026-02-30"),
+	]) {
+		await open(path);
+		await loaded();
+		expect(canonicalLinks()).toEqual([]);
+		cleanup();
+	}
 });

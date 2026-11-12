@@ -40,7 +40,10 @@ test("the table has no entry for a route that does not exist", () => {
 });
 
 test("every title and description is filled and every title is its own", () => {
-	const heads = Object.values(HEAD);
+	// The old board key shares the new one's title until the contract step.
+	const heads = Object.entries(HEAD)
+		.filter(([id]) => id !== "/archive/$category/$date")
+		.map(([, head]) => head);
 	for (const head of heads) {
 		expect(head.title.trim()).not.toBe("");
 		expect(head.description.trim()).not.toBe("");
@@ -61,14 +64,18 @@ test("a canonical is under the base URL, with no .html", () => {
 });
 
 test("only the Archive board has no static canonical", () => {
-	const boardId = Object.keys(router.routesById).find((id) =>
+	// Two board routes exist until the contract step of the board URL move.
+	const boardIds = Object.keys(router.routesById).filter((id) =>
 		id.startsWith("/archive/"),
 	);
-	expect(boardId).toBeDefined();
+	expect(boardIds.sort()).toEqual([
+		"/archive/$category/$date",
+		"/archive/board",
+	]);
 	const withoutCanonical = Object.entries(HEAD)
 		.filter(([, head]) => head.canonical === null)
 		.map(([id]) => id);
-	expect(withoutCanonical).toEqual([boardId]);
+	expect(withoutCanonical.sort()).toEqual(boardIds);
 });
 
 test("the board canonical carries its category and date", () => {
