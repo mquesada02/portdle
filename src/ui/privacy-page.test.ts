@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import html from "../../public/privacy.html?raw";
 import { stubMatchMedia } from "../test/helpers";
+import { SITE_URL } from "./head";
 
 const page = new DOMParser().parseFromString(html, "text/html");
 const text = page.body.textContent?.replace(/\s+/g, " ") ?? "";
@@ -32,6 +33,14 @@ test("page is English, mobile-ready, and self-contained", () => {
 	expect(page.querySelector('meta[name="viewport"]')).toBeTruthy();
 	expect(page.querySelector("script[src]")).toBeNull();
 	expect(page.querySelector('link[rel="stylesheet"]')).toBeNull();
+});
+
+test("page has a meta description and its canonical link", () => {
+	const description = page.querySelector('meta[name="description"]');
+	expect(description?.getAttribute("content")?.trim()).toBeTruthy();
+	expect(
+		page.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+	).toBe(`${SITE_URL}/privacy`);
 });
 
 test("page links back to the game and shows the contact email", () => {
