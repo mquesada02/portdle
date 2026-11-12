@@ -6,7 +6,9 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useState } from "react";
+import type { Theme } from "../persist/storage";
 import { AccountMenu } from "./account-menu";
+import { useAfterFirstRender } from "./after-first-render";
 import { DEFAULT_TITLE, HEAD } from "./head";
 import { HowTo } from "./how-to";
 import { NAV, onScreen } from "./nav";
@@ -84,10 +86,21 @@ export function Shell() {
 	const { persist, backend, remount } = useRouteContext({
 		from: "__root__",
 	});
-	const [storedTheme, setStoredTheme] = useState(() => persist.readTheme());
-	const [howToOpen, setHowToOpen] = useState(() => !persist.readHowToSeen());
+	// Both are read after the first render (null: the theme is not read yet), so
+	// the first render is the same for every player.
+	const [storedTheme, setStoredTheme] = useAfterFirstRender<Theme | null>(
+		() => persist.readTheme(),
+		null,
+	);
+	const [howToOpen, setHowToOpen] = useAfterFirstRender(
+		() => !persist.readHowToSeen(),
+		false,
+	);
 	const [saveWarning, setSaveWarning] = useState(false);
-	const effective = effectiveTheme(storedTheme, prefersDarkScheme());
+	const effective =
+		storedTheme === null
+			? null
+			: effectiveTheme(storedTheme, prefersDarkScheme());
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
@@ -111,8 +124,11 @@ export function Shell() {
 		...wordmarkLinkProps
 	} = wordmarkAllProps;
 
+	// Until the theme is read, the head script's class on <html> stands.
 	useLayoutEffect(() => {
-		applyHtmlTheme(effective);
+		if (effective !== null) {
+			applyHtmlTheme(effective);
+		}
 	}, [effective]);
 
 	function dismissHowTo() {
@@ -180,7 +196,7 @@ export function Shell() {
 							aria-label="Toggle color theme"
 							className={ICON_BUTTON}
 							onClick={() => {
-								const next = oppositeTheme(effective);
+								const next = oppositeTheme(effective ?? "light");
 								const result = persist.writeTheme(next);
 								if (!result.ok) {
 									setSaveWarning(true);

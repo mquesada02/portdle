@@ -27,6 +27,7 @@ import type {
 } from "../engine/types";
 import { DAILY_CATEGORIES } from "../engine/types";
 import type { Persist } from "../persist/storage";
+import { useAfterFirstRenderEffect } from "./after-first-render";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { CATEGORIES, MODES, ORIENTATIONS, Pill } from "./blitz-choices";
 import { DigitSlots } from "./digit-slots";
@@ -63,6 +64,14 @@ function formatTime(seconds: number): string {
 }
 
 const monotonicNow = () => performance.now();
+
+// The setup of the dialog and the picker when there is no last run, and in the
+// first render.
+const FALLBACK_SETUP: {
+	category: DailyCategory;
+	orientation: Orientation;
+	mode: BlitzMode;
+} = { category: "mixed", orientation: "default", mode: "sprint" };
 
 function bestsKey(state: BlitzState): BlitzBestsKey {
 	return `${state.category}|${state.orientation}|${state.mode}`;
@@ -516,19 +525,12 @@ export function BlitzPage() {
 	const protocols = loadedCatalog?.protocols ?? NO_ENTRIES;
 	const applications = loadedCatalog?.applications ?? NO_ENTRIES;
 	const dailyIds = loadedDailies ? Object.values(loadedDailies.entryIds) : [];
-	// Read once, at mount: the dialog preselects the last run's setup, or the
-	// fixed fallback when there is none.
-	const [initialSetup] = useState(() => {
-		const lastRun = persist.readBlitzRuns()[0];
-		return {
-			category: lastRun?.category ?? "mixed",
-			orientation: lastRun?.orientation ?? "default",
-			mode: lastRun?.mode ?? "sprint",
-		};
-	});
-	const [category, setCategory] = useState(initialSetup.category);
-	const [orientation, setOrientation] = useState(initialSetup.orientation);
-	const [mode, setMode] = useState(initialSetup.mode);
+	// The dialog and the Leaderboards picker start on the fixed fallback in the
+	// first render; right after it (once, at mount) they take the last run's
+	// setup, when there is a last run.
+	const [category, setCategory] = useState(FALLBACK_SETUP.category);
+	const [orientation, setOrientation] = useState(FALLBACK_SETUP.orientation);
+	const [mode, setMode] = useState(FALLBACK_SETUP.mode);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [run, setRun] = useState<BlitzState | null>(null);
 	const [digits, setDigits] = useState("");
@@ -544,9 +546,22 @@ export function BlitzPage() {
 	// on the last run's setup and is reset whenever a run ends.
 	const [picker, setPicker] = useState<LeaderboardPicker>({
 		window: "allTime",
-		category: initialSetup.category,
-		orientation: initialSetup.orientation,
-		mode: initialSetup.mode,
+		...FALLBACK_SETUP,
+	});
+	useAfterFirstRenderEffect(() => {
+		const lastRun = persist.readBlitzRuns()[0];
+		if (!lastRun) {
+			return;
+		}
+		const setup = {
+			category: lastRun.category,
+			orientation: lastRun.orientation,
+			mode: lastRun.mode,
+		};
+		setCategory(setup.category);
+		setOrientation(setup.orientation);
+		setMode(setup.mode);
+		setPicker((current) => ({ ...current, ...setup }));
 	});
 
 	const ended = run?.ended ?? null;
@@ -807,8 +822,8 @@ export function BlitzPage() {
 	}
 
 	if (!run) {
-		const lastRun = persist.readBlitzRuns()[0];
-		const bests = persist.readBlitzBests();
+		// The runs and the Bests are read only in the ready state, never in the
+		// first render of the app.
 		const arena =
 			data.status === "ready" ? (
 				<>
@@ -821,9 +836,9 @@ export function BlitzPage() {
 					</button>
 					<section className="mt-8">
 						<h2 className="text-sm font-semibold">Last run</h2>
-						<LastRun run={lastRun} />
+						<LastRun run={persist.readBlitzRuns()[0]} />
 					</section>
-					<BestsTable bests={bests} />
+					<BestsTable bests={persist.readBlitzBests()} />
 				</>
 			) : (
 				<LoadStatus state={data.status} />

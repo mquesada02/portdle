@@ -9,6 +9,7 @@ import {
 import type { BlitzRun } from "../engine/types";
 import { DAILY_CATEGORIES } from "../engine/types";
 import type { Persist } from "../persist/storage";
+import { useAfterFirstRender } from "./after-first-render";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { DailyGroupList, DailyRowLink } from "./daily-row";
 import { RoundLog } from "./round-log";
@@ -30,12 +31,15 @@ function savedDailyRows(persist: Persist): SavedDaily[] {
 	);
 }
 
+// The saved Dailies before they are read, after the first render.
+const NO_SAVED: SavedDaily[] = [];
+
 function DailySegmentList({ persist }: { persist: Persist }) {
 	const { data } = useScheduleReads();
 	// The player's finished Dailies are listed at once and read once. Their
 	// names join in once every read has succeeded; until then the rows carry
 	// none.
-	const saved = useMemo(() => savedDailyRows(persist), [persist]);
+	const [saved] = useAfterFirstRender(() => savedDailyRows(persist), NO_SAVED);
 	const [catalog, , schedule] = data.status === "ready" ? data.value : [];
 	const rows = useMemo(
 		() =>
@@ -96,14 +100,16 @@ function BlitzRunRow({ run }: { run: BlitzRun }) {
 	);
 }
 
-function BlitzSegmentList({ runs }: { runs: BlitzRun[] }) {
-	const groups = groupBlitzRunsByDate(runs, localDate);
+// `runs` is null until the Blitz runs are read, after the first render; the
+// list then shows neither runs nor the empty text.
+function BlitzSegmentList({ runs }: { runs: BlitzRun[] | null }) {
+	const groups = groupBlitzRunsByDate(runs ?? [], localDate);
 	return (
 		<ul
 			className="mt-4 space-y-6 [view-transition-name:switcher-content]"
 			aria-labelledby={HEADING_ID}
 		>
-			{groups.length === 0 ? (
+			{runs === null ? null : groups.length === 0 ? (
 				<li>No runs yet.</li>
 			) : (
 				groups.map((group) => {
@@ -163,6 +169,14 @@ function HistorySwitcher({ segment }: { segment: "daily" | "blitz" }) {
 	);
 }
 
+function BlitzSegment({ persist }: { persist: Persist }) {
+	const [runs] = useAfterFirstRender<BlitzRun[] | null>(
+		() => persist.readBlitzRuns(),
+		null,
+	);
+	return <BlitzSegmentList runs={runs} />;
+}
+
 export function HistoryPage({ segment }: { segment: "daily" | "blitz" }) {
 	const { persist } = useRouteContext({ from: "__root__" });
 	return (
@@ -172,7 +186,7 @@ export function HistoryPage({ segment }: { segment: "daily" | "blitz" }) {
 			{segment === "daily" ? (
 				<DailySegmentList persist={persist} />
 			) : (
-				<BlitzSegmentList runs={persist.readBlitzRuns()} />
+				<BlitzSegment persist={persist} />
 			)}
 		</main>
 	);

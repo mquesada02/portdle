@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { HowToRulesList } from "./how-to-copy";
 
 export function HowTo({
@@ -10,7 +10,10 @@ export function HowTo({
 }) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
 
-	useEffect(() => {
+	// A layout effect: the How-to opens in the commit that sets `open`, before
+	// the passive effects of that commit, so a dialog that those effects open
+	// (the Name confirm) stays above it.
+	useLayoutEffect(() => {
 		const dialog = dialogRef.current;
 		if (!dialog) {
 			return;
