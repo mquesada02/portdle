@@ -12,6 +12,7 @@ import {
 	stubViewTransitions,
 } from "../test/helpers";
 import { App } from "./app";
+import { DEFAULT_TITLE, HEAD } from "./head";
 
 async function renderApp(options: {
 	persist?: ReturnType<typeof createPersist>;
@@ -449,4 +450,61 @@ test("with reduced motion stubbed to match, a nav tap starts no view transition"
 	} finally {
 		restore();
 	}
+});
+
+test.each(Object.entries(HEAD))(
+	"a first load of %s sets the tab title from the head table",
+	async (id, head) => {
+		const path = id
+			.replace("$category", "mixed")
+			.replace("$date", "2026-09-10");
+		await renderApp({ path: `/portdle${path}` });
+		expect(document.title).toBe(head.title);
+	},
+);
+
+test("in-app navigation sets the tab title from the head table", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	// A day after the Schedule's first day, so the Archive lists a board.
+	await renderApp({ persist, utcToday: "2026-09-11" });
+	const link = (nav: string, name: string) =>
+		within(screen.getByRole("navigation", { name: nav })).getByRole("link", {
+			name,
+		});
+	const visited: string[] = [];
+	async function go(
+		id: string,
+		click: () => HTMLElement | Promise<HTMLElement>,
+	) {
+		await user.click(await click());
+		expect(document.title, id).toBe(HEAD[id]?.title);
+		visited.push(id);
+	}
+	await go("/protocols", () => link("Daily switcher", "Protocols"));
+	await go("/applications", () => link("Daily switcher", "Applications"));
+	await go("/", () => link("Daily switcher", "Mixed"));
+	await go("/archive", () => screen.getByRole("link", { name: "Archive" }));
+	await go("/archive/$category/$date", async () => {
+		const [first] = await within(
+			await screen.findByRole("list", { name: "Archive" }),
+		).findAllByRole("link");
+		if (!first) {
+			throw new Error("no board link");
+		}
+		return first;
+	});
+	await go("/blitz", () => link("Main", "Blitz"));
+	await go("/codex", () => link("Main", "Codex"));
+	await go("/history", () => link("Main", "History"));
+	await go("/history/blitz", () => link("History switcher", "Blitz"));
+	// Every table entry has its in-app navigation.
+	expect(visited.sort()).toEqual(Object.keys(HEAD).sort());
+});
+
+test("an unknown path keeps the default tab title", async () => {
+	document.title = "Stale";
+	await renderApp({ path: "/portdle/nowhere" });
+	expect(document.title).toBe(DEFAULT_TITLE);
 });

@@ -5,8 +5,9 @@ import {
 	useRouteContext,
 	useRouterState,
 } from "@tanstack/react-router";
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { AccountMenu } from "./account-menu";
+import { DEFAULT_TITLE, HEAD } from "./head";
 import { HowTo } from "./how-to";
 import { NAV, onScreen } from "./nav";
 import { ProgressNotice } from "./notice";
@@ -90,6 +91,14 @@ export function Shell() {
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
+	// The last match is the page's own route; on an unknown path it is the
+	// root, which has no entry.
+	const routeId = useRouterState({
+		select: (state): string | undefined => state.matches.at(-1)?.routeId,
+	});
+	useEffect(() => {
+		document.title = (routeId && HEAD[routeId]?.title) || DEFAULT_TITLE;
+	}, [routeId]);
 	// The wordmark always links to Daily; it is not a "current page" indicator,
 	// so the router's auto-injected aria-current/data-status are dropped.
 	const wordmarkAllProps = useLinkProps({ to: "/", activeProps: {} }) as Record<

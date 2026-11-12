@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { HEAD } from "../src/ui/head.ts";
 import {
 	answerFor,
 	dayBefore,
@@ -38,6 +39,22 @@ test("a signed-out player loads and finishes the Daily", async ({ page }) => {
 	await expect(page.getByText("Players", { exact: true })).toBeVisible();
 	await expect(page.getByText("Solve rate", { exact: true })).toBeVisible();
 	await expect(page.getByText("Global distribution")).toBeVisible();
+});
+
+test("in-app navigation updates the tab title", async ({ page }) => {
+	await page.goto("/portdle/");
+	await dismissHowTo(page);
+	await expect(page).toHaveTitle(HEAD["/"]?.title ?? "");
+
+	const nav = page.getByRole("navigation", { name: "Main" });
+	for (const [name, route] of [
+		["Blitz", "/blitz"],
+		["Codex", "/codex"],
+		["History", "/history"],
+	] as const) {
+		await nav.getByRole("link", { name }).click();
+		await expect(page).toHaveTitle(HEAD[route]?.title ?? "");
+	}
 });
 
 test("the error panel shows when the stack is unreachable and recovers", async ({
