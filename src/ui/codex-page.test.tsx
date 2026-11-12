@@ -1,5 +1,6 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import {
+	act,
 	cleanup,
 	fireEvent,
 	render,
@@ -31,13 +32,20 @@ if (!ftpSource) {
 	throw new Error("FTP fixture entry has no source to test against");
 }
 
+let viewport: ReturnType<typeof stubMatchMedia>;
+
 async function renderCodex(
 	options: {
 		persist?: ReturnType<typeof createPersist>;
 		reducedMotion?: boolean;
+		width?: number;
 	} = {},
 ) {
-	stubMatchMedia(false, options.reducedMotion ?? false);
+	viewport = stubMatchMedia(
+		false,
+		options.reducedMotion ?? false,
+		options.width,
+	);
 	const persist = options.persist ?? createPersist(memoryStore());
 	persist.writeHowToSeen();
 	const history = createMemoryHistory({ initialEntries: ["/portdle/codex"] });
@@ -245,4 +253,64 @@ test("the fresh-flag clear writes the Codex stored at that moment, not the mount
 		http: { state: "correct", fresh: false },
 		ftp: { state: "missed", fresh: false },
 	});
+});
+
+// The popover opens against the right edge of the last column of a row, so
+// its side shows the column count the page uses. Card 1 is the last column of
+// 2 columns; card 2 is the last column of 3; card 3 is the last of 4.
+async function panelSide(index: number) {
+	const list = screen.getByRole("list", { name: /Protocols/ });
+	const item = within(list).getAllByRole("listitem")[index];
+	const card = item && within(item).getByRole("button");
+	if (!card) {
+		throw new Error("no card at the index");
+	}
+	fireEvent.click(card);
+	const panel = screen.getByRole("note");
+	const side = panel.className.includes("right-0") ? "right" : "left";
+	fireEvent.click(card);
+	await waitForElementToBeRemoved(() => screen.queryByRole("note"));
+	return side;
+}
+
+// The sides of cards 1, 2 and 3: 2, 3 and 4 columns.
+const COLUMNS = {
+	2: ["right", "left", "right"],
+	3: ["left", "right", "left"],
+	4: ["left", "left", "right"],
+};
+
+async function sides() {
+	return [await panelSide(1), await panelSide(2), await panelSide(3)];
+}
+
+function seedAllProtocols() {
+	const persist = createPersist(memoryStore());
+	persist.writeCodex(
+		Object.fromEntries(
+			protocols.map((entry) => [entry.id, { state: "missed", fresh: false }]),
+		) as CodexMap,
+	);
+	return persist;
+}
+
+test.each([
+	[0, 2],
+	[700, 3],
+	[1000, 4],
+] as const)(
+	"the Codex lays its columns out for a %ipx viewport after the first render",
+	async (width, columns) => {
+		await renderCodex({ persist: seedAllProtocols(), width });
+		expect(await sides()).toEqual(COLUMNS[columns]);
+	},
+);
+
+test("the Codex follows a viewport change", async () => {
+	await renderCodex({ persist: seedAllProtocols(), width: 1000 });
+	expect(await sides()).toEqual(COLUMNS[4]);
+	act(() => viewport.setWidth(700));
+	expect(await sides()).toEqual(COLUMNS[3]);
+	act(() => viewport.setWidth(500));
+	expect(await sides()).toEqual(COLUMNS[2]);
 });

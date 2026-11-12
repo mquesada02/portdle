@@ -12,6 +12,7 @@ import type {
 	CodexSort,
 	CodexState,
 } from "../engine/types";
+import { useAfterFirstRender } from "./after-first-render";
 import { transportLabel } from "./daily-reveal";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
@@ -56,11 +57,15 @@ function columnCountFor(mdMatches: boolean, smMatches: boolean): number {
 }
 
 function useColumnCount(): number {
-	const [count, setCount] = useState(() =>
-		columnCountFor(
-			window.matchMedia("(min-width: 768px)").matches,
-			window.matchMedia("(min-width: 640px)").matches,
-		),
+	// The first render uses the CSS base of two columns, the same for every
+	// viewport; the real count applies after it.
+	const [count, setCount] = useAfterFirstRender(
+		() =>
+			columnCountFor(
+				window.matchMedia("(min-width: 768px)").matches,
+				window.matchMedia("(min-width: 640px)").matches,
+			),
+		2,
 	);
 	useEffect(() => {
 		const md = window.matchMedia("(min-width: 768px)");
@@ -74,7 +79,7 @@ function useColumnCount(): number {
 			md.removeEventListener("change", update);
 			sm.removeEventListener("change", update);
 		};
-	}, []);
+	}, [setCount]);
 	return count;
 }
 

@@ -14,6 +14,7 @@ import {
 	deviceChoicePending,
 } from "../sync/device-progress";
 import type { AccountReport, Sync } from "../sync/sync";
+import { useAfterFirstRenderEffect } from "./after-first-render";
 import { DeleteAccount } from "./delete-account";
 import { DEVICE_CHOICE_FAILURE } from "./device-choice-copy";
 import { DeviceProgressChoice } from "./device-progress-choice";
@@ -62,12 +63,26 @@ export function AccountMenu({
 	buttonClassName: string;
 	icon: ReactNode;
 }) {
-	const [redirectError] = useState(() => remote.redirectError());
-	const [open, setOpen] = useState(redirectError !== null);
-	const [view, setView] = useState<View>(
-		redirectError === null ? { kind: "loading" } : { kind: "signedOut" },
-	);
-	const [error, setError] = useState<string | null>(redirectError);
+	// The OAuth redirect error is browser-only state (the URL), so the first
+	// render is closed and loading. A layout effect reads it once. It lives in a
+	// ref as well: the account-report effect runs in the same commit, before the
+	// state below updates, and must not report a failed read over this error.
+	const redirectErrorRef = useRef<string | null>(null);
+	const [open, setOpen] = useState(false);
+	const [view, setView] = useState<View>({ kind: "loading" });
+	const [error, setError] = useState<string | null>(null);
+	useAfterFirstRenderEffect(() => {
+		// Never overwrite with null: the passive effect below clears the error
+		// at the source, and StrictMode runs this effect again after it.
+		const pending = remote.redirectError();
+		if (pending === null) {
+			return;
+		}
+		redirectErrorRef.current = pending;
+		setOpen(true);
+		setView({ kind: "signedOut" });
+		setError(pending);
+	});
 	const [busy, setBusy] = useState(false);
 	const [choiceBusy, setChoiceBusy] = useState(false);
 	const [choiceFailure, setChoiceFailure] = useState<string | null>(null);
@@ -114,14 +129,14 @@ export function AccountMenu({
 			} else if (viewRef.current.kind === "loading") {
 				if (report.status === "signedOut") {
 					setView({ kind: "signedOut" });
-				} else if (redirectError === null) {
+				} else if (redirectErrorRef.current === null) {
 					setView({ kind: "loadFailed" });
 					setError("Could not load your account.");
 				}
 			}
 		}
 		return sync.onAccount(onReport);
-	}, [remote, sync, persist, redirectError]);
+	}, [remote, sync, persist]);
 
 	useEffect(
 		() =>
