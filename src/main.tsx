@@ -1,4 +1,5 @@
 import { StrictMode } from "react";
+import { stopEarlyTapCapture } from "./early-tap";
 import { SWITCH_OVER_DAY } from "./engine/switch-over";
 import { isPrerendered, mount } from "./mount";
 import { createPersist } from "./persist/storage";
@@ -27,6 +28,7 @@ if (isPrerendered(root)) {
 // prerendered markup.
 await prepared.router.load();
 
+stopEarlyTapCapture();
 mount(
 	root,
 	<StrictMode>
