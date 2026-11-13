@@ -1,7 +1,7 @@
 import { createMemoryHistory } from "@tanstack/react-router";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { createPersist } from "../persist/storage";
 import { dailyOn } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
@@ -11,7 +11,7 @@ import {
 	stubMatchMedia,
 	stubViewTransitions,
 } from "../test/helpers";
-import { App } from "./app";
+import { App, prepareApp } from "./app";
 import { DEFAULT_TITLE, HEAD } from "./head";
 
 async function renderApp(options: {
@@ -515,4 +515,26 @@ test("an unknown path keeps the default tab title", async () => {
 	document.title = "Stale";
 	await renderApp({ path: "/portdle/nowhere" });
 	expect(document.title).toBe(DEFAULT_TITLE);
+});
+
+test("App with a prepared app renders its router, and its remount reaches App", async () => {
+	stubMatchMedia(false, false);
+	const prepared = prepareApp({
+		persist: createPersist(memoryStore()),
+		remote: createFakeRemote(),
+		history: createMemoryHistory({ initialEntries: ["/portdle/blitz"] }),
+	});
+	const { remount } = prepared.router.options.context;
+	// Before App sets its own, a remount call does nothing.
+	expect(() => remount()).not.toThrow();
+	const setRemount = vi.spyOn(prepared, "setRemount");
+	await prepared.router.load();
+	render(<App prepared={prepared} />);
+	const nav = await screen.findByRole("navigation", { name: "Main" });
+	expect(screen.getByRole("heading", { level: 1, name: "Blitz" })).toBeTruthy();
+	expect(setRemount).toHaveBeenCalled();
+	await act(async () => {
+		remount();
+	});
+	expect(screen.getByRole("navigation", { name: "Main" })).not.toBe(nav);
 });

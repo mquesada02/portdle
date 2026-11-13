@@ -5,29 +5,81 @@ import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { type AppRouter, type Backend, createAppRouter } from "../router";
 import { createSync } from "../sync/sync";
-import { attachRetryTriggers, createServerStore } from "./server-store";
+import {
+	attachRetryTriggers,
+	createServerStore,
+	type ServerStore,
+} from "./server-store";
 
-export function App({
-	persist,
-	remote,
-	history,
-	random = Math.random,
-}: {
+// What `App` and a client entry share: one router, one server store and one
+// backend. The entry loads the router before it hydrates, so it must build
+// these itself and hand them to `App`.
+export type PreparedApp = {
+	router: AppRouter;
+	serverStore: ServerStore;
+	backend: Backend | undefined;
+	// Sets the function that the router context's `remount` calls. `App` sets
+	// its own; before that, a `remount` call does nothing.
+	setRemount: (remount: () => void) => void;
+};
+
+export function prepareApp(options: {
 	persist: Persist;
 	remote?: Remote;
 	history?: RouterHistory;
 	// The Blitz page deals its prompts from this source; a test scripts it.
 	random?: () => number;
-}) {
-	const backend = useMemo<Backend | undefined>(
+}): PreparedApp {
+	const { persist, remote, history, random = Math.random } = options;
+	const backend = remote && {
+		remote,
+		sync: createSync({ persist, remote }),
+	};
+	const serverStore = createServerStore(remote);
+	let remount = () => {};
+	const router = createAppRouter({
+		persist,
+		backend,
+		remount: () => remount(),
+		history,
+		serverStore,
+		random,
+	});
+	return {
+		router,
+		serverStore,
+		backend,
+		setRemount: (next) => {
+			remount = next;
+		},
+	};
+}
+
+export type AppProps =
+	| { prepared: PreparedApp }
+	| {
+			prepared?: undefined;
+			persist: Persist;
+			remote?: Remote;
+			history?: RouterHistory;
+			random?: () => number;
+	  };
+
+export function App(props: AppProps) {
+	const given = props.prepared;
+	const own = props.prepared ? undefined : props;
+	const persist = own?.persist;
+	const remote = own?.remote;
+	const history = own?.history;
+	const random = own?.random;
+	const prepared = useMemo(
 		() =>
-			remote && {
-				remote,
-				sync: createSync({ persist, remote }),
-			},
-		[persist, remote],
+			given ??
+			// `persist` is set whenever `given` is not.
+			prepareApp({ persist: persist as Persist, remote, history, random }),
+		[given, persist, remote, history, random],
 	);
-	const serverStore = useMemo(() => createServerStore(remote), [remote]);
+	const { router, serverStore } = prepared;
 	useEffect(() => {
 		serverStore.load();
 		const detachRetry = attachRetryTriggers(serverStore.retry);
@@ -37,7 +89,7 @@ export function App({
 			detachRetry();
 		};
 	}, [serverStore]);
-	const sync = backend?.sync;
+	const sync = prepared.backend?.sync;
 	useEffect(() => {
 		if (!sync) {
 			return;
@@ -50,18 +102,7 @@ export function App({
 	// can write cleared data back.
 	const [generation, setGeneration] = useState(0);
 	const remount = useCallback(() => setGeneration((count) => count + 1), []);
-	const router = useMemo(
-		() =>
-			createAppRouter({
-				persist,
-				backend,
-				remount,
-				history,
-				serverStore,
-				random,
-			}),
-		[persist, backend, remount, history, serverStore, random],
-	);
+	useEffect(() => prepared.setRemount(remount), [prepared, remount]);
 	// The router moves to the Daily before the remount, so the remount opens
 	// the Daily, not the screen the player deleted from, and no screen mounts
 	// on the cleared store as the old location.
