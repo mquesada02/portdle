@@ -4,12 +4,14 @@ import type { ServerData } from "./server-store";
 
 export function useServerData(): ServerData {
 	const { serverStore } = useRouteContext({ from: "__root__" });
-	// The store is in its creation state in the server render and in hydration
-	// (`load()` runs in an effect), so both sides read the same snapshot.
+	// The server render and a hydrating render read the creation state, so they
+	// match whatever the store holds by then: React can hydrate a Suspense
+	// boundary after the first commit, whose effects start `load()`. React reads
+	// the live snapshot right after hydration.
 	return useSyncExternalStore(
 		serverStore.subscribe,
 		serverStore.getSnapshot,
-		serverStore.getSnapshot,
+		serverStore.getInitialSnapshot,
 	);
 }
 

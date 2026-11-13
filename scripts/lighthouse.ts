@@ -58,12 +58,14 @@ function listen(server: Server, port: number): Promise<void> {
 	});
 }
 
-// No `tsc -b` here: `pnpm typecheck` runs it. The build points the site at the
-// stub server, as scripts/gate.ts does for the gate's stub host.
+// No `tsc -b` here: `pnpm typecheck` runs it. The build is the build pipeline
+// (prerender, 404.html), so the guard audits the build that players get. It
+// points the site at the stub server, as scripts/gate.ts does for the gate's
+// stub host.
 function build(): void {
 	execFileSync(
 		"pnpm",
-		["exec", "vite", "build", "--outDir", resolve(BUILD_DIR), "--emptyOutDir"],
+		["exec", "tsx", "scripts/build-site.ts", "--out", resolve(BUILD_DIR)],
 		{
 			stdio: "inherit",
 			env: {

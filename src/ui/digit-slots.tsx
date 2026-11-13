@@ -50,10 +50,14 @@ export function DigitSlots({
 		focusSlot(focusIndex);
 	}
 
-	// Mount only: the slot at the current value length is focused.
+	// Mount only: the slot at the current value length is focused, unless the
+	// focus is inside an open overlay: a dialog (the Name confirm) or the open
+	// Account menu, either of which can open before the slots mount.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount, per the slot behavior table.
 	useEffect(() => {
-		focusForValue();
+		if (!document.activeElement?.closest("dialog, [data-open-overlay]")) {
+			focusForValue();
+		}
 	}, []);
 
 	// Shake key changes: the row plays the shake animation and focus

@@ -75,6 +75,22 @@ test("an unconfirmed name opens the dialog with the seeded name, notice, hint, C
 	expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
 });
 
+// The Daily behind the dialog mounts its digit slots when its read ends, and
+// a slot takes the focus on mount. If that is after the dialog opened, the
+// dialog keeps the focus (WebKit let the slot take it and then lost it).
+test("the Daily's slots that mount after the dialog opens leave the focus in it", async () => {
+	const remote = createFakeRemote(UNCONFIRMED);
+	const release = remote.holdDailies();
+	mountApp(remote);
+	await findConfirm();
+	// A browser focuses the dialog's first field when it opens a modal dialog;
+	// jsdom does not.
+	field().focus();
+	release();
+	await screen.findByLabelText(/^Digit 1 of \d+$/, {}, { timeout: 3000 });
+	expect(document.activeElement).toBe(field());
+});
+
 test("a confirmed name, a signed-out player, and no Remote show no dialog", async () => {
 	mountApp(createFakeRemote({ ...UNCONFIRMED, nameConfirmed: true }));
 	await screen.findByRole("button", { name: "Account" });

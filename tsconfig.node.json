@@ -34,6 +34,8 @@
 		"scripts/fixture-shapes.ts",
 		"scripts/gate-report.ts",
 		"scripts/theme-script-plugin.ts",
+		"scripts/late-bundle-plugin.ts",
+		"scripts/gate-build.ts",
 		"scripts/pages-server.ts",
 		"scripts/build-site.ts",
 		"scripts/prerender.ts",

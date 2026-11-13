@@ -26,6 +26,7 @@ import {
 	stubMatchMedia,
 } from "../test/helpers";
 import { App } from "./app";
+import { HEAD } from "./head";
 
 const TODAY = "2026-09-11";
 const YESTERDAY = "2026-09-10";
@@ -421,7 +422,8 @@ test("a board holds its canonical link while it is shown", async () => {
 	]);
 	await user.click(screen.getByRole("link", { name: "Back to the Archive" }));
 	await screen.findByRole("list", { name: YESTERDAY });
-	expect(canonicalLinks()).toEqual([]);
+	// The board's link is gone; the Archive has its own page canonical.
+	expect(canonicalLinks()).toEqual([HEAD["/archive"]?.canonical]);
 });
 
 test("the canonical link is replaced when the board params change", async () => {

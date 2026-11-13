@@ -3,8 +3,10 @@
 // with gate-baseline/ and never writes it. `pnpm gate:capture` (--capture)
 // writes gate-baseline/ instead. `--src <dir>` builds the site from another
 // checkout (CI uses it to capture the merge-base commit); the gate tests are
-// always the ones in this checkout. No stack is needed: Playwright answers the
-// backend. `pnpm exec vite` runs the vite of the `--src` checkout; pnpm puts
+// always the ones in this checkout. The build runs the build pipeline of the
+// checkout (prerender, 404.html); a merge-base from before the pipeline builds
+// with `vite build` (see gate-build.ts). No stack is needed: Playwright answers
+// the backend. `pnpm exec` runs the tools of the `--src` checkout; pnpm puts
 // the playwright binary on PATH for scripts. The run reports to
 // gate-results.json, which tells frame differences (exit code 2) from errors.
 // A capture with `--src` exits 0 when tests error: see isCaptureErrorsOnly.
@@ -13,6 +15,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { STUB_KEY, STUB_URL } from "../gate/stub.ts";
+import { siteBuildArgs } from "./gate-build.ts";
 import {
 	classifyReport,
 	type GateOutcome,
@@ -45,19 +48,15 @@ for (let index = 0; index < args.length; index++) {
 }
 
 // No `tsc -b` here: `pnpm typecheck` runs it.
-execFileSync(
-	"pnpm",
-	["exec", "vite", "build", "--outDir", resolve("dist-gate"), "--emptyOutDir"],
-	{
-		cwd: src,
-		stdio: "inherit",
-		env: {
-			...process.env,
-			VITE_SUPABASE_URL: STUB_URL,
-			VITE_SUPABASE_ANON_KEY: STUB_KEY,
-		},
+execFileSync("pnpm", siteBuildArgs(src, resolve("dist-gate")), {
+	cwd: src,
+	stdio: "inherit",
+	env: {
+		...process.env,
+		VITE_SUPABASE_URL: STUB_URL,
+		VITE_SUPABASE_ANON_KEY: STUB_KEY,
 	},
-);
+});
 
 rmSync(REPORT, { force: true });
 const result = spawnSync(

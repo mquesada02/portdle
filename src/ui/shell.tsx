@@ -9,10 +9,11 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import type { Theme } from "../persist/storage";
 import { AccountMenu } from "./account-menu";
 import { useAfterFirstRender } from "./after-first-render";
-import { DEFAULT_TITLE, HEAD } from "./head";
+import { HEAD } from "./head";
 import { HowTo } from "./how-to";
 import { NAV, onScreen } from "./nav";
 import { ProgressNotice } from "./notice";
+import { syncHead } from "./sync-head";
 import {
 	applyHtmlTheme,
 	effectiveTheme,
@@ -110,7 +111,7 @@ export function Shell() {
 		select: (state): string | undefined => state.matches.at(-1)?.routeId,
 	});
 	useEffect(() => {
-		document.title = (routeId && HEAD[routeId]?.title) || DEFAULT_TITLE;
+		syncHead(routeId ? HEAD[routeId] : undefined);
 	}, [routeId]);
 	// The wordmark always links to Daily; it is not a "current page" indicator,
 	// so the router's auto-injected aria-current/data-status are dropped.

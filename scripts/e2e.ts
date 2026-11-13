@@ -3,11 +3,10 @@
 // fill the Schedule: `pnpm dev` and `pnpm dev:schedule` do, and CI runs the
 // generator before this step. It never stops the stack, which other
 // worktrees share.
-// pnpm puts the supabase, vite, and playwright binaries on PATH for package
+// pnpm puts the supabase, tsx, and playwright binaries on PATH for package
 // scripts.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyIndexHtmlTo404 } from "./copy-index-html-to-404.ts";
 import { checkStack } from "./e2e-env.ts";
 import { parseStackEnv } from "./stack-env.ts";
 
@@ -26,7 +25,9 @@ try {
 }
 
 // No `tsc -b` here: `pnpm typecheck` runs it.
-execFileSync("vite", ["build", "--outDir", "dist-e2e", "--emptyOutDir"], {
+// The build pipeline (client build, prerender, 404.html) gives the build the
+// per-route files and 404.html that the Pages-like server serves.
+execFileSync("tsx", ["scripts/build-site.ts", "--out", "dist-e2e"], {
 	stdio: "inherit",
 	env: {
 		...process.env,
@@ -34,12 +35,6 @@ execFileSync("vite", ["build", "--outDir", "dist-e2e", "--emptyOutDir"], {
 		VITE_SUPABASE_ANON_KEY: env.publishableKey,
 	},
 });
-
-// Temporary: the build holds 404.html, as the Pages build does. The Pages-like
-// server serves it only for a build with a prerender manifest, so nothing in
-// the e2e suite reads it yet. Ticket 288 replaces this step with the full
-// build pipeline, which makes the old-link redirect testable.
-copyIndexHtmlTo404("dist-e2e");
 
 const result = spawnSync("playwright", ["test", ...process.argv.slice(2)], {
 	stdio: "inherit",

@@ -335,7 +335,11 @@ export function AccountMenu({
 
 	return (
 		<>
-			<div ref={containerRef} className="relative">
+			<div
+				ref={containerRef}
+				data-open-overlay={open ? "" : undefined}
+				className="relative"
+			>
 				<button
 					ref={buttonRef}
 					type="button"

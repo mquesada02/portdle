@@ -306,6 +306,31 @@ test("Blitz: the setup of the last run applies after hydration", async () => {
 	expect(checkedLabels("leaderboard")).toEqual(LAST_SETUP);
 });
 
+// React may hydrate a Suspense boundary after the page's first commit, whose
+// effects start the server read. A fast read then ends before the boundary
+// hydrates; its markup must still match the server's frame (WebKit did this on
+// the prerendered build).
+test.each([
+	"/portdle/",
+	"/portdle/protocols",
+	"/portdle/blitz",
+	"/portdle/codex",
+])(
+	"%s hydrates when the server read ends before its boundary hydrates",
+	async (path) => {
+		const persist = storedPersist({ howToSeen: true });
+		const remote = createFakeRemote();
+		const html = await serverHtml(persist, remote, path);
+		const client = await loadedApp(persist, remote, path);
+		client.serverStore.load();
+		await vi.waitFor(() => {
+			expect(client.serverStore.getSnapshot().catalog.status).toBe("ready");
+		});
+		const { errors } = await hydrate(html, client.tree);
+		expect(errors).toEqual([]);
+	},
+);
+
 test.each([
 	["with a remote", () => createFakeRemote(), "Loading..."],
 	["with no remote", () => undefined, null],

@@ -12,7 +12,7 @@ import {
 	stubViewTransitions,
 } from "../test/helpers";
 import { App, prepareApp } from "./app";
-import { DEFAULT_TITLE, HEAD } from "./head";
+import { DEFAULT_TITLE, HEAD, type Head } from "./head";
 
 async function renderApp(options: {
 	persist?: ReturnType<typeof createPersist>;
@@ -38,6 +38,30 @@ async function renderApp(options: {
 afterEach(() => {
 	cleanup();
 	document.documentElement.classList.remove("dark");
+	for (const tag of document.head.querySelectorAll(
+		'meta[name="description"], link[rel="canonical"]',
+	)) {
+		tag.remove();
+	}
+});
+
+// The head that the prerender wrote into the file of the first route.
+function seedPrerenderedHead(): Head {
+	const first = HEAD["/"] as Head;
+	document.head.insertAdjacentHTML(
+		"beforeend",
+		`<meta name="description" content="${first.description}"><link rel="canonical" href="${first.canonical}">`,
+	);
+	return first;
+}
+
+const headValues = () => ({
+	descriptions: [
+		...document.head.querySelectorAll('meta[name="description"]'),
+	].map((tag) => tag.getAttribute("content")),
+	canonicals: [...document.head.querySelectorAll('link[rel="canonical"]')].map(
+		(tag) => tag.getAttribute("href"),
+	),
 });
 
 test("first visit shows How-to on any route", async () => {
@@ -503,6 +527,45 @@ test("in-app navigation sets the tab title from the head table", async () => {
 	await go("/history", () => link("Main", "History"));
 	await go("/history/blitz", () => link("History switcher", "Blitz"));
 	expect(visited.sort()).toEqual(Object.keys(HEAD).sort());
+});
+
+test("in-app navigation keeps one description and at most one canonical link", async () => {
+	const user = userEvent.setup();
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	const first = seedPrerenderedHead();
+	await renderApp({ persist, utcToday: "2026-09-11" });
+	expect(headValues()).toEqual({
+		descriptions: [first.description],
+		canonicals: [first.canonical],
+	});
+	const nav = (name: string) =>
+		within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", {
+			name,
+		});
+	await user.click(screen.getByRole("link", { name: "Archive" }));
+	const [board] = await within(
+		await screen.findByRole("list", { name: "Archive" }),
+	).findAllByRole("link");
+	await user.click(board as HTMLElement);
+	// The board keeps the canonical link with its params, and only that one.
+	const { descriptions, canonicals } = headValues();
+	expect(descriptions).toEqual([HEAD["/archive/board"]?.description]);
+	expect(canonicals).toHaveLength(1);
+	expect(canonicals[0]).toContain("/archive/board?category=");
+	await user.click(screen.getByRole("link", { name: "Back to the Archive" }));
+	expect(headValues().canonicals).toEqual([HEAD["/archive"]?.canonical]);
+	await user.click(nav("Blitz"));
+	expect(headValues()).toEqual({
+		descriptions: [HEAD["/blitz"]?.description],
+		canonicals: [HEAD["/blitz"]?.canonical],
+	});
+});
+
+test("an unknown path has the default title and no description or canonical link", async () => {
+	seedPrerenderedHead();
+	await renderApp({ path: "/portdle/nowhere" });
+	expect(headValues()).toEqual({ descriptions: [], canonicals: [] });
 });
 
 test("the old board path shows the default not-found screen", async () => {
