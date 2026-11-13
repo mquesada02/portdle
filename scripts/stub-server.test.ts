@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
-import type { Server } from "node:http";
+import {
+	request as httpRequest,
+	type IncomingHttpHeaders,
+	type Server,
+} from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, test } from "vitest";
 import { answer } from "../gate/answers.ts";
 import { createStubServer } from "./stub-server.ts";
@@ -145,5 +150,74 @@ describe("stub server", () => {
 				Date.parse("2026-10-10T12:00:00Z"),
 			);
 		}
+	});
+});
+
+// The raw answer of the stub for a request with the given Accept-Encoding.
+// fetch decodes gzip and hides the bytes, so this uses node:http.
+function rawGet(
+	origin: string,
+	path: string,
+	encoding?: string,
+): Promise<{
+	status: number;
+	headers: IncomingHttpHeaders;
+	raw: Buffer;
+}> {
+	return new Promise((done, fail) => {
+		const outgoing = httpRequest(
+			`${origin}${path}`,
+			{
+				headers: encoding === undefined ? {} : { "Accept-Encoding": encoding },
+			},
+			(incoming) => {
+				const chunks: Buffer[] = [];
+				incoming.on("data", (chunk: Buffer) => chunks.push(chunk));
+				incoming.on("end", () =>
+					done({
+						status: incoming.statusCode ?? 0,
+						headers: incoming.headers,
+						raw: Buffer.concat(chunks),
+					}),
+				);
+			},
+		);
+		outgoing.on("error", fail);
+		outgoing.end();
+	});
+}
+
+describe("stub server gzip", () => {
+	const PATH = "/rest/v1/catalog_entries?select=*&order=id&limit=1000&offset=0";
+
+	test("a JSON answer decodes to the same body with and without gzip", async () => {
+		const origin = await start();
+		const plain = await rawGet(origin, PATH);
+		const packed = await rawGet(origin, PATH, "gzip");
+		expect(plain.headers["content-encoding"]).toBeUndefined();
+		expect(packed.headers["content-encoding"]).toBe("gzip");
+		expect(gunzipSync(packed.raw).toString("utf8")).toBe(
+			plain.raw.toString("utf8"),
+		);
+		expect(packed.raw.length).toBeLessThan(plain.raw.length);
+	});
+
+	test("every JSON answer has Vary, and the encoding follows the acceptance rule", async () => {
+		const origin = await start();
+		for (const encoding of [undefined, "gzip;q=0", "identity", "*"]) {
+			const reply = await rawGet(origin, PATH, encoding);
+			expect(reply.headers.vary).toBe("Accept-Encoding");
+			expect(reply.headers["content-encoding"]).toBeUndefined();
+		}
+		const packed = await rawGet(origin, PATH, "gzip");
+		expect(packed.headers.vary).toBe("Accept-Encoding");
+	});
+
+	test("the plain-text 404 stays plain", async () => {
+		const origin = await start();
+		const reply = await rawGet(origin, "/rest/v1/accounts?id=eq.x", "gzip");
+		expect(reply.status).toBe(404);
+		expect(reply.headers["content-encoding"]).toBeUndefined();
+		expect(reply.raw.toString("utf8")).toBe("No stub for this request");
 	});
 });

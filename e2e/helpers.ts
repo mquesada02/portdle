@@ -10,6 +10,7 @@ import {
 	type Page,
 } from "@playwright/test";
 import { authStorageKey } from "../scripts/e2e-env.ts";
+import { waitForHydration } from "../scripts/wait-for-hydration.ts";
 import type { DailyCategory as Category } from "../src/engine/types.ts";
 
 // The fixed local password of the seeded users (supabase/seed.sql).
@@ -113,6 +114,9 @@ function ignoreTimeout(error: unknown): void {
 // when it shows; a page that does not show it (a reload after a dismissal)
 // passes after the short wait.
 export async function dismissHowTo(page: Page): Promise<void> {
+	// A click on a prerendered button before the bundle has hydrated the page is
+	// lost, and the dialog (when it shows) opens after hydration.
+	await waitForHydration(page);
 	const gotIt = page.getByRole("button", { name: "Got it" });
 	await gotIt
 		.waitFor({ state: "visible", timeout: 5_000 })
@@ -213,6 +217,7 @@ export async function openFinishedBoard(
 	await dismissHowTo(page);
 	await waitForPulledDaily(page, category, day);
 	await page.reload();
+	await waitForHydration(page);
 	// The first dismissal stored `howToSeen`, so the dialog stays shut.
 	await expect(page.getByRole("dialog")).toBeHidden();
 	const solved = page.getByText("Solved", { exact: true });

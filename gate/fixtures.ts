@@ -12,6 +12,7 @@
 
 import { test as base, expect, type TestInfo } from "@playwright/test";
 import { authStorageKey } from "../scripts/e2e-env.ts";
+import { waitForHydration } from "../scripts/wait-for-hydration.ts";
 import {
 	type AccountOption,
 	accountFor,
@@ -104,6 +105,25 @@ export const test = base.extend<{ account: AccountOption | null }>({
 				session: sessionOf(signedIn.id),
 			});
 		}
+		// The bundle loads after the `load` event, so a click right after a load
+		// would hit a prerendered button with no handler. Every load in the gate
+		// returns once the app has hydrated.
+		const goto = page.goto.bind(page);
+		page.goto = async (url, options) => {
+			const response = await goto(url, options);
+			if (options?.waitUntil !== "commit") {
+				await waitForHydration(page);
+			}
+			return response;
+		};
+		const reload = page.reload.bind(page);
+		page.reload = async (options) => {
+			const response = await reload(options);
+			if (options?.waitUntil !== "commit") {
+				await waitForHydration(page);
+			}
+			return response;
+		};
 		await use(page);
 		expect(unstubbed, "requests with no stub").toEqual([]);
 	},
