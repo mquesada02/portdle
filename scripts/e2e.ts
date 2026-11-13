@@ -7,6 +7,7 @@
 // scripts.
 
 import { execFileSync, spawnSync } from "node:child_process";
+import { copyIndexHtmlTo404 } from "./copy-index-html-to-404.ts";
 import { checkStack } from "./e2e-env.ts";
 import { parseStackEnv } from "./stack-env.ts";
 
@@ -33,6 +34,12 @@ execFileSync("vite", ["build", "--outDir", "dist-e2e", "--emptyOutDir"], {
 		VITE_SUPABASE_ANON_KEY: env.publishableKey,
 	},
 });
+
+// Temporary: the build holds 404.html, as the Pages build does. The Pages-like
+// server serves it only for a build with a prerender manifest, so nothing in
+// the e2e suite reads it yet. Ticket 288 replaces this step with the full
+// build pipeline, which makes the old-link redirect testable.
+copyIndexHtmlTo404("dist-e2e");
 
 const result = spawnSync("playwright", ["test", ...process.argv.slice(2)], {
 	stdio: "inherit",

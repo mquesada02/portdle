@@ -11,7 +11,7 @@ test("a nav item matches its own paths exactly", () => {
 });
 
 test("the Archive's boards belong to the Daily item", () => {
-	expect(onScreen(daily, "/archive/mixed/2026-09-10")).toBe(true);
+	expect(onScreen(daily, "/archive/board")).toBe(true);
 });
 
 test("the Daily's root path is never a prefix of another path", () => {

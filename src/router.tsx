@@ -88,17 +88,6 @@ const archiveBoardRoute = createRoute({
 	},
 });
 
-// The old board address, kept until the contract step of the board URL move
-// removes it.
-const archiveBoardPathRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/archive/$category/$date",
-	component: function ArchiveBoardByPath() {
-		const { category, date } = archiveBoardPathRoute.useParams();
-		return <ArchiveBoardPage category={category} date={date} />;
-	},
-});
-
 const blitzRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/blitz",
@@ -143,7 +132,6 @@ const routeTree = rootRoute.addChildren([
 	applicationsRoute,
 	archiveRoute,
 	archiveBoardRoute,
-	archiveBoardPathRoute,
 	blitzRoute,
 	historyRoute,
 	historyBlitzRoute,
