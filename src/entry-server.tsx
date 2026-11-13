@@ -16,6 +16,22 @@ const EMPTY_STORE: KeyValueStore = {
 	removeItem: () => {},
 };
 
+// What the Supabase remote reads from the browser when it is made, for a
+// build with a backend. Node has no browser, so the remote gets inert ones:
+// no stored session, no auth redirect in the address, and a `fetch` that fails,
+// so the prerender makes no request (the first render starts none).
+const SERVER_DEPS = {
+	storage: EMPTY_STORE,
+	location: {
+		pathname: "/",
+		search: "",
+		hash: "",
+		origin: "https://prerender.invalid",
+	},
+	history: { replaceState: () => {} },
+	fetch: () => Promise.reject(new Error("The prerender makes no request.")),
+};
+
 const BASE = "/portdle";
 
 // `path` is a route path without the base, with an optional query, such as
@@ -23,7 +39,7 @@ const BASE = "/portdle";
 export async function renderRoute(path: string): Promise<string> {
 	const { router } = prepareApp({
 		persist: createPersist(EMPTY_STORE),
-		remote: remoteFromEnv(),
+		remote: remoteFromEnv(SERVER_DEPS),
 		history: createMemoryHistory({ initialEntries: [`${BASE}${path}`] }),
 	});
 	await router.load();
