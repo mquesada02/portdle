@@ -28,6 +28,8 @@
 		"gate": "tsx scripts/gate.ts",
 		"gate:capture": "tsx scripts/gate.ts --capture",
 		"lighthouse:guard": "tsx scripts/lighthouse.ts",
+		"lighthouse:table": "tsx scripts/lighthouse-table.ts",
+		"live:check": "tsx scripts/live-check.ts",
 		"check:fixtures": "tsx scripts/check-fixture-shapes.ts"
 	},
 	"dependencies": {

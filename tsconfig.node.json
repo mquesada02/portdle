@@ -42,6 +42,8 @@
 		"scripts/stub-server.ts",
 		"scripts/lighthouse.ts",
 		"scripts/lighthouse-core.ts",
-		"scripts/lighthouse-seed.ts"
+		"scripts/lighthouse-seed.ts",
+		"scripts/lighthouse-table.ts",
+		"scripts/live-check.ts"
 	]
 }
