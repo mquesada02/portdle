@@ -23,9 +23,13 @@ export function loadBundleLate(html: string): string {
 	// No `<` inside the inline script, so a `</script>` in the path cannot end it.
 	const path = JSON.stringify(src).replaceAll("<", "\\u003c");
 	const loader =
-		"<script>addEventListener(" +
-		`"load",function(){var s=document.createElement("script");` +
-		`s.type="module";s.src=${path};document.head.appendChild(s)})</script>`;
+		'<script>addEventListener("load",function(){var d=0,' +
+		`go=function(){if(d)return;d=1;var s=document.createElement("script");` +
+		`s.type="module";s.src=${path};document.head.appendChild(s)};` +
+		"try{new PerformanceObserver(function(l){" +
+		'if(l.getEntriesByName("first-contentful-paint").length)go()})' +
+		'.observe({type:"paint",buffered:true});setTimeout(go,3000)}' +
+		"catch(e){go()}})</script>";
 	return html.replace(MODULEPRELOAD, "").replace(MODULE_SCRIPT, () => loader);
 }
 
