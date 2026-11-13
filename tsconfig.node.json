@@ -35,6 +35,8 @@
 		"scripts/gate-report.ts",
 		"scripts/theme-script-plugin.ts",
 		"scripts/pages-server.ts",
+		"scripts/build-site.ts",
+		"scripts/prerender.ts",
 		"scripts/stub-server.ts",
 		"scripts/lighthouse.ts",
 		"scripts/lighthouse-core.ts",

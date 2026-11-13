@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const REDIRECT_SCRIPT_PATH = join(
+export const REDIRECT_SCRIPT_PATH = join(
 	dirname(fileURLToPath(import.meta.url)),
 	"..",
 	"src",

@@ -169,7 +169,7 @@ export function createPagesServer(dir: string, base: string): Server {
 	});
 }
 
-function option(name: string): string | undefined {
+export function option(name: string): string | undefined {
 	const at = process.argv.indexOf(name);
 	return at === -1 ? undefined : process.argv[at + 1];
 }
