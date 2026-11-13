@@ -511,8 +511,8 @@ test("the Daily's slots that mount after the menu opens leave the focus in it", 
 	expect(document.activeElement).toBe(accountButton());
 });
 
-// On master a focused nav link does not stop the slots from taking the focus,
-// so a player can type digits at once.
+// A focused nav link does not stop the slots from taking the focus, so a
+// player can type digits at once.
 test("the Daily's slots that mount while a nav link has the focus take it", async () => {
 	const remote = createFakeRemote(SIGNED_IN);
 	const release = remote.holdDailies();
