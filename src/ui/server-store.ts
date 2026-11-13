@@ -15,6 +15,9 @@ export type ServerData = {
 
 export type ServerStore = {
 	getSnapshot(): ServerData;
+	// The state the store was created in, whatever it holds now: what the
+	// server render shows, and what a hydrating render must read.
+	getInitialSnapshot(): ServerData;
 	subscribe(listener: () => void): () => void;
 	// Starts the one load; later calls do nothing.
 	load(): void;
@@ -115,6 +118,7 @@ export function createServerStore(
 	let data: ServerData = remote
 		? { catalog: { status: "loading" }, dailies: { status: "loading" } }
 		: { catalog: { status: "failed" }, dailies: { status: "failed" } };
+	const initial = data;
 	const listeners = new Set<() => void>();
 	let started = false;
 	let attached = false;
@@ -279,6 +283,7 @@ export function createServerStore(
 
 	return {
 		getSnapshot: () => data,
+		getInitialSnapshot: () => initial,
 		subscribe(listener) {
 			listeners.add(listener);
 			return () => {
