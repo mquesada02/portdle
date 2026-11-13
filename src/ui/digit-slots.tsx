@@ -51,10 +51,12 @@ export function DigitSlots({
 	}
 
 	// Mount only: the slot at the current value length is focused, unless the
-	// focus is already inside a dialog (the Name confirm can open first).
+	// player already focused something else (the Name confirm or the Account
+	// menu can open before the slots mount).
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount, per the slot behavior table.
 	useEffect(() => {
-		if (!document.activeElement?.closest("dialog")) {
+		const active = document.activeElement;
+		if (!active || active === document.body) {
 			focusForValue();
 		}
 	}, []);

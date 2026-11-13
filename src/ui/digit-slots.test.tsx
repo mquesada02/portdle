@@ -14,9 +14,7 @@ const slots = (
 
 afterEach(() => {
 	cleanup();
-	for (const dialog of document.querySelectorAll("dialog")) {
-		dialog.remove();
-	}
+	document.body.replaceChildren();
 });
 
 test("the first slot takes the focus when the slots mount", () => {
@@ -35,4 +33,25 @@ test("the slots leave the focus alone when it is inside a dialog", () => {
 	field.focus();
 	render(slots);
 	expect(document.activeElement).toBe(field);
+});
+
+// The Account menu is a plain panel, not a dialog: a player can open it
+// before the page behind it mounts its slots (issue 306).
+test("the slots leave the focus alone when a button has it", () => {
+	const button = document.createElement("button");
+	document.body.append(button);
+	button.focus();
+	render(slots);
+	expect(document.activeElement).toBe(button);
+});
+
+test("the slots leave the focus alone when an element in an open menu has it", () => {
+	const menu = document.createElement("div");
+	menu.setAttribute("role", "menu");
+	const item = document.createElement("button");
+	menu.append(item);
+	document.body.append(menu);
+	item.focus();
+	render(slots);
+	expect(document.activeElement).toBe(item);
 });
