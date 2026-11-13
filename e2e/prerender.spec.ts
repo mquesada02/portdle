@@ -3,6 +3,7 @@
 // paint comes from the prerendered markup.
 
 import { expect, test } from "@playwright/test";
+import { waitForHydration } from "../scripts/wait-for-hydration.ts";
 import { HEAD } from "../src/ui/head.ts";
 import { dayBefore, dismissHowTo, serverToday } from "./helpers.ts";
 
@@ -51,6 +52,28 @@ test("every prerendered route hydrates with no error", async ({ page }) => {
 		await page.evaluate(() => localStorage.clear());
 	}
 	expect(problems).toEqual([]);
+});
+
+test("a tap on a button before hydration takes effect once the page hydrates", async ({
+	page,
+}) => {
+	// The bundle is held, so the tap lands on the prerendered button.
+	let release = () => {};
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route("**/portdle/assets/*.js", async (route) => {
+		await held;
+		await route.continue();
+	});
+	await page.goto("/portdle/codex");
+	const dark = () =>
+		page.evaluate(() => document.documentElement.classList.contains("dark"));
+	const before = await dark();
+	await page.getByRole("button", { name: "Toggle color theme" }).click();
+	release();
+	await waitForHydration(page);
+	await expect.poll(dark).toBe(!before);
 });
 
 test("the bundle loads after the load event", async ({ page }) => {
