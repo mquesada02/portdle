@@ -6,6 +6,7 @@ import {
 	render,
 	screen,
 	waitFor,
+	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
@@ -495,4 +496,35 @@ test("a pending save disables the buttons and keeps the menu open", async () => 
 	expect(screen.getByRole("textbox", { name: "Display name" })).toBeTruthy();
 	await act(async () => release());
 	expect(await screen.findByText("Ada L.z")).toBeTruthy();
+});
+
+// Issue 306: the Daily's slots mount when its read ends, which can be after
+// the player opened the menu. The open menu keeps its focus then.
+test("the Daily's slots that mount after the menu opens leave the focus in it", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote(SIGNED_IN);
+	const release = remote.holdDailies();
+	await renderApp({ remote });
+	await user.click(accountButton());
+	await act(async () => release());
+	await screen.findByLabelText(/^Digit 1 of \d+$/, {}, { timeout: 3000 });
+	expect(document.activeElement).toBe(accountButton());
+});
+
+// On master a focused nav link does not stop the slots from taking the focus,
+// so a player can type digits at once.
+test("the Daily's slots that mount while a nav link has the focus take it", async () => {
+	const remote = createFakeRemote(SIGNED_IN);
+	const release = remote.holdDailies();
+	await renderApp({ remote });
+	within(screen.getByRole("navigation", { name: "Main" }))
+		.getAllByRole("link")[0]
+		.focus();
+	await act(async () => release());
+	const first = await screen.findByLabelText(
+		/^Digit 1 of \d+$/,
+		{},
+		{ timeout: 3000 },
+	);
+	expect(document.activeElement).toBe(first);
 });

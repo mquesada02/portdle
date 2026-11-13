@@ -51,12 +51,11 @@ export function DigitSlots({
 	}
 
 	// Mount only: the slot at the current value length is focused, unless the
-	// player already focused something else (the Name confirm or the Account
-	// menu can open before the slots mount).
+	// focus is inside an open overlay: a dialog (the Name confirm) or the open
+	// Account menu, either of which can open before the slots mount.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount, per the slot behavior table.
 	useEffect(() => {
-		const active = document.activeElement;
-		if (!active || active === document.body) {
+		if (!document.activeElement?.closest("dialog, [data-open-overlay]")) {
 			focusForValue();
 		}
 	}, []);

@@ -35,12 +35,26 @@ test("the slots leave the focus alone when it is inside a dialog", () => {
 	expect(document.activeElement).toBe(field);
 });
 
-// The Account menu is a plain panel, not a dialog: a player can open it
-// before the page behind it mounts its slots (issue 306).
-test("the slots leave the focus alone when a button has it", () => {
+// The open Account menu is not a dialog: a player can open it before the page
+// behind it mounts its slots (issue 306). Its markup carries the hook.
+test("the slots leave the focus alone when it is inside an open overlay", () => {
+	const overlay = document.createElement("div");
+	overlay.setAttribute("data-open-overlay", "");
 	const button = document.createElement("button");
-	document.body.append(button);
+	overlay.append(button);
+	document.body.append(overlay);
 	button.focus();
 	render(slots);
 	expect(document.activeElement).toBe(button);
+});
+
+// Outside an overlay the slots take the focus, as a nav link or a switcher
+// button can hold it after a click.
+test.each(["a", "button"])("the first slot takes the focus from a %s outside an overlay", (tag) => {
+	const control = document.createElement(tag);
+	control.setAttribute("href", "#");
+	document.body.append(control);
+	control.focus();
+	render(slots);
+	expect(document.activeElement).toBe(screen.getByLabelText("Digit 1 of 3"));
 });
