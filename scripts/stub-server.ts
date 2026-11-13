@@ -9,7 +9,9 @@
 import { createServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { gzipSync } from "node:zlib";
 import { answer, CORS } from "../gate/answers.ts";
+import { acceptsGzip } from "./pages-server.ts";
 
 export const STUB_PORT = 4175;
 const HOST = "127.0.0.1";
@@ -33,13 +35,19 @@ export function createStubServer(): Server {
 				.end("No stub for this request");
 			return;
 		}
+		const body =
+			reply.body === undefined ? undefined : JSON.stringify(reply.body);
+		// Supabase sends gzip to a client that accepts it, so the audited pages
+		// transfer the size that players' browsers do.
+		const packed =
+			body !== undefined && acceptsGzip(request.headers["accept-encoding"]);
 		response.writeHead(reply.status, {
 			...CORS,
 			"Content-Type": "application/json",
+			Vary: "Accept-Encoding",
+			...(packed ? { "Content-Encoding": "gzip" } : {}),
 		});
-		response.end(
-			reply.body === undefined ? undefined : JSON.stringify(reply.body),
-		);
+		response.end(packed ? gzipSync(body) : body);
 	});
 }
 
