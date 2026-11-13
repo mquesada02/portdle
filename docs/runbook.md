@@ -53,3 +53,12 @@ Use this only for a real mistake, for example a wrong port on an answer that pla
    where tgrelid in ('public.schedule'::regclass, 'public.catalog_entries'::regclass)
      and not tgisinternal;
    ```
+
+## 4. Spec 7 acceptance medians
+
+The `lighthouse` jobs of a CI run print one log line per page audit. This turns the 28 lines of a run into a Markdown table with the medians, a `target` column (`yes` when all four medians are 100) and the LCP element:
+
+1. Find the run id: `gh run list --workflow ci.yml --branch <branch>`.
+2. Run: `gh run view <run-id> --log | pnpm lighthouse:table`.
+
+The command fails and prints no table when an audit is missing, unknown or repeated in the log. A run with a failed job still has its log lines, so the table also shows a failed run.
