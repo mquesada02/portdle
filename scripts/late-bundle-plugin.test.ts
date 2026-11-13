@@ -155,28 +155,33 @@ describe("the loader at run time", () => {
 		expect(added).toEqual([]);
 	});
 
-	it("adds it when the timer fires with no paint entry, and only once", () => {
-		const { Fake, emit } = fakeObserver();
+	it("starts a 3 s timer on load", () => {
+		const { Fake } = fakeObserver();
 		const pending: { fn: () => void; ms: number }[] = [];
-		const { added, load } = runLoader(Fake, {
+		const { load } = runLoader(Fake, {
 			set: (fn, ms) => pending.push({ fn, ms }),
 		});
 		load();
 		expect(pending.map((timer) => timer.ms)).toEqual([3000]);
-		pending[0]?.fn();
-		emit("first-contentful-paint");
-		expect(added).toHaveLength(1);
 	});
 
-	it("adds it once when the entry comes first and the timer fires later", () => {
+	it.each([
+		["the timer fires, then the entry comes", ["timer", "entry"]],
+		["the entry comes, then the timer fires", ["entry", "timer"]],
+	])("adds the script once when %s", (_name, order) => {
 		const { Fake, emit } = fakeObserver();
 		const pending: (() => void)[] = [];
 		const { added, load } = runLoader(Fake, {
 			set: (fn) => pending.push(fn),
 		});
 		load();
-		emit("first-contentful-paint");
-		pending[0]?.();
+		for (const event of order as string[]) {
+			if (event === "timer") {
+				pending[0]?.();
+			} else {
+				emit("first-contentful-paint");
+			}
+		}
 		expect(added).toHaveLength(1);
 	});
 

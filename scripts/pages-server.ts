@@ -70,6 +70,7 @@ const COMPRESSED_TYPES = new Set([
 	".xml",
 	".webmanifest",
 ]);
+
 const TEXT_HEADERS = { "Content-Type": "text/plain; charset=utf-8" };
 
 // What the server answers: a file with a status, a redirect, or a plain-text 404.
@@ -167,8 +168,9 @@ function sendFile(
 			.end(head ? undefined : "Server error");
 	});
 	stream.on("open", (fd) => {
-		const type = CONTENT_TYPES[extname(file)] ?? "application/octet-stream";
-		const compressible = COMPRESSED_TYPES.has(extname(file));
+		const extension = extname(file);
+		const type = CONTENT_TYPES[extension] ?? "application/octet-stream";
+		const compressible = COMPRESSED_TYPES.has(extension);
 		const packed = gzips && compressible;
 		response.writeHead(status, {
 			"Content-Type": type,
