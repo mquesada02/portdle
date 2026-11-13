@@ -45,6 +45,16 @@ afterEach(() => {
 	}
 });
 
+// The head that the prerender wrote into the file of the first route.
+function seedPrerenderedHead(): Head {
+	const first = HEAD["/"] as Head;
+	document.head.insertAdjacentHTML(
+		"beforeend",
+		`<meta name="description" content="${first.description}"><link rel="canonical" href="${first.canonical}">`,
+	);
+	return first;
+}
+
 const headValues = () => ({
 	descriptions: [
 		...document.head.querySelectorAll('meta[name="description"]'),
@@ -523,12 +533,7 @@ test("in-app navigation keeps one description and at most one canonical link", a
 	const user = userEvent.setup();
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
-	// The head that the prerender wrote into the file of the first route.
-	const first = HEAD["/"] as Head;
-	document.head.insertAdjacentHTML(
-		"beforeend",
-		`<meta name="description" content="${first.description}"><link rel="canonical" href="${first.canonical}">`,
-	);
+	const first = seedPrerenderedHead();
 	await renderApp({ persist, utcToday: "2026-09-11" });
 	expect(headValues()).toEqual({
 		descriptions: [first.description],
@@ -558,11 +563,7 @@ test("in-app navigation keeps one description and at most one canonical link", a
 });
 
 test("an unknown path has the default title and no description or canonical link", async () => {
-	const first = HEAD["/"] as Head;
-	document.head.insertAdjacentHTML(
-		"beforeend",
-		`<meta name="description" content="${first.description}"><link rel="canonical" href="${first.canonical}">`,
-	);
+	seedPrerenderedHead();
 	await renderApp({ path: "/portdle/nowhere" });
 	expect(headValues()).toEqual({ descriptions: [], canonicals: [] });
 });

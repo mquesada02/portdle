@@ -16,40 +16,34 @@ export function syncHead(entry: Head | undefined): void {
 	document.title = entry?.title ?? DEFAULT_TITLE;
 	syncTag(
 		DESCRIPTION,
-		entry?.description,
-		(tag, description) => {
-			tag.setAttribute("name", "description");
-			tag.setAttribute("content", description);
-		},
 		"meta",
+		entry && { name: "description", content: entry.description },
 	);
 	syncTag(
 		PAGE_CANONICAL,
-		entry?.canonical ?? undefined,
-		(tag, href) => {
-			tag.setAttribute("rel", "canonical");
-			tag.setAttribute("href", href);
-		},
 		"link",
+		entry?.canonical ? { rel: "canonical", href: entry.canonical } : undefined,
 	);
 }
 
-// Keeps one element that matches `selector` when `value` is set, and none when
-// it is not.
+// Keeps one element that matches `selector` with the given attributes, or none
+// when `attributes` is undefined.
 function syncTag(
 	selector: string,
-	value: string | undefined,
-	write: (tag: Element, value: string) => void,
-	name: string,
+	tagName: string,
+	attributes: Record<string, string> | undefined,
 ): void {
 	const [first, ...extra] = document.head.querySelectorAll(selector);
 	for (const tag of extra) {
 		tag.remove();
 	}
-	if (value === undefined) {
+	if (attributes === undefined) {
 		first?.remove();
 		return;
 	}
-	const tag = first ?? document.head.appendChild(document.createElement(name));
-	write(tag, value);
+	const tag =
+		first ?? document.head.appendChild(document.createElement(tagName));
+	for (const [name, value] of Object.entries(attributes)) {
+		tag.setAttribute(name, value);
+	}
 }
