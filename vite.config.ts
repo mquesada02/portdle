@@ -2,11 +2,12 @@ import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
+import { lateBundlePlugin } from "./scripts/late-bundle-plugin.ts";
 import { themeScriptPlugin } from "./scripts/theme-script-plugin.ts";
 
 export default defineConfig({
 	base: "/portdle/",
-	plugins: [react(), tailwindcss(), themeScriptPlugin()],
+	plugins: [react(), tailwindcss(), themeScriptPlugin(), lateBundlePlugin()],
 	build: {
 		rollupOptions: {
 			input: {
