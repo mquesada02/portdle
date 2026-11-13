@@ -2,7 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { siteBuildArgs } from "./gate-build.ts";
+import {
+	hydrationSignalEnv,
+	NO_HYDRATION_WAIT,
+	siteBuildArgs,
+} from "./gate-build.ts";
 
 const folders: string[] = [];
 
@@ -41,5 +45,20 @@ describe("siteBuildArgs", () => {
 			"/out",
 			"--emptyOutDir",
 		]);
+	});
+});
+
+describe("hydrationSignalEnv", () => {
+	it("leaves the tests waiting in a checkout that has the signal", () => {
+		const src = checkout();
+		mkdirSync(join(src, "src"));
+		writeFileSync(join(src, "src", "hydrated-attribute.ts"), "");
+		expect(hydrationSignalEnv(src)).toEqual({});
+	});
+
+	it("tells the tests not to wait in a checkout from before the signal", () => {
+		expect(hydrationSignalEnv(checkout())).toEqual({
+			[NO_HYDRATION_WAIT]: "1",
+		});
 	});
 });

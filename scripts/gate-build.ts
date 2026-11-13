@@ -12,3 +12,17 @@ export function siteBuildArgs(src: string, outDir: string): string[] {
 	}
 	return ["exec", "vite", "build", "--outDir", outDir, "--emptyOutDir"];
 }
+
+// The environment variable that tells the gate tests not to wait for the
+// hydration signal (see scripts/wait-for-hydration.ts).
+export const NO_HYDRATION_WAIT = "PORTDLE_GATE_NO_HYDRATION_WAIT";
+
+// A merge-base from before the signal builds a site that never sets it, so the
+// tests of this checkout must not wait for it there. Such a build is the
+// baseline capture, which has the old click race; the checkout that has the
+// signal waits for it.
+export function hydrationSignalEnv(src: string): Record<string, string> {
+	return existsSync(join(src, "src", "hydrated-attribute.ts"))
+		? {}
+		: { [NO_HYDRATION_WAIT]: "1" };
+}
