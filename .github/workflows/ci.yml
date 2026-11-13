@@ -101,13 +101,16 @@ jobs:
           retention-days: 14
   deploy:
     if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [build, changes, sql-tests, screenshots]
+    # lighthouse never skips on a push: docs_only is false there, as for screenshots.
+    needs: [build, changes, sql-tests, screenshots, lighthouse]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       pages: write
       id-token: write
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -128,6 +131,26 @@ jobs:
           path: dist
       - id: deployment
         uses: actions/deploy-pages@v4
+  # After a real deploy: every live route answers 200 (scripts/live-check.ts).
+  live-check:
+    needs: deploy
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check the live routes
+        run: pnpm live:check
+        env:
+          SITE_URL: ${{ needs.deploy.outputs.page_url }}
   # The screenshot gate (gate/), one matrix entry per engine. On master it
   # captures the baseline of its engine and uploads it. On a pull request it
   # compares with the baseline of the merge-base commit. Keep the image tag
@@ -254,3 +277,37 @@ jobs:
             gate-report
             gate-results.json
           retention-days: 14
+  # The Lighthouse guard (scripts/lighthouse.ts): one runner and one Lighthouse
+  # process per page of lighthouse/floors.json. Keep the matrix equal to that file.
+  lighthouse:
+    name: lighthouse-${{ matrix.page }}
+    strategy:
+      fail-fast: false
+      matrix:
+        page: [daily-mixed, daily-protocols, daily-applications, archive, board, blitz, history, history-blitz, codex, privacy]
+    needs: changes
+    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/master') && needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The guard builds against the stub server and prints the medians of the page.
+      - name: Run the Lighthouse guard
+        run: pnpm lighthouse:guard --page "$PAGE" --out lighthouse-reports
+        env:
+          PAGE: ${{ matrix.page }}
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports-${{ matrix.page }}
+          path: lighthouse-reports
+          retention-days: 14
+          if-no-files-found: ignore
