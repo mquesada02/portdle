@@ -102,7 +102,8 @@ test("a board opened from the Archive list has the new URL and its canonical lin
 test("an unknown path shows the not-found screen and no other route's frame", async ({
 	page,
 }) => {
-	await page.goto("/portdle/nowhere");
+	const response = await page.goto("/portdle/nowhere");
+	expect(response?.status()).toBe(404);
 	await dismissHowTo(page);
 	await expect(page.getByText("Not Found")).toBeVisible();
 	await expect(page).toHaveTitle("Portdle");
@@ -151,7 +152,7 @@ for (const [name, path, title] of [
 			await page.addInitScript((theme) => {
 				localStorage.setItem("portdle:v1:theme", JSON.stringify(theme));
 			}, stored);
-			// The default wait is the `load` event, which needs the held bundle.
+			// "commit" waits for the response only, so the check below runs at once.
 			const response = await page.goto(path, { waitUntil: "commit" });
 			expect(response?.status()).toBe(200);
 			// An inline script runs as soon as the parser reaches it, so an
