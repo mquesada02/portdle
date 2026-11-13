@@ -17,7 +17,7 @@ function job(id: string): string {
 	const start = workflow.indexOf(`\n  ${id}:\n`);
 	expect(start, `job ${id}`).toBeGreaterThan(-1);
 	const rest = workflow.slice(start + 1);
-	const next = rest.slice(1).search(/\n {2}[a-z][a-z-]*:\n/);
+	const next = rest.slice(1).search(/\n {2}[a-z][a-z0-9_-]*:\n/);
 	return next === -1 ? rest : rest.slice(0, next + 1);
 }
 

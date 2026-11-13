@@ -31,31 +31,33 @@ export type LiveResult = {
 	ok: boolean;
 };
 
-// Checks each URL one at a time. `fetchStatus` throws when there is no answer.
-export async function checkLive(
+// Checks the URLs at the same time, each with its own retries, so the waits
+// do not add up. `fetchStatus` throws when there is no answer. The results
+// keep the order of the URLs.
+export function checkLive(
 	urls: string[],
 	fetchStatus: (url: string) => Promise<number>,
 	sleep: (ms: number) => Promise<void>,
 ): Promise<LiveResult[]> {
-	const results: LiveResult[] = [];
-	for (const url of urls) {
-		let status: number | "error" = "error";
-		for (let attempt = 0; attempt <= RETRIES; attempt++) {
-			if (attempt > 0) {
-				await sleep(RETRY_DELAY_MS);
+	return Promise.all(
+		urls.map(async (url): Promise<LiveResult> => {
+			let status: number | "error" = "error";
+			for (let attempt = 0; attempt <= RETRIES; attempt++) {
+				if (attempt > 0) {
+					await sleep(RETRY_DELAY_MS);
+				}
+				try {
+					status = await fetchStatus(url);
+				} catch {
+					status = "error";
+				}
+				if (status === 200) {
+					break;
+				}
 			}
-			try {
-				status = await fetchStatus(url);
-			} catch {
-				status = "error";
-			}
-			if (status === 200) {
-				break;
-			}
-		}
-		results.push({ url, status, ok: status === 200 });
-	}
-	return results;
+			return { url, status, ok: status === 200 };
+		}),
+	);
 }
 
 export function formatLive(result: LiveResult): string {
