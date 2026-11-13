@@ -1,6 +1,7 @@
 import type { RouterHistory } from "@tanstack/react-router";
 import { RouterProvider } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { replayEarlyTap } from "../early-tap";
 import { HYDRATED_ATTRIBUTE } from "../hydrated-attribute";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
@@ -82,9 +83,10 @@ export function App(props: AppProps) {
 	);
 	const { router, serverStore } = prepared;
 	// Runs after the page has hydrated: effects run after the commit that
-	// attached the app's handlers.
+	// attached the app's handlers, so a tap stored before then can run now.
 	useEffect(() => {
 		document.documentElement.setAttribute(HYDRATED_ATTRIBUTE, "true");
+		replayEarlyTap();
 	}, []);
 	useEffect(() => {
 		serverStore.load();

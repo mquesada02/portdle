@@ -1,14 +1,18 @@
+import { readFileSync } from "node:fs";
 import type { Plugin } from "vite";
 
 const MODULE_SCRIPT = /<script\b[^>]*\btype="module"[^>]*>\s*<\/script>/g;
 const MODULEPRELOAD = /<link\b[^>]*\brel="modulepreload"[^>]*>\s*/g;
 const SRC = /\bsrc="([^"]*)"/;
+const EARLY_TAP_PATH = "src/early-tap-script.js";
 
 // The bundle loads after the page's `load` event, so the first paint comes from
 // the HTML and the stylesheet alone. The built page holds one module script
 // (the entry); it becomes an inline loader that adds the script on `load`. A
-// page with no module script (privacy.html) is returned as it is.
-export function loadBundleLate(html: string): string {
+// page with no module script (privacy.html) is returned as it is. The loader
+// starts with `earlyTap` (src/early-tap-script.js), which stores a tap made
+// before the app hydrates (see src/early-tap.ts).
+export function loadBundleLate(html: string, earlyTap: string): string {
 	const scripts = html.match(MODULE_SCRIPT) ?? [];
 	if (scripts.length === 0) {
 		return html;
@@ -20,10 +24,13 @@ export function loadBundleLate(html: string): string {
 			"A built page must hold one module script with a src attribute.",
 		);
 	}
+	if (earlyTap.includes("<")) {
+		throw new Error("The early tap script must not hold a <.");
+	}
 	// No `<` inside the inline script, so a `</script>` in the path cannot end it.
 	const path = JSON.stringify(src).replaceAll("<", "\\u003c");
 	const loader =
-		"<script>addEventListener(" +
+		`<script>${earlyTap}addEventListener(` +
 		`"load",function(){var s=document.createElement("script");` +
 		`s.type="module";s.src=${path};document.head.appendChild(s)})</script>`;
 	return html.replace(MODULEPRELOAD, "").replace(MODULE_SCRIPT, () => loader);
@@ -33,6 +40,10 @@ export function lateBundlePlugin(): Plugin {
 	return {
 		name: "portdle-late-bundle",
 		apply: "build",
-		transformIndexHtml: { order: "post", handler: loadBundleLate },
+		transformIndexHtml: {
+			order: "post",
+			handler: (html) =>
+				loadBundleLate(html, readFileSync(EARLY_TAP_PATH, "utf8").trim()),
+		},
 	};
 }
