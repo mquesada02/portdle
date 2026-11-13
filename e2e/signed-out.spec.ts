@@ -99,6 +99,16 @@ test("a board opened from the Archive list has the new URL and its canonical lin
 	);
 });
 
+test("an unknown path shows the not-found screen and no other route's frame", async ({
+	page,
+}) => {
+	await page.goto("/portdle/nowhere");
+	await dismissHowTo(page);
+	await expect(page.getByText("Not Found")).toBeVisible();
+	await expect(page).toHaveTitle("Portdle");
+	await expect(page.getByRole("heading")).toHaveCount(0);
+});
+
 test("an Archive late play appears in History", async ({ page }) => {
 	const yesterday = dayBefore(await serverToday());
 	const answer = await answerFor("applications", yesterday);

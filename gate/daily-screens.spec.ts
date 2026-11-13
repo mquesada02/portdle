@@ -41,7 +41,7 @@ test("Archive list", async ({ page }, testInfo) => {
 test("Archive board", async ({ page }, testInfo) => {
 	// An unplayed Daily: Applications on 2026-10-09 (pgAdmin, port 5050).
 	await openGame(page, testInfo, {
-		path: "/portdle/archive/applications/2026-10-09",
+		path: "/portdle/archive/board?category=applications&date=2026-10-09",
 		records: PLAYED,
 	});
 	await expect(page.getByLabel("Digit 1 of 4")).toBeVisible();
