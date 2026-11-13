@@ -9,12 +9,8 @@ import { pathToFileURL } from "node:url";
 import { build } from "vite";
 import { HEAD } from "../src/ui/head.ts";
 import { copyIndexHtmlTo404 } from "./copy-index-html-to-404.ts";
-import {
-	type BuildCheck,
-	type PrerenderInput,
-	prerender,
-	verifyBuild,
-} from "./prerender.ts";
+import { option } from "./pages-server.ts";
+import { type PrerenderInput, prerender, verifyBuild } from "./prerender.ts";
 
 // Steps 3 to 5 of the pipeline, on a folder that holds the client build. The
 // 404.html step runs before the prerender, so 404.html is the template with an
@@ -22,12 +18,7 @@ import {
 export async function finishBuild(input: PrerenderInput): Promise<void> {
 	copyIndexHtmlTo404(input.outDir);
 	await prerender(input);
-	const check: BuildCheck = {
-		outDir: input.outDir,
-		routes: input.routes,
-		head: input.head,
-	};
-	verifyBuild(check);
+	verifyBuild(input);
 }
 
 // What src/entry-server.tsx exports. The type is written here because the node
@@ -61,11 +52,6 @@ export async function buildSite(options: { outDir: string }): Promise<void> {
 		routes: entry.pageRoutePaths,
 		head: HEAD,
 	});
-}
-
-function option(name: string): string | undefined {
-	const at = process.argv.indexOf(name);
-	return at === -1 ? undefined : process.argv[at + 1];
 }
 
 const entry = process.argv[1];
