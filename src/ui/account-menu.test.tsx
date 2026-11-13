@@ -518,7 +518,7 @@ test("the Daily's slots that mount while a nav link has the focus take it", asyn
 	const release = remote.holdDailies();
 	await renderApp({ remote });
 	within(screen.getByRole("navigation", { name: "Main" }))
-		.getAllByRole("link")[0]
+		.getByRole("link", { name: "Blitz" })
 		.focus();
 	await act(async () => release());
 	const first = await screen.findByLabelText(
