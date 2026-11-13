@@ -50,11 +50,14 @@ test("the slots leave the focus alone when it is inside an open overlay", () => 
 
 // Outside an overlay the slots take the focus, as a nav link or a switcher
 // button can hold it after a click.
-test.each(["a", "button"])("the first slot takes the focus from a %s outside an overlay", (tag) => {
-	const control = document.createElement(tag);
-	control.setAttribute("href", "#");
-	document.body.append(control);
-	control.focus();
-	render(slots);
-	expect(document.activeElement).toBe(screen.getByLabelText("Digit 1 of 3"));
-});
+test.each(["a", "button"])(
+	"the first slot takes the focus from a %s outside an overlay",
+	(tag) => {
+		const control = document.createElement(tag);
+		control.setAttribute("href", "#");
+		document.body.append(control);
+		control.focus();
+		render(slots);
+		expect(document.activeElement).toBe(screen.getByLabelText("Digit 1 of 3"));
+	},
+);
