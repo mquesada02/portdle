@@ -14,6 +14,7 @@ import { createReadStream, fstatSync, statSync } from "node:fs";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { extname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createGzip } from "node:zlib";
 
 export const MANIFEST_FILE = "prerender-manifest.json";
 
@@ -40,6 +41,35 @@ const CONTENT_TYPES: Record<string, string> = {
 	".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
+// True when an Accept-Encoding header has the token `gzip` with a q value other
+// than 0. `*`, `identity` and a missing header do not count. The stub server
+// uses the same rule.
+export function acceptsGzip(header: string | undefined): boolean {
+	return (header ?? "").split(",").some((part) => {
+		const [token, ...params] = part.trim().split(";");
+		if (token?.trim().toLowerCase() !== "gzip") {
+			return false;
+		}
+		const q = params
+			.map((param) => param.trim().toLowerCase())
+			.find((param) => param.startsWith("q="));
+		return q === undefined || Number(q.slice(2)) > 0;
+	});
+}
+
+// The types that GitHub Pages compresses. A `.map` file stays plain: players
+// never load it.
+const COMPRESSED_TYPES = new Set([
+	".html",
+	".js",
+	".mjs",
+	".css",
+	".json",
+	".svg",
+	".txt",
+	".xml",
+	".webmanifest",
+]);
 const TEXT_HEADERS = { "Content-Type": "text/plain; charset=utf-8" };
 
 // What the server answers: a file with a status, a redirect, or a plain-text 404.
@@ -122,6 +152,7 @@ function sendFile(
 	response: ServerResponse,
 	file: string,
 	status: number,
+	gzips: boolean,
 	head: boolean,
 ): void {
 	const stream = createReadStream(file);
@@ -136,13 +167,20 @@ function sendFile(
 			.end(head ? undefined : "Server error");
 	});
 	stream.on("open", (fd) => {
+		const type = CONTENT_TYPES[extname(file)] ?? "application/octet-stream";
+		const compressible = COMPRESSED_TYPES.has(extname(file));
+		const packed = gzips && compressible;
 		response.writeHead(status, {
-			"Content-Type":
-				CONTENT_TYPES[extname(file)] ?? "application/octet-stream",
-			"Content-Length": fstatSync(fd).size,
+			"Content-Type": type,
+			...(compressible ? { Vary: "Accept-Encoding" } : {}),
+			...(packed
+				? { "Content-Encoding": "gzip" }
+				: { "Content-Length": fstatSync(fd).size }),
 		});
 		if (head) {
 			response.end();
+		} else if (packed) {
+			stream.pipe(createGzip()).pipe(response);
 		} else {
 			stream.pipe(response);
 		}
@@ -164,7 +202,13 @@ export function createPagesServer(dir: string, base: string): Server {
 			response.writeHead(404, TEXT_HEADERS);
 			response.end(head ? undefined : "Not found");
 		} else {
-			sendFile(response, result.file, result.status, head);
+			sendFile(
+				response,
+				result.file,
+				result.status,
+				acceptsGzip(request.headers["accept-encoding"]),
+				head,
+			);
 		}
 	});
 }

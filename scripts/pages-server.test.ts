@@ -9,13 +9,20 @@ import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, test } from "vitest";
-import { createPagesServer, MANIFEST_FILE } from "./pages-server.ts";
+import {
+	acceptsGzip,
+	createPagesServer,
+	MANIFEST_FILE,
+} from "./pages-server.ts";
 
 type Reply = {
 	status: number;
 	headers: Record<string, string | string[] | undefined>;
 	body: string;
+	// The body bytes as sent (a gzip answer is not text).
+	raw: Buffer;
 };
 
 const BASE = "/portdle/";
@@ -30,7 +37,11 @@ afterEach(() => {
 // Builds a temp build folder from a map of file name to content and serves it.
 async function serve(files: Record<string, string>): Promise<{
 	dir: string;
-	get: (path: string, method?: string) => Promise<Reply>;
+	get: (
+		path: string,
+		method?: string,
+		headers?: Record<string, string>,
+	) => Promise<Reply>;
 }> {
 	const dir = mkdtempSync(join(tmpdir(), "portdle-pages-"));
 	for (const [name, content] of Object.entries(files)) {
@@ -45,23 +56,28 @@ async function serve(files: Record<string, string>): Promise<{
 	});
 	const { port } = server.address() as AddressInfo;
 	// node:http sends the path as given. fetch would collapse `..` segments.
-	const get = (path: string, method = "GET") =>
+	const get = (
+		path: string,
+		method = "GET",
+		headers: Record<string, string> = {},
+	) =>
 		new Promise<Reply>((done, fail) => {
 			const outgoing = request(
-				{ host: "127.0.0.1", port, path, method },
+				{ host: "127.0.0.1", port, path, method, headers },
 				(incoming) => {
-					let body = "";
-					incoming.setEncoding("utf8");
-					incoming.on("data", (chunk) => {
-						body += chunk;
+					const chunks: Buffer[] = [];
+					incoming.on("data", (chunk: Buffer) => {
+						chunks.push(chunk);
 					});
-					incoming.on("end", () =>
+					incoming.on("end", () => {
+						const raw = Buffer.concat(chunks);
 						done({
 							status: incoming.statusCode ?? 0,
 							headers: incoming.headers,
-							body,
-						}),
-					);
+							body: raw.toString("utf8"),
+							raw,
+						});
+					});
 				},
 			);
 			outgoing.on("error", fail);
@@ -272,5 +288,124 @@ describe("both kinds of build", () => {
 		expect((await get("/portdle/assets/app.css")).headers["content-type"]).toBe(
 			"text/css; charset=utf-8",
 		);
+	});
+});
+
+describe("gzip answers", () => {
+	const GZIP = { "Accept-Encoding": "gzip" };
+	const FILES = {
+		...PAGES,
+		"assets/app.mjs": "export {}",
+		"assets/data.json": '{"a":1}',
+		"assets/logo.svg": "<svg></svg>",
+		"assets/a.txt": "text",
+		"assets/a.xml": "<a/>",
+		"assets/a.webmanifest": "{}",
+		"assets/a.png": "PNGDATA",
+		"assets/app.js.map": "{}",
+	};
+	const CONTENT: Record<string, string> = {
+		history: "HISTORY",
+		"assets/app.js": "console.log(1)",
+		"assets/app.mjs": "export {}",
+		"assets/app.css": "a{}",
+		"assets/data.json": '{"a":1}',
+		"assets/logo.svg": "<svg></svg>",
+		"assets/a.txt": "text",
+		"assets/a.xml": "<a/>",
+		"assets/a.webmanifest": "{}",
+	};
+
+	test("every compressible type answers gzip that decodes to the file", async () => {
+		const { get } = await serve(FILES);
+		for (const [path, content] of Object.entries(CONTENT)) {
+			const reply = await get(`/portdle/${path}`, "GET", GZIP);
+			expect(reply.status, path).toBe(200);
+			expect(reply.headers["content-encoding"], path).toBe("gzip");
+			expect(reply.headers.vary, path).toBe("Accept-Encoding");
+			expect(reply.headers["content-length"], path).toBeUndefined();
+			expect(gunzipSync(reply.raw).toString("utf8"), path).toBe(content);
+		}
+	});
+
+	test("without gzip in the request the file is plain, with its length and Vary", async () => {
+		const { get } = await serve(FILES);
+		for (const headers of [
+			{},
+			{ "Accept-Encoding": "gzip;q=0" },
+			{ "Accept-Encoding": "identity" },
+			{ "Accept-Encoding": "*" },
+		]) {
+			const reply = await get("/portdle/assets/app.js", "GET", headers);
+			expect(reply.body).toBe("console.log(1)");
+			expect(reply.headers["content-encoding"]).toBeUndefined();
+			expect(reply.headers["content-length"]).toBe("14");
+			expect(reply.headers.vary).toBe("Accept-Encoding");
+		}
+	});
+
+	test("a png and a map file are never compressed", async () => {
+		const { get } = await serve(FILES);
+		for (const path of ["assets/a.png", "assets/app.js.map"]) {
+			const reply = await get(`/portdle/${path}`, "GET", GZIP);
+			expect(reply.headers["content-encoding"], path).toBeUndefined();
+			expect(reply.headers["content-length"], path).toBeDefined();
+		}
+	});
+
+	test("404.html is compressed with status 404; the plain-text answer is not", async () => {
+		const { get } = await serve(FILES);
+		const missing = await get("/portdle/nothing", "GET", GZIP);
+		expect(missing.status).toBe(404);
+		expect(missing.headers["content-encoding"]).toBe("gzip");
+		expect(gunzipSync(missing.raw).toString("utf8")).toBe("NOT FOUND");
+		const outside = await get("/other", "GET", GZIP);
+		expect(outside.status).toBe(404);
+		expect(outside.body).toBe("Not found");
+		expect(outside.headers["content-encoding"]).toBeUndefined();
+	});
+
+	test("a redirect answer has no encoding", async () => {
+		const { get } = await serve({
+			[MANIFEST_FILE]: "[]",
+			"a/index.html": "A",
+		});
+		const reply = await get("/portdle/a", "GET", GZIP);
+		expect(reply.status).toBe(301);
+		expect(reply.headers["content-encoding"]).toBeUndefined();
+	});
+
+	test("HEAD has the compressed headers and no body", async () => {
+		const { get } = await serve(FILES);
+		const head = await get("/portdle/assets/app.js", "HEAD", GZIP);
+		expect(head.status).toBe(200);
+		expect(head.body).toBe("");
+		expect(head.headers["content-encoding"]).toBe("gzip");
+		expect(head.headers.vary).toBe("Accept-Encoding");
+	});
+
+	test("a build without the manifest compresses the same way", async () => {
+		const { get } = await serve({
+			"index.html": "INDEX",
+			"assets/app.js": "js",
+		});
+		const reply = await get("/portdle/assets/app.js", "GET", GZIP);
+		expect(reply.headers["content-encoding"]).toBe("gzip");
+		expect(gunzipSync(reply.raw).toString("utf8")).toBe("js");
+	});
+});
+
+describe("acceptsGzip", () => {
+	test("needs the gzip token with a q value other than 0", () => {
+		expect(acceptsGzip("gzip")).toBe(true);
+		expect(acceptsGzip("deflate, gzip, br")).toBe(true);
+		expect(acceptsGzip("GZIP")).toBe(true);
+		expect(acceptsGzip("gzip;q=0.5")).toBe(true);
+		expect(acceptsGzip("gzip; q=0")).toBe(false);
+		expect(acceptsGzip("gzip;q=0.0")).toBe(false);
+		expect(acceptsGzip("identity")).toBe(false);
+		expect(acceptsGzip("*")).toBe(false);
+		expect(acceptsGzip("")).toBe(false);
+		expect(acceptsGzip(undefined)).toBe(false);
 	});
 });
