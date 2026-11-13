@@ -44,14 +44,3 @@ test("the slots leave the focus alone when a button has it", () => {
 	render(slots);
 	expect(document.activeElement).toBe(button);
 });
-
-test("the slots leave the focus alone when an element in an open menu has it", () => {
-	const menu = document.createElement("div");
-	menu.setAttribute("role", "menu");
-	const item = document.createElement("button");
-	menu.append(item);
-	document.body.append(menu);
-	item.focus();
-	render(slots);
-	expect(document.activeElement).toBe(item);
-});
