@@ -6,6 +6,8 @@
 			"!dist",
 			"!dist-e2e",
 			"!dist-gate",
+			"!dist-lighthouse",
+			"!lighthouse-reports",
 			"!gate-baseline",
 			"!gate-report",
 			"!gate-results.json",
