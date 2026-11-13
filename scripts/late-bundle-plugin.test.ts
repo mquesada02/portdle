@@ -165,23 +165,41 @@ describe("the loader at run time", () => {
 		expect(pending.map((timer) => timer.ms)).toEqual([3000]);
 	});
 
-	it.each([
-		["the timer fires, then the entry comes", ["timer", "entry"]],
-		["the entry comes, then the timer fires", ["entry", "timer"]],
-	])("adds the script once when %s", (_name, order) => {
+	it("adds the script when the timer fires and no paint entry came", () => {
+		const { Fake } = fakeObserver();
+		const pending: (() => void)[] = [];
+		const { added, load } = runLoader(Fake, {
+			set: (fn) => pending.push(fn),
+		});
+		load();
+		expect(added).toEqual([]);
+		pending[0]?.();
+		expect(added).toEqual([
+			{ type: "module", src: "/portdle/assets/index-a1.js" },
+		]);
+	});
+
+	it("adds the script once when the timer fires, then the entry comes", () => {
 		const { Fake, emit } = fakeObserver();
 		const pending: (() => void)[] = [];
 		const { added, load } = runLoader(Fake, {
 			set: (fn) => pending.push(fn),
 		});
 		load();
-		for (const event of order as string[]) {
-			if (event === "timer") {
-				pending[0]?.();
-			} else {
-				emit("first-contentful-paint");
-			}
-		}
+		pending[0]?.();
+		emit("first-contentful-paint");
+		expect(added).toHaveLength(1);
+	});
+
+	it("adds the script once when the entry comes, then the timer fires", () => {
+		const { Fake, emit } = fakeObserver();
+		const pending: (() => void)[] = [];
+		const { added, load } = runLoader(Fake, {
+			set: (fn) => pending.push(fn),
+		});
+		load();
+		emit("first-contentful-paint");
+		pending[0]?.();
 		expect(added).toHaveLength(1);
 	});
 
