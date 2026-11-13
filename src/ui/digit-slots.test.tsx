@@ -2,22 +2,25 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vitest";
 import { DigitSlots } from "./digit-slots";
 
-afterEach(cleanup);
+const slots = (
+	<DigitSlots
+		length={3}
+		value=""
+		disabled={false}
+		onChange={() => {}}
+		onSubmit={() => {}}
+	/>
+);
 
-function slots() {
-	return (
-		<DigitSlots
-			length={3}
-			value=""
-			disabled={false}
-			onChange={() => {}}
-			onSubmit={() => {}}
-		/>
-	);
-}
+afterEach(() => {
+	cleanup();
+	for (const dialog of document.querySelectorAll("dialog")) {
+		dialog.remove();
+	}
+});
 
 test("the first slot takes the focus when the slots mount", () => {
-	render(slots());
+	render(slots);
 	expect(document.activeElement).toBe(screen.getByLabelText("Digit 1 of 3"));
 });
 
@@ -30,10 +33,6 @@ test("the slots leave the focus alone when it is inside a dialog", () => {
 	dialog.append(field);
 	document.body.append(dialog);
 	field.focus();
-	try {
-		render(slots());
-		expect(document.activeElement).toBe(field);
-	} finally {
-		dialog.remove();
-	}
+	render(slots);
+	expect(document.activeElement).toBe(field);
 });
