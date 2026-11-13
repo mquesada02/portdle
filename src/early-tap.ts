@@ -8,7 +8,7 @@
 // The global that src/early-tap-script.js sets.
 export const EARLY_TAP_GLOBAL = "__portdleEarlyTap";
 
-type EarlyTapState = {
+export type EarlyTapState = {
 	stopped: boolean;
 	tap: { button: HTMLButtonElement; text: string | null } | null;
 };

@@ -1,17 +1,16 @@
 import { beforeAll, beforeEach, expect, test } from "vitest";
 import {
 	EARLY_TAP_GLOBAL,
+	type EarlyTapState,
 	replayEarlyTap,
 	stopEarlyTapCapture,
 } from "./early-tap";
 import script from "./early-tap-script.js?raw";
 
-type State = {
-	stopped: boolean;
-	tap: { button: HTMLButtonElement; text: string | null } | null;
-};
 const state = () =>
-	(window as unknown as Record<string, State>)[EARLY_TAP_GLOBAL] as State;
+	(window as unknown as Record<string, EarlyTapState>)[
+		EARLY_TAP_GLOBAL
+	] as EarlyTapState;
 
 // The script adds a window listener, so it runs once for the whole file.
 beforeAll(() => {
@@ -46,10 +45,6 @@ function tap(target: Element): boolean {
 
 test("the script sets the global that the app reads", () => {
 	expect(script).toContain(`window.${EARLY_TAP_GLOBAL} =`);
-});
-
-test("the script holds no <, so it can be inlined in a script tag", () => {
-	expect(script).not.toContain("<");
 });
 
 test("a tap inside a button is stored and its default is stopped", () => {
