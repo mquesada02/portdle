@@ -2,6 +2,7 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
+import { HYDRATED_ATTRIBUTE } from "../hydrated-attribute";
 import { createPersist } from "../persist/storage";
 import { dailyOn } from "../test/dailies";
 import { createFakeRemote } from "../test/fake-remote";
@@ -38,6 +39,7 @@ async function renderApp(options: {
 afterEach(() => {
 	cleanup();
 	document.documentElement.classList.remove("dark");
+	document.documentElement.removeAttribute(HYDRATED_ATTRIBUTE);
 	for (const tag of document.head.querySelectorAll(
 		'meta[name="description"], link[rel="canonical"]',
 	)) {
@@ -600,4 +602,12 @@ test("App with a prepared app renders its router, and its remount reaches App", 
 		remount();
 	});
 	expect(screen.getByRole("navigation", { name: "Main" })).not.toBe(nav);
+});
+
+test("<html> carries the hydrated attribute once the app has rendered", async () => {
+	expect(document.documentElement.hasAttribute(HYDRATED_ATTRIBUTE)).toBe(false);
+	await renderApp({});
+	expect(document.documentElement.getAttribute(HYDRATED_ATTRIBUTE)).toBe(
+		"true",
+	);
 });
