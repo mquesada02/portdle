@@ -27,6 +27,7 @@
 		"test:e2e": "tsx scripts/e2e.ts",
 		"gate": "tsx scripts/gate.ts",
 		"gate:capture": "tsx scripts/gate.ts --capture",
+		"lighthouse:guard": "tsx scripts/lighthouse.ts",
 		"check:fixtures": "tsx scripts/check-fixture-shapes.ts"
 	},
 	"dependencies": {
@@ -47,7 +48,9 @@
 		"@types/react": "^19.2.18",
 		"@types/react-dom": "^19.2.7",
 		"@vitejs/plugin-react": "^6.1.1",
+		"chrome-launcher": "1.2.3",
 		"jsdom": "^30.0.1",
+		"lighthouse": "12.8.2",
 		"pg": "^8.23.1",
 		"supabase": "2.119.0",
 		"tailwindcss": "^4.3.3",

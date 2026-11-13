@@ -1,0 +1,28 @@
+{
+	"floors": {
+		"performance": 98,
+		"accessibility": 100,
+		"best-practices": 100,
+		"seo": 100
+	},
+	"pages": [
+		{ "name": "daily-mixed", "path": "/", "returning": false },
+		{ "name": "daily-protocols", "path": "/protocols", "returning": false },
+		{
+			"name": "daily-applications",
+			"path": "/applications",
+			"returning": false
+		},
+		{ "name": "archive", "path": "/archive", "returning": true },
+		{
+			"name": "board",
+			"path": "/archive/board?category=mixed&date=2026-10-09",
+			"returning": true
+		},
+		{ "name": "blitz", "path": "/blitz", "returning": false },
+		{ "name": "history", "path": "/history", "returning": true },
+		{ "name": "history-blitz", "path": "/history/blitz", "returning": true },
+		{ "name": "codex", "path": "/codex", "returning": false },
+		{ "name": "privacy", "path": "/privacy.html", "returning": false }
+	]
+}
