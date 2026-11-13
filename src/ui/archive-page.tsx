@@ -9,6 +9,7 @@ import { DailyGroupList, DailyRowLink } from "./daily-row";
 import { boardCanonical } from "./head";
 import { useScheduleReads } from "./schedule-rows";
 import { LoadStatus } from "./server-data";
+import { BOARD_CANONICAL_ATTRIBUTE } from "./sync-head";
 
 const HEADING_ID = "archive-heading";
 
@@ -79,6 +80,7 @@ function useBoardCanonical(category: string, date: string) {
 		const link = document.createElement("link");
 		link.rel = "canonical";
 		link.href = boardCanonical({ category, date });
+		link.setAttribute(BOARD_CANONICAL_ATTRIBUTE, "");
 		document.head.append(link);
 		return () => link.remove();
 	}, [category, date]);
