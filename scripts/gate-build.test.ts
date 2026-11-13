@@ -1,12 +1,26 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { siteBuildArgs } from "./gate-build.ts";
+
+const folders: string[] = [];
+
+function checkout(): string {
+	const folder = mkdtempSync(join(tmpdir(), "gate-build-"));
+	folders.push(folder);
+	return folder;
+}
+
+afterEach(() => {
+	for (const folder of folders.splice(0)) {
+		rmSync(folder, { recursive: true, force: true });
+	}
+});
 
 describe("siteBuildArgs", () => {
 	it("runs the pipeline in a checkout that has it", () => {
-		const src = mkdtempSync(join(tmpdir(), "gate-build-"));
+		const src = checkout();
 		mkdirSync(join(src, "scripts"));
 		writeFileSync(join(src, "scripts", "build-site.ts"), "");
 		expect(siteBuildArgs(src, "/out")).toEqual([
@@ -19,8 +33,7 @@ describe("siteBuildArgs", () => {
 	});
 
 	it("runs vite build in a checkout from before the pipeline", () => {
-		const src = mkdtempSync(join(tmpdir(), "gate-build-"));
-		expect(siteBuildArgs(src, "/out")).toEqual([
+		expect(siteBuildArgs(checkout(), "/out")).toEqual([
 			"exec",
 			"vite",
 			"build",
