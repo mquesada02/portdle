@@ -41,8 +41,13 @@ test("every prerendered route hydrates with no error", async ({ page }) => {
 	for (const url of await routeUrls()) {
 		await page.goto(url);
 		// The How-to dialog opens in an effect, so it shows once the bundle has
-		// hydrated the page. Clear the device so the next route shows it again.
-		await dismissHowTo(page);
+		// hydrated the page. `dismissHowTo` would pass on a page that never
+		// shows it, so this waits for the button. The device is cleared so the
+		// next route shows the dialog again.
+		const gotIt = page.getByRole("button", { name: "Got it" });
+		await expect(gotIt, url).toBeVisible();
+		await gotIt.click();
+		await expect(page.getByRole("dialog")).toBeHidden();
 		await page.evaluate(() => localStorage.clear());
 	}
 	expect(problems).toEqual([]);
