@@ -15,7 +15,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { STUB_KEY, STUB_URL } from "../gate/stub.ts";
-import { siteBuildArgs } from "./gate-build.ts";
+import { hydrationSignalEnv, siteBuildArgs } from "./gate-build.ts";
 import {
 	classifyReport,
 	type GateOutcome,
@@ -68,7 +68,7 @@ const result = spawnSync(
 		`--update-snapshots=${capture ? "all" : "none"}`,
 		...rest,
 	],
-	{ stdio: "inherit" },
+	{ stdio: "inherit", env: { ...process.env, ...hydrationSignalEnv(src) } },
 );
 const status = result.status ?? 1;
 if (status === 0) {

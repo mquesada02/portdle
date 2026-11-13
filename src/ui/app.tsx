@@ -1,6 +1,7 @@
 import type { RouterHistory } from "@tanstack/react-router";
 import { RouterProvider } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { HYDRATED_ATTRIBUTE } from "../hydrated-attribute";
 import type { Persist } from "../persist/storage";
 import type { Remote } from "../remote/remote";
 import { type AppRouter, type Backend, createAppRouter } from "../router";
@@ -80,6 +81,11 @@ export function App(props: AppProps) {
 		[given, persist, remote, history, random],
 	);
 	const { router, serverStore } = prepared;
+	// Runs after the page has hydrated: effects run after the commit that
+	// attached the app's handlers.
+	useEffect(() => {
+		document.documentElement.setAttribute(HYDRATED_ATTRIBUTE, "true");
+	}, []);
 	useEffect(() => {
 		serverStore.load();
 		const detachRetry = attachRetryTriggers(serverStore.retry);
