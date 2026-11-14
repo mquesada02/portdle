@@ -223,16 +223,13 @@ function HeartIcon({ filled, lost }: { filled: boolean; lost: boolean }) {
 	);
 }
 
-// The heart a miss just emptied plays the pop once (issue 326). A run mounts
-// its own hearts, so a new run starts with none popping; the miss that spends
-// the last life ends the run, and the end card takes over.
-function Hearts({ lives }: { lives: number }) {
-	const [previous, setPrevious] = useState(lives);
-	const [lost, setLost] = useState<number | null>(null);
-	if (lives !== previous) {
-		setPrevious(lives);
-		setLost(lives < previous ? lives : null);
-	}
+// The heart the last round's miss emptied plays the pop once (issue 326). A
+// new run has no rounds and an invalid guess adds none, so neither pops a
+// heart; the miss that spends the last life ends the run, and the end card
+// takes over.
+function Hearts({ run }: { run: BlitzState }) {
+	const { lives } = run;
+	const lost = run.rounds.at(-1)?.outcome === "miss" ? lives : null;
 	return (
 		<span
 			role="img"
@@ -1001,7 +998,7 @@ export function BlitzPage() {
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
 			<ProgressNotice show={saveWarning} />
 			<div className="mt-4 flex items-center justify-between gap-4">
-				<Hearts lives={run.lives} />
+				<Hearts run={run} />
 				<p className="text-sm font-medium">{`Round ${run.rounds.length + 1}`}</p>
 				<p className="text-sm font-medium">Score {run.score}</p>
 				{remaining !== null ? (

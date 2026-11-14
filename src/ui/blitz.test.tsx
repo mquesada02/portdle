@@ -316,6 +316,20 @@ test("a correct guess and an invalid guess mark no heart", async () => {
 	expect(lostHearts()).toEqual([]);
 });
 
+test("a correct guess after a miss clears the mark", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await startRun(user);
+	await missOnce(user);
+	expect(lostHearts()).toEqual([2]);
+	const answer = currentEntry();
+	await user.clear(portDigits());
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Score 1")).toBeTruthy();
+	expect(lostHearts()).toEqual([]);
+});
+
 test("a run started by Retry marks no heart", async () => {
 	const user = userEvent.setup();
 	await renderBlitz();
