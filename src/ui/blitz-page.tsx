@@ -202,28 +202,37 @@ function OrientationCard({
 	);
 }
 
-function HeartIcon({ filled }: { filled: boolean }) {
+function HeartIcon({ filled, lost }: { filled: boolean; lost: boolean }) {
+	const color = filled
+		? "text-rose-500 dark:text-rose-400"
+		: "text-zinc-300 dark:text-zinc-700";
 	return (
 		<svg
 			aria-hidden="true"
+			data-lost={lost || undefined}
 			viewBox="0 0 24 24"
 			width="22"
 			height="22"
 			fill={filled ? "currentColor" : "none"}
 			stroke="currentColor"
 			strokeWidth="1.8"
-			className={
-				filled
-					? "text-rose-500 dark:text-rose-400"
-					: "text-zinc-300 dark:text-zinc-700"
-			}
+			className={lost ? `${color} animate-pop` : color}
 		>
 			<path d="M12 21s-7.5-4.6-10-9.1C.5 8.4 2.4 5 6 5c2 0 3.5 1.2 4.5 2.6C11.5 6.2 13 5 15 5c3.6 0 5.5 3.4 4 6.9C19.5 16.4 12 21 12 21z" />
 		</svg>
 	);
 }
 
+// The heart a miss just emptied plays the pop once (issue 326). A run mounts
+// its own hearts, so a new run starts with none popping; the miss that spends
+// the last life ends the run, and the end card takes over.
 function Hearts({ lives }: { lives: number }) {
+	const [previous, setPrevious] = useState(lives);
+	const [lost, setLost] = useState<number | null>(null);
+	if (lives !== previous) {
+		setPrevious(lives);
+		setLost(lives < previous ? lives : null);
+	}
 	return (
 		<span
 			role="img"
@@ -231,7 +240,7 @@ function Hearts({ lives }: { lives: number }) {
 			className="inline-flex gap-1"
 		>
 			{[0, 1, 2].map((index) => (
-				<HeartIcon key={index} filled={index < lives} />
+				<HeartIcon key={index} filled={index < lives} lost={index === lost} />
 			))}
 		</span>
 	);
