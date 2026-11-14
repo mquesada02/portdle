@@ -1,4 +1,38 @@
-import { useEffect, useRef } from "react";
+import {
+	type Ref,
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useSyncExternalStore,
+} from "react";
+
+const COARSE_POINTER = "(pointer: coarse)";
+
+function subscribeCoarsePointer(onChange: () => void) {
+	const query = window.matchMedia(COARSE_POINTER);
+	query.addEventListener("change", onChange);
+	return () => query.removeEventListener("change", onChange);
+}
+
+// A touch screen: the digit keypad replaces the native keyboard and the
+// separate Submit button. The stylesheet shows and hides them on the same
+// query from the first paint, so the prerendered page does not shift; this
+// value only sets what JavaScript must set (the input mode, and which of the
+// two controls assistive tech sees). The prerender and hydration assume a
+// fine pointer.
+export function useCoarsePointer(): boolean {
+	return useSyncExternalStore(
+		subscribeCoarsePointer,
+		() => window.matchMedia(COARSE_POINTER).matches,
+		() => false,
+	);
+}
+
+// What the digit keypad drives: a key goes in the way a typed key does.
+export type DigitSlotsHandle = {
+	insert(digit: string): void;
+	backspace(): void;
+};
 
 export const SLOT_KEYS = [
 	"digit-1",
@@ -15,6 +49,7 @@ export function DigitSlots({
 	onChange,
 	onSubmit,
 	shakeKey = 0,
+	ref,
 }: {
 	length: number;
 	value: string;
@@ -22,7 +57,9 @@ export function DigitSlots({
 	onChange: (digits: string) => void;
 	onSubmit: () => void;
 	shakeKey?: number;
+	ref?: Ref<DigitSlotsHandle>;
 }) {
+	const coarse = useCoarsePointer();
 	const refs = useRef<Array<HTMLInputElement | null>>([]);
 	// Mirrors `value`, but updated synchronously inside insertAt/deleteAt
 	// before the resulting focusSlot() call. A .focus() call fires its
@@ -43,11 +80,21 @@ export function DigitSlots({
 
 	// Updates the value ref (synchronously, so a focus handler triggered by
 	// the focusSlot() call below never reads a stale digit count) and moves
-	// focus to the given slot.
+	// focus to the given slot. The focus moves only from a slot: a typed key
+	// always comes from one, and a keypad key with no slot focused (a screen
+	// reader on the keypad) leaves the focus on the keypad.
 	function commit(next: string, focusIndex: number) {
 		valueRef.current = next;
 		onChange(next);
-		focusSlot(focusIndex);
+		if (focusedSlot() >= 0) {
+			focusSlot(focusIndex);
+		}
+	}
+
+	function focusedSlot(): number {
+		return refs.current.indexOf(
+			document.activeElement as HTMLInputElement | null,
+		);
 	}
 
 	// Mount only: the slot at the current value length is focused, unless the
@@ -90,6 +137,17 @@ export function DigitSlots({
 		}
 	}
 
+	// A keypad key goes in at the focused slot, else at the end.
+	function keypadIndex(): number {
+		const focused = focusedSlot();
+		return focused >= 0 ? focused : valueRef.current.length;
+	}
+
+	useImperativeHandle(ref, () => ({
+		insert: (digit) => insertAt(keypadIndex(), digit),
+		backspace: () => deleteAt(keypadIndex()),
+	}));
+
 	return (
 		<fieldset disabled={disabled}>
 			<legend className="sr-only">Port digits</legend>
@@ -104,7 +162,7 @@ export function DigitSlots({
 							refs.current[index] = element;
 						}}
 						aria-label={`Digit ${index + 1} of ${length}`}
-						inputMode="numeric"
+						inputMode={coarse ? "none" : "numeric"}
 						autoComplete="one-time-code"
 						value={value[index] ?? ""}
 						onChange={(event) => {

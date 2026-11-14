@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
+import { stubMatchMedia } from "../test/helpers";
 import { DigitSlots } from "./digit-slots";
 
 const slots = (
@@ -11,6 +12,11 @@ const slots = (
 		onSubmit={() => {}}
 	/>
 );
+
+// The slots read the pointer to pick their input mode.
+beforeEach(() => {
+	stubMatchMedia();
+});
 
 afterEach(() => {
 	cleanup();

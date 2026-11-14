@@ -38,6 +38,7 @@ export function stubMatchMedia(
 	prefersDark = false,
 	prefersReducedMotion = false,
 	width = 0,
+	coarsePointer = false,
 ) {
 	// `min-width` queries answer from the viewport width; `setWidth` changes it
 	// and fires the change event of each listener whose answer changed.
@@ -57,7 +58,8 @@ export function stubMatchMedia(
 				minWidth(query) ??
 				((prefersDark && query.includes("prefers-color-scheme: dark")) ||
 					(prefersReducedMotion &&
-						query.includes("prefers-reduced-motion: reduce")))
+						query.includes("prefers-reduced-motion: reduce")) ||
+					(coarsePointer && query.includes("pointer: coarse")))
 			);
 		},
 		media: query,
