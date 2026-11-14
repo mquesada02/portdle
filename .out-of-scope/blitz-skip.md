@@ -10,7 +10,7 @@ Blitz is a test of what the player knows under pressure. Both Blitz specs decide
 
 The Blitz Inverted spec (docs/superpowers/specs/2026-09-10-blitz-inverted.md, story 33) keeps "no Skip, so that Inverted uses the same lives and timer rules as Default."
 
-Blitz Bests also feed the leaderboards (see Best and Leaderboard in CONTEXT.md). A free skip would let a player pass every hard item, so a Best would measure how often the player skipped, not what they know, and Bests would no longer compare fairly.
+Blitz Bests also feed the leaderboards (see Leaderboard in CONTEXT.md). A free skip would let a player skip every hard item, so a Best would measure how often the player skipped, not what they know, and Bests would no longer compare fairly.
 
 A rare item is part of the game: the lives (and, in Sprint and Marathon, the timer) already limit how much one hard item can cost.
 
