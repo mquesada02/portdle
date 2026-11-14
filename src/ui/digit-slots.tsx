@@ -30,7 +30,8 @@ export function useCoarsePointer(): boolean {
 
 // What the digit keypad drives: a key goes in the way a typed key does.
 export type DigitSlotsHandle = {
-	press(key: string): void;
+	insert(digit: string): void;
+	backspace(): void;
 };
 
 export const SLOT_KEYS = [
@@ -79,13 +80,21 @@ export function DigitSlots({
 
 	// Updates the value ref (synchronously, so a focus handler triggered by
 	// the focusSlot() call below never reads a stale digit count) and moves
-	// focus to the given slot.
-	function commit(next: string, focusIndex: number, moveFocus = true) {
+	// focus to the given slot. The focus moves only from a slot: a typed key
+	// always comes from one, and a keypad key with no slot focused (a screen
+	// reader on the keypad) leaves the focus on the keypad.
+	function commit(next: string, focusIndex: number) {
 		valueRef.current = next;
 		onChange(next);
-		if (moveFocus) {
+		if (focusedSlot() >= 0) {
 			focusSlot(focusIndex);
 		}
+	}
+
+	function focusedSlot(): number {
+		return refs.current.indexOf(
+			document.activeElement as HTMLInputElement | null,
+		);
 	}
 
 	// Mount only: the slot at the current value length is focused, unless the
@@ -107,7 +116,7 @@ export function DigitSlots({
 		}
 	}, [shakeKey]);
 
-	function insertAt(index: number, text: string, moveFocus = true) {
+	function insertAt(index: number, text: string) {
 		const digits = text.replace(/\D/g, "");
 		if (digits.length === 0) {
 			return;
@@ -117,33 +126,26 @@ export function DigitSlots({
 			digits +
 			value.slice(index + digits.length)
 		).slice(0, length);
-		commit(next, index + digits.length, moveFocus);
+		commit(next, index + digits.length);
 	}
 
-	function deleteAt(index: number, moveFocus = true) {
+	function deleteAt(index: number) {
 		if (index < value.length) {
-			commit(value.slice(0, index) + value.slice(index + 1), index, moveFocus);
+			commit(value.slice(0, index) + value.slice(index + 1), index);
 		} else if (index > 0) {
-			commit(value.slice(0, index - 1), index - 1, moveFocus);
+			commit(value.slice(0, index - 1), index - 1);
 		}
 	}
 
-	// A key goes in at the focused slot, and the focus moves as it does for a
-	// typed key. With no slot focused (a screen reader on the keypad), it goes
-	// in at the end and the focus stays on the keypad.
+	// A keypad key goes in at the focused slot, else at the end.
+	function keypadIndex(): number {
+		const focused = focusedSlot();
+		return focused >= 0 ? focused : valueRef.current.length;
+	}
+
 	useImperativeHandle(ref, () => ({
-		press(key: string) {
-			const focused = refs.current.indexOf(
-				document.activeElement as HTMLInputElement | null,
-			);
-			const inSlot = focused >= 0;
-			const index = inSlot ? focused : valueRef.current.length;
-			if (key === "Backspace") {
-				deleteAt(index, inSlot);
-			} else {
-				insertAt(index, key, inSlot);
-			}
-		},
+		insert: (digit) => insertAt(keypadIndex(), digit),
+		backspace: () => deleteAt(keypadIndex()),
 	}));
 
 	return (

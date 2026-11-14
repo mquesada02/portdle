@@ -1,10 +1,19 @@
-import type { RefObject } from "react";
+import type { PointerEvent, RefObject } from "react";
 import { type DigitSlotsHandle, useCoarsePointer } from "./digit-slots";
 
-const DIGIT_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+const BACKSPACE = "Backspace";
 
-const KEY =
-	"h-14 rounded-lg bg-zinc-100 text-xl font-semibold text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100";
+// The dialer order: 1 to 9, then Backspace, 0 and the Submit key.
+const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", BACKSPACE, "0"];
+
+// The focus ring matches the digit slots', for a hardware keyboard.
+const FOCUS_RING =
+	"outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/40 dark:focus-visible:ring-zinc-100/40";
+const KEY = `h-14 rounded-lg bg-zinc-100 text-xl font-semibold text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 ${FOCUS_RING}`;
+
+// A key keeps the focus where it was: on a slot, so the next key goes in
+// after it, and off the keypad, so no native keyboard opens.
+const keepFocus = (event: PointerEvent) => event.preventDefault();
 
 // The Submit control of the digit slots. A fine pointer gets the Submit
 // button; a touch screen gets a 3x4 keypad whose last key submits, so the
@@ -21,11 +30,6 @@ export function DigitSubmit({
 	buttonClassName: string;
 }) {
 	const coarse = useCoarsePointer();
-	const press = (key: string) => slots.current?.press(key);
-	// The key keeps the focus where it was: on a slot, so the next key goes in
-	// after it, and off the keypad, so no native keyboard opens.
-	const keepFocus = (event: { preventDefault(): void }) =>
-		event.preventDefault();
 	return (
 		<>
 			<div aria-hidden={coarse || undefined} className="pointer-coarse:hidden">
@@ -38,37 +42,25 @@ export function DigitSubmit({
 				className="mt-3 hidden grid-cols-3 gap-2 pointer-coarse:grid"
 			>
 				<legend className="sr-only">Keypad</legend>
-				{DIGIT_KEYS.map((key) => (
+				{KEYS.map((key) => (
 					<button
 						key={key}
 						type="button"
+						aria-label={key === BACKSPACE ? BACKSPACE : undefined}
 						className={KEY}
 						onPointerDown={keepFocus}
-						onClick={() => press(key)}
+						onClick={() =>
+							key === BACKSPACE
+								? slots.current?.backspace()
+								: slots.current?.insert(key)
+						}
 					>
-						{key}
+						{key === BACKSPACE ? <span aria-hidden="true">⌫</span> : key}
 					</button>
 				))}
 				<button
 					type="button"
-					aria-label="Backspace"
-					className={KEY}
-					onPointerDown={keepFocus}
-					onClick={() => press("Backspace")}
-				>
-					<span aria-hidden="true">⌫</span>
-				</button>
-				<button
-					type="button"
-					className={KEY}
-					onPointerDown={keepFocus}
-					onClick={() => press("0")}
-				>
-					0
-				</button>
-				<button
-					type="button"
-					className="h-14 rounded-lg bg-zinc-900 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+					className={`h-14 rounded-lg bg-zinc-900 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900 ${FOCUS_RING}`}
 					onPointerDown={keepFocus}
 					onClick={onSubmit}
 				>
