@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { catalogFor, entryById, playableCatalogFor } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
 import {
@@ -21,7 +21,8 @@ import { isLate } from "../engine/utc";
 import type { CurrentDailies } from "../remote/remote";
 import { categoryStats } from "./category-stats";
 import { DailyReveal } from "./daily-reveal";
-import { DigitSlots, SLOT_KEYS } from "./digit-slots";
+import { DigitSubmit } from "./digit-keypad";
+import { DigitSlots, type DigitSlotsHandle, SLOT_KEYS } from "./digit-slots";
 import { GlobalStats } from "./global-stats";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { MissPopover } from "./miss-popover";
@@ -397,6 +398,7 @@ export function DailyBoard({
 	const [digits, setDigits] = useState("");
 	const [message, setMessage] = useState("");
 	const [shakeKey, setShakeKey] = useState(0);
+	const slotsRef = useRef<DigitSlotsHandle>(null);
 	const [saveWarning, setSaveWarning] = useState(false);
 	const [finishedThisSession, setFinishedThisSession] = useState(false);
 
@@ -508,6 +510,7 @@ export function DailyBoard({
 								onChange={setDigits}
 								onSubmit={submitGuess}
 								shakeKey={shakeKey}
+								ref={slotsRef}
 							/>
 						</RowShell>
 					)}
@@ -526,13 +529,11 @@ export function DailyBoard({
 					{message}
 				</p>
 				{frozen ? null : (
-					<button
-						type="button"
-						onClick={submitGuess}
-						className="mt-3 w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
-					>
-						Submit
-					</button>
+					<DigitSubmit
+						slots={slotsRef}
+						onSubmit={submitGuess}
+						buttonClassName="mt-3 w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+					/>
 				)}
 				{frozen && board ? (
 					<>

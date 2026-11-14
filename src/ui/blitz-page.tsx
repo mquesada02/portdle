@@ -30,7 +30,8 @@ import type { Persist } from "../persist/storage";
 import { useAfterFirstRenderEffect } from "./after-first-render";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { CATEGORIES, MODES, ORIENTATIONS, Pill } from "./blitz-choices";
-import { DigitSlots } from "./digit-slots";
+import { DigitSubmit } from "./digit-keypad";
+import { DigitSlots, type DigitSlotsHandle } from "./digit-slots";
 import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
 import { type LeaderboardPicker, Leaderboards } from "./leaderboards";
 import { ProgressNotice } from "./notice";
@@ -548,6 +549,7 @@ export function BlitzPage() {
 	const [deadline, setDeadline] = useState<number | null>(null);
 	const [remaining, setRemaining] = useState<number | null>(null);
 	const [shakeKey, setShakeKey] = useState(0);
+	const slotsRef = useRef<DigitSlotsHandle>(null);
 	const [newBest, setNewBest] = useState(false);
 	const [tab, setTab] = useState<BlitzTab>("play");
 	// The Leaderboards picker lives here so it survives a tab change. It starts
@@ -1020,15 +1022,14 @@ export function BlitzPage() {
 								onChange={setDigits}
 								onSubmit={submitGuess}
 								shakeKey={shakeKey}
+								ref={slotsRef}
 							/>
 						</div>
-						<button
-							type="button"
-							className={`mt-3 ${PRIMARY_BUTTON}`}
-							onClick={submitGuess}
-						>
-							Submit
-						</button>
+						<DigitSubmit
+							slots={slotsRef}
+							onSubmit={submitGuess}
+							buttonClassName={`mt-3 ${PRIMARY_BUTTON}`}
+						/>
 					</>
 				)}
 			</div>

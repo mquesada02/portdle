@@ -1,4 +1,37 @@
-import { useEffect, useRef } from "react";
+import {
+	type Ref,
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useSyncExternalStore,
+} from "react";
+
+const COARSE_POINTER = "(pointer: coarse)";
+
+function subscribeCoarsePointer(onChange: () => void) {
+	const query = window.matchMedia(COARSE_POINTER);
+	query.addEventListener("change", onChange);
+	return () => query.removeEventListener("change", onChange);
+}
+
+// A touch screen: the digit keypad replaces the native keyboard and the
+// separate Submit button. The stylesheet shows and hides them on the same
+// query from the first paint, so the prerendered page does not shift; this
+// value only sets what JavaScript must set (the input mode, and which of the
+// two controls assistive tech sees). The prerender and hydration assume a
+// fine pointer.
+export function useCoarsePointer(): boolean {
+	return useSyncExternalStore(
+		subscribeCoarsePointer,
+		() => window.matchMedia(COARSE_POINTER).matches,
+		() => false,
+	);
+}
+
+// What the digit keypad drives: a key goes in the way a typed key does.
+export type DigitSlotsHandle = {
+	press(key: string): void;
+};
 
 export const SLOT_KEYS = [
 	"digit-1",
@@ -15,6 +48,7 @@ export function DigitSlots({
 	onChange,
 	onSubmit,
 	shakeKey = 0,
+	ref,
 }: {
 	length: number;
 	value: string;
@@ -22,7 +56,9 @@ export function DigitSlots({
 	onChange: (digits: string) => void;
 	onSubmit: () => void;
 	shakeKey?: number;
+	ref?: Ref<DigitSlotsHandle>;
 }) {
+	const coarse = useCoarsePointer();
 	const refs = useRef<Array<HTMLInputElement | null>>([]);
 	// Mirrors `value`, but updated synchronously inside insertAt/deleteAt
 	// before the resulting focusSlot() call. A .focus() call fires its
@@ -44,10 +80,12 @@ export function DigitSlots({
 	// Updates the value ref (synchronously, so a focus handler triggered by
 	// the focusSlot() call below never reads a stale digit count) and moves
 	// focus to the given slot.
-	function commit(next: string, focusIndex: number) {
+	function commit(next: string, focusIndex: number, moveFocus = true) {
 		valueRef.current = next;
 		onChange(next);
-		focusSlot(focusIndex);
+		if (moveFocus) {
+			focusSlot(focusIndex);
+		}
 	}
 
 	// Mount only: the slot at the current value length is focused, unless the
@@ -69,7 +107,7 @@ export function DigitSlots({
 		}
 	}, [shakeKey]);
 
-	function insertAt(index: number, text: string) {
+	function insertAt(index: number, text: string, moveFocus = true) {
 		const digits = text.replace(/\D/g, "");
 		if (digits.length === 0) {
 			return;
@@ -79,16 +117,34 @@ export function DigitSlots({
 			digits +
 			value.slice(index + digits.length)
 		).slice(0, length);
-		commit(next, index + digits.length);
+		commit(next, index + digits.length, moveFocus);
 	}
 
-	function deleteAt(index: number) {
+	function deleteAt(index: number, moveFocus = true) {
 		if (index < value.length) {
-			commit(value.slice(0, index) + value.slice(index + 1), index);
+			commit(value.slice(0, index) + value.slice(index + 1), index, moveFocus);
 		} else if (index > 0) {
-			commit(value.slice(0, index - 1), index - 1);
+			commit(value.slice(0, index - 1), index - 1, moveFocus);
 		}
 	}
+
+	// A key goes in at the focused slot, and the focus moves as it does for a
+	// typed key. With no slot focused (a screen reader on the keypad), it goes
+	// in at the end and the focus stays on the keypad.
+	useImperativeHandle(ref, () => ({
+		press(key: string) {
+			const focused = refs.current.indexOf(
+				document.activeElement as HTMLInputElement | null,
+			);
+			const inSlot = focused >= 0;
+			const index = inSlot ? focused : valueRef.current.length;
+			if (key === "Backspace") {
+				deleteAt(index, inSlot);
+			} else {
+				insertAt(index, key, inSlot);
+			}
+		},
+	}));
 
 	return (
 		<fieldset disabled={disabled}>
@@ -104,7 +160,7 @@ export function DigitSlots({
 							refs.current[index] = element;
 						}}
 						aria-label={`Digit ${index + 1} of ${length}`}
-						inputMode="numeric"
+						inputMode={coarse ? "none" : "numeric"}
 						autoComplete="one-time-code"
 						value={value[index] ?? ""}
 						onChange={(event) => {
