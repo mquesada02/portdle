@@ -303,8 +303,12 @@
 		transition-duration: 150ms;
 	}
 
+	/* A dialog with data-instant (the How-to that opens by itself for a new
+	   player) has no starting style, so it shows at once: it is the page's
+	   main content then, and a fade-in only delays it (issue #321). It still
+	   fades out when it closes. */
 	@starting-style {
-		dialog[open] {
+		dialog[open]:not([data-instant]) {
 			opacity: 0;
 			scale: 95%;
 		}
@@ -324,18 +328,9 @@
 	}
 
 	@starting-style {
-		dialog[open]::backdrop {
+		dialog[open]:not([data-instant])::backdrop {
 			opacity: 0;
 		}
-	}
-
-	/* A dialog that opens by itself at page load (the How-to for a new player)
-	   shows at once: it is the page's main content then, and a fade-in only
-	   delays it (issue #321). The attribute is removed in the commit that
-	   closes the dialog, so the close still fades. */
-	dialog[data-instant],
-	dialog[data-instant]::backdrop {
-		transition: none;
 	}
 
 	details {

@@ -83,6 +83,10 @@ function MoonIcon() {
 const ICON_BUTTON =
 	"rounded-full p-2 text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800";
 
+// "auto": the How-to opened by itself for a new player; "button": the player
+// opened it.
+type HowToState = "closed" | "auto" | "button";
+
 export function Shell() {
 	const { persist, backend, remount } = useRouteContext({
 		from: "__root__",
@@ -93,9 +97,7 @@ export function Shell() {
 		() => persist.readTheme(),
 		null,
 	);
-	// "auto": the How-to opened by itself for a new player; "button": the
-	// player opened it.
-	const [howTo, setHowTo] = useAfterFirstRender<"closed" | "auto" | "button">(
+	const [howTo, setHowTo] = useAfterFirstRender<HowToState>(
 		() => (persist.readHowToSeen() ? "closed" : "auto"),
 		"closed",
 	);
