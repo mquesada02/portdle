@@ -3,9 +3,12 @@ import { HowToRulesList } from "./how-to-copy";
 
 export function HowTo({
 	open,
+	instant = false,
 	onDismiss,
 }: {
 	open: boolean;
+	// Opens with no fade-in. It still fades out when it closes.
+	instant?: boolean;
 	onDismiss: () => void;
 }) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
@@ -43,6 +46,7 @@ export function HowTo({
 		<dialog
 			ref={dialogRef}
 			aria-labelledby="how-to-title"
+			data-instant={instant || undefined}
 			className="m-auto max-w-sm bg-transparent p-0 backdrop:bg-black/50 dark:backdrop:bg-black/70"
 			onClick={(event) => {
 				if (event.target === dialogRef.current) {

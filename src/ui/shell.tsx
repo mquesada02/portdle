@@ -83,6 +83,10 @@ function MoonIcon() {
 const ICON_BUTTON =
 	"rounded-full p-2 text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800";
 
+// "auto": the How-to opened by itself for a new player; "button": the player
+// opened it.
+type HowToState = "closed" | "auto" | "button";
+
 export function Shell() {
 	const { persist, backend, remount } = useRouteContext({
 		from: "__root__",
@@ -93,9 +97,9 @@ export function Shell() {
 		() => persist.readTheme(),
 		null,
 	);
-	const [howToOpen, setHowToOpen] = useAfterFirstRender(
-		() => !persist.readHowToSeen(),
-		false,
+	const [howTo, setHowTo] = useAfterFirstRender<HowToState>(
+		() => (persist.readHowToSeen() ? "closed" : "auto"),
+		"closed",
 	);
 	const [saveWarning, setSaveWarning] = useState(false);
 	const effective =
@@ -137,7 +141,7 @@ export function Shell() {
 		if (!result.ok) {
 			setSaveWarning(true);
 		}
-		setHowToOpen(false);
+		setHowTo("closed");
 	}
 
 	return (
@@ -188,7 +192,7 @@ export function Shell() {
 							type="button"
 							aria-label="How to play"
 							className={ICON_BUTTON}
-							onClick={() => setHowToOpen(true)}
+							onClick={() => setHowTo("button")}
 						>
 							<NavIcon d={HELP} />
 						</button>
@@ -224,7 +228,11 @@ export function Shell() {
 				<ProgressNotice show={saveWarning} />
 				<Outlet />
 			</div>
-			<HowTo open={howToOpen} onDismiss={dismissHowTo} />
+			<HowTo
+				open={howTo !== "closed"}
+				instant={howTo === "auto"}
+				onDismiss={dismissHowTo}
+			/>
 		</div>
 	);
 }

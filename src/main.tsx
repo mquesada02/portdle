@@ -4,6 +4,7 @@ import { SWITCH_OVER_DAY } from "./engine/switch-over";
 import { isPrerendered, mount } from "./mount";
 import { createPersist } from "./persist/storage";
 import { remoteFromEnv } from "./remote/from-env";
+import { readsAfterNextPaint } from "./remote/reads-after-paint";
 import { App, prepareApp } from "./ui/app";
 import "./styles.css";
 
@@ -17,7 +18,11 @@ const persist = createPersist(window.localStorage);
 // changes or removes. It is idempotent; a failed write retries at next start.
 persist.applySwitchOver(SWITCH_OVER_DAY);
 
-const prepared = prepareApp({ persist, remote: remoteFromEnv() });
+const remote = remoteFromEnv();
+const prepared = prepareApp({
+	persist,
+	remote: remote && readsAfterNextPaint(remote),
+});
 // The prerender ran the router in its server mode, which renders no Suspense
 // boundary around the page. The router's `ssr` field tells the client mode to
 // render the same tree, so the first client render matches the markup.
