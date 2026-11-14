@@ -67,13 +67,19 @@ function formatTime(seconds: number): string {
 
 const monotonicNow = () => performance.now();
 
-// The setup of the dialog and the picker when there is no last run, and in the
-// first render.
-const FALLBACK_SETUP: {
+type BlitzSetup = {
 	category: DailyCategory;
 	orientation: Orientation;
 	mode: BlitzMode;
-} = { category: "mixed", orientation: "default", mode: "sprint" };
+};
+
+// The setup of the dialog and the picker when there is no last run, and in the
+// first render.
+const FALLBACK_SETUP: BlitzSetup = {
+	category: "mixed",
+	orientation: "default",
+	mode: "sprint",
+};
 
 function bestsKey(state: BlitzState): BlitzBestsKey {
 	return `${state.category}|${state.orientation}|${state.mode}`;
@@ -642,7 +648,7 @@ export function BlitzPage() {
 	}, [persist, run]);
 
 	// Returns false when the pool is empty; the setup dialog shows why.
-	function startRun(setup: typeof FALLBACK_SETUP): boolean {
+	function startRun(setup: BlitzSetup): boolean {
 		const started = startBlitz({
 			...setup,
 			dailyIds,
@@ -797,17 +803,17 @@ export function BlitzPage() {
 		);
 	}
 
-	// With a pool error, the setup dialog opens and shows it.
-	function playAgain(poolMessage = "") {
+	// The pool error is already empty here: a run starts only after a start
+	// that clears it. A failed Retry sets it first and opens the dialog.
+	function playAgain(openSetup = false) {
 		runViewTransition(["phase"], () => {
 			setRun(null);
 			setDigits("");
 			setMessage("");
-			setPoolError(poolMessage);
 			setDeadline(null);
 			setRemaining(null);
 			setNewBest(false);
-			setDialogOpen(poolMessage !== "");
+			setDialogOpen(openSetup);
 		});
 	}
 
@@ -815,7 +821,7 @@ export function BlitzPage() {
 		if (!run) {
 			return;
 		}
-		const setup = {
+		const setup: BlitzSetup = {
 			category: run.category,
 			orientation: run.orientation,
 			mode: run.mode,
@@ -824,7 +830,7 @@ export function BlitzPage() {
 		setOrientation(setup.orientation);
 		setMode(setup.mode);
 		if (!startRun(setup)) {
-			playAgain(EMPTY_POOL);
+			playAgain(true);
 		}
 	}
 
