@@ -202,28 +202,34 @@ function OrientationCard({
 	);
 }
 
-function HeartIcon({ filled }: { filled: boolean }) {
+function HeartIcon({ filled, lost }: { filled: boolean; lost: boolean }) {
+	const color = filled
+		? "text-rose-500 dark:text-rose-400"
+		: "text-zinc-300 dark:text-zinc-700";
 	return (
 		<svg
 			aria-hidden="true"
+			data-lost={lost || undefined}
 			viewBox="0 0 24 24"
 			width="22"
 			height="22"
 			fill={filled ? "currentColor" : "none"}
 			stroke="currentColor"
 			strokeWidth="1.8"
-			className={
-				filled
-					? "text-rose-500 dark:text-rose-400"
-					: "text-zinc-300 dark:text-zinc-700"
-			}
+			className={lost ? `${color} animate-pop` : color}
 		>
 			<path d="M12 21s-7.5-4.6-10-9.1C.5 8.4 2.4 5 6 5c2 0 3.5 1.2 4.5 2.6C11.5 6.2 13 5 15 5c3.6 0 5.5 3.4 4 6.9C19.5 16.4 12 21 12 21z" />
 		</svg>
 	);
 }
 
-function Hearts({ lives }: { lives: number }) {
+// The heart the last round's miss emptied plays the pop once (issue 326). A
+// new run has no rounds and an invalid guess adds none, so neither pops a
+// heart; the miss that spends the last life ends the run, and the end card
+// takes over.
+function Hearts({ run }: { run: BlitzState }) {
+	const { lives } = run;
+	const lost = run.rounds.at(-1)?.outcome === "miss" ? lives : null;
 	return (
 		<span
 			role="img"
@@ -231,7 +237,7 @@ function Hearts({ lives }: { lives: number }) {
 			className="inline-flex gap-1"
 		>
 			{[0, 1, 2].map((index) => (
-				<HeartIcon key={index} filled={index < lives} />
+				<HeartIcon key={index} filled={index < lives} lost={index === lost} />
 			))}
 		</span>
 	);
@@ -992,7 +998,7 @@ export function BlitzPage() {
 		<main className="mx-auto w-full max-w-md px-4 pb-6 sm:max-w-lg">
 			<ProgressNotice show={saveWarning} />
 			<div className="mt-4 flex items-center justify-between gap-4">
-				<Hearts lives={run.lives} />
+				<Hearts run={run} />
 				<p className="text-sm font-medium">{`Round ${run.rounds.length + 1}`}</p>
 				<p className="text-sm font-medium">Score {run.score}</p>
 				{remaining !== null ? (

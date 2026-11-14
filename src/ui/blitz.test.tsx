@@ -265,6 +265,82 @@ test("with reduced motion stubbed to match, letting the clock run out starts no 
 	}
 });
 
+// The index of each heart a miss just emptied, in the HUD's hearts.
+function lostHearts(): number[] {
+	const hearts = screen.getByRole("img", { name: /^Lives: \d$/ });
+	return [...hearts.children].flatMap((heart, index) =>
+		heart.hasAttribute("data-lost") ? [index] : [],
+	);
+}
+
+async function startRun(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+}
+
+async function missOnce(user: ReturnType<typeof userEvent.setup>) {
+	const answer = currentEntry();
+	await user.clear(portDigits());
+	await user.type(
+		portDigits(),
+		padToAnswer(answer.port === 80 ? 19 : 80, answer),
+	);
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+}
+
+test("a miss marks the heart it emptied, and the next miss marks the next heart only", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await startRun(user);
+	expect(lostHearts()).toEqual([]);
+	await missOnce(user);
+	expect(screen.getByRole("img", { name: "Lives: 2" })).toBeTruthy();
+	expect(lostHearts()).toEqual([2]);
+	await missOnce(user);
+	expect(screen.getByRole("img", { name: "Lives: 1" })).toBeTruthy();
+	expect(lostHearts()).toEqual([1]);
+});
+
+test("a correct guess and an invalid guess mark no heart", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await startRun(user);
+	const answer = currentEntry();
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Score 1")).toBeTruthy();
+	expect(lostHearts()).toEqual([]);
+	await user.type(portDigits(), "1");
+	await user.keyboard("{Enter}");
+	expect(screen.getByText("Not a valid port.")).toBeTruthy();
+	expect(lostHearts()).toEqual([]);
+});
+
+test("a correct guess after a miss clears the mark", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await startRun(user);
+	await missOnce(user);
+	expect(lostHearts()).toEqual([2]);
+	const answer = currentEntry();
+	await user.clear(portDigits());
+	await user.type(portDigits(), padToAnswer(answer.port, answer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(screen.getByText("Score 1")).toBeTruthy();
+	expect(lostHearts()).toEqual([]);
+});
+
+test("a run started by Retry marks no heart", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await startRun(user);
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	await user.click(screen.getByRole("button", { name: "Retry" }));
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
+	expect(lostHearts()).toEqual([]);
+});
+
 test("three misses end with Out of lives and write a new best", async () => {
 	const user = userEvent.setup();
 	const persist = await renderBlitz();
