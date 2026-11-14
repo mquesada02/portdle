@@ -1,7 +1,13 @@
 import { createMemoryHistory } from "@tanstack/react-router";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import type { BlitzRun } from "../engine/types";
 import { createPersist } from "../persist/storage";
 import { currentEntry, missThree } from "../test/blitz";
@@ -61,6 +67,7 @@ function fakeRun(overrides: Partial<BlitzRun> = {}): BlitzRun {
 afterEach(() => {
 	cleanup();
 	document.documentElement.classList.remove("dark");
+	vi.useRealTimers();
 });
 
 test("with no runs and no bests the arena shows the empty state and no Bests heading", async () => {
@@ -425,6 +432,65 @@ test("a nav tap on Blitz during a run changes nothing, even after the run ends",
 	await missThree(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
 	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
+});
+
+test("the end card shows Retry, then Play again, in keyboard order", async () => {
+	const user = userEvent.setup();
+	await renderBlitz();
+	await endRunByLives(user);
+	const names = screen
+		.getAllByRole("button")
+		.map((button) => button.textContent)
+		.filter((name) => name === "Retry" || name === "Play again");
+	expect(names).toEqual(["Retry", "Play again"]);
+});
+
+test("Retry after an Inverted Mixed Sprint run starts a fresh Inverted Mixed Sprint run", async () => {
+	const persist = await renderBlitz();
+	fireEvent.click(screen.getByRole("button", { name: "New run" }));
+	fireEvent.click(screen.getByRole("radio", { name: "Inverted" }));
+	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "Start" }));
+	await vi.advanceTimersByTimeAsync(60_000);
+	expect(screen.getByText("Time's up")).toBeTruthy();
+	fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+	expect(screen.queryByRole("dialog", { name: "New run" })).toBeNull();
+	expect(screen.getByRole("combobox", { name: "Service name" })).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
+	expect(screen.getByText("Score 0")).toBeTruthy();
+	expect(screen.getByText("1:00")).toBeTruthy();
+	expect(persist.readBlitzRuns()).toHaveLength(1);
+	expect(persist.readBlitzRuns()[0]).toMatchObject({
+		category: "mixed",
+		orientation: "inverted",
+		mode: "sprint",
+	});
+});
+
+test("Retry after a Survival run starts a Survival run with no time, and the first run stays stored", async () => {
+	const user = userEvent.setup();
+	const persist = await renderBlitz();
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("radio", { name: "Survival" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	const first = currentEntry();
+	await user.type(portDigits(), padToAnswer(first.port, first));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	await missThree(user);
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	await user.click(screen.getByRole("button", { name: "Retry" }));
+	expect(screen.getByText("Round 1")).toBeTruthy();
+	expect(screen.getByText("Score 0")).toBeTruthy();
+	expect(screen.getByRole("img", { name: "Lives: 3" })).toBeTruthy();
+	expect(screen.queryByText(/^\d+:\d{2}$/)).toBeNull();
+	expect(persist.readBlitzRuns()).toHaveLength(1);
+	expect(persist.readBlitzRuns()[0]).toMatchObject({
+		mode: "survival",
+		score: 1,
+	});
+	expect(persist.readBlitzBests()["mixed|default|survival"]).toMatchObject({
+		score: 1,
+	});
 });
 
 test("a nav tap on Blitz at rest starts no phase transition", async () => {

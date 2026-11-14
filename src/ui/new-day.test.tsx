@@ -6,12 +6,19 @@ import {
 	render,
 	screen,
 	waitFor,
+	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import type { CatalogEntry } from "../engine/types";
 import { createPersist } from "../persist/storage";
-import { dailyOn, padToAnswer, sameEntry, UTC_TODAY } from "../test/dailies";
+import {
+	dailyOn,
+	fixtureEntryIds,
+	padToAnswer,
+	sameEntry,
+	UTC_TODAY,
+} from "../test/dailies";
 import { createFakeRemote, type FakeRemote } from "../test/fake-remote";
 import {
 	flush,
@@ -264,6 +271,55 @@ test("a Blitz run carries on across a new day", async () => {
 	await readApplied(remote, 2);
 	expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(prompt);
 	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
+});
+
+test("Retry on a day whose Dailies use the last unused answer opens setup with the empty-pool error", async () => {
+	const user = userEvent.setup();
+	const remote = createFakeRemote();
+	const todayIds = new Set(Object.values(fixtureEntryIds(UTC_TODAY)));
+	const protocols = remote.catalog.protocols;
+	const last = protocols.find(
+		(entry) => entry.answerEligible && !todayIds.has(entry.id),
+	);
+	if (!last) {
+		throw new Error("the fixture needs a Protocols answer that is no Daily");
+	}
+	// Today's Protocols pool holds only `last`.
+	remote.catalog = {
+		...remote.catalog,
+		protocols: protocols.map((entry) =>
+			entry.id === last.id || todayIds.has(entry.id)
+				? entry
+				: { ...entry, answerEligible: false },
+		),
+	};
+	await open(remote, undefined, "/blitz");
+	await user.click(screen.getByRole("button", { name: "New run" }));
+	await user.click(screen.getByRole("radio", { name: "Protocols" }));
+	await user.click(screen.getByRole("radio", { name: "Survival" }));
+	await user.click(screen.getByRole("button", { name: "Start" }));
+	for (let i = 0; i < 3; i += 1) {
+		await wrongGuess(user, last);
+	}
+	expect(screen.getByText("Out of lives")).toBeTruthy();
+	// The new Mixed Daily is `last`; the other Dailies stay, so none frees up.
+	remote.entryIds = { ...fixtureEntryIds(UTC_TODAY), mixed: last.id };
+	remote.today = NEXT_DAY;
+	focusLater();
+	await readApplied(remote, 2);
+	await user.click(screen.getByRole("button", { name: "Retry" }));
+	const dialog = screen.getByRole("dialog", { name: "New run" });
+	expect(
+		within(dialog).getByText(
+			"Cannot start Blitz: not enough unused answers today.",
+		),
+	).toBeTruthy();
+	expect(
+		within(dialog).getByRole("radio", { name: "Protocols", checked: true }),
+	).toBeTruthy();
+	expect(
+		within(dialog).getByRole("radio", { name: "Survival", checked: true }),
+	).toBeTruthy();
 });
 
 test("the timer reads at the server's midnight, never by the device date", async () => {
