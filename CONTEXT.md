@@ -248,7 +248,7 @@ The inline list of name matches under the inverted Blitz input.
 _Avoid_: Dropdown, autocomplete, suggestions
 
 **End card**:
-The block shown when a Blitz run ends: why it ended, score, best, and the full round log.
+The block shown when a Blitz run ends: why it ended, score, best, and the full round log. Retry starts a new run with the same Daily category, orientation, and Blitz mode; Play again returns to the Arena.
 _Avoid_: Results screen, game over, summary
 
 **Arena**:

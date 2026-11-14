@@ -45,6 +45,8 @@ const ORIENTATION_ORDER: Orientation[] = ORIENTATIONS.map((item) => item.value);
 const MODE_ORDER: BlitzMode[] = MODES.map((item) => item.value);
 const PRIMARY_BUTTON =
 	"w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900";
+const SECONDARY_BUTTON =
+	"w-full rounded-lg border border-zinc-900 py-3 text-base font-semibold text-zinc-900 dark:border-zinc-100 dark:text-zinc-100";
 
 function durationMs(mode: BlitzMode): number | null {
 	if (mode === "sprint") {
@@ -65,13 +67,19 @@ function formatTime(seconds: number): string {
 
 const monotonicNow = () => performance.now();
 
-// The setup of the dialog and the picker when there is no last run, and in the
-// first render.
-const FALLBACK_SETUP: {
+type BlitzSetup = {
 	category: DailyCategory;
 	orientation: Orientation;
 	mode: BlitzMode;
-} = { category: "mixed", orientation: "default", mode: "sprint" };
+};
+
+// The setup of the dialog and the picker when there is no last run, and in the
+// first render.
+const FALLBACK_SETUP: BlitzSetup = {
+	category: "mixed",
+	orientation: "default",
+	mode: "sprint",
+};
 
 function bestsKey(state: BlitzState): BlitzBestsKey {
 	return `${state.category}|${state.orientation}|${state.mode}`;
@@ -639,11 +647,10 @@ export function BlitzPage() {
 		}
 	}, [persist, run]);
 
-	function start() {
+	// Returns false when the pool is empty; the setup dialog shows why.
+	function startRun(setup: BlitzSetup): boolean {
 		const started = startBlitz({
-			category,
-			orientation,
-			mode,
+			...setup,
 			dailyIds,
 			protocols,
 			applications,
@@ -652,7 +659,7 @@ export function BlitzPage() {
 		});
 		if ("error" in started) {
 			setPoolError(EMPTY_POOL);
-			return;
+			return false;
 		}
 		runViewTransition(["phase"], () => {
 			setPoolError("");
@@ -662,7 +669,7 @@ export function BlitzPage() {
 			setNewBest(false);
 			setRun(started);
 			setDialogOpen(false);
-			const ms = durationMs(mode);
+			const ms = durationMs(setup.mode);
 			if (ms === null) {
 				setDeadline(null);
 				setRemaining(null);
@@ -671,6 +678,11 @@ export function BlitzPage() {
 				setRemaining(ms / 1000);
 			}
 		});
+		return true;
+	}
+
+	function start() {
+		startRun({ category, orientation, mode });
 	}
 
 	function closeDialog() {
@@ -791,16 +803,35 @@ export function BlitzPage() {
 		);
 	}
 
-	function playAgain() {
+	// The pool error is already empty here: a run starts only after a start
+	// that clears it. A failed Retry sets it first and opens the dialog.
+	function playAgain(openSetup = false) {
 		runViewTransition(["phase"], () => {
 			setRun(null);
 			setDigits("");
 			setMessage("");
-			setPoolError("");
 			setDeadline(null);
 			setRemaining(null);
 			setNewBest(false);
+			setDialogOpen(openSetup);
 		});
+	}
+
+	function retry() {
+		if (!run) {
+			return;
+		}
+		const setup: BlitzSetup = {
+			category: run.category,
+			orientation: run.orientation,
+			mode: run.mode,
+		};
+		setCategory(setup.category);
+		setOrientation(setup.orientation);
+		setMode(setup.mode);
+		if (!startRun(setup)) {
+			playAgain(true);
+		}
 	}
 
 	// No dependency array on purpose: it must read the current `ended` and
@@ -918,13 +949,18 @@ export function BlitzPage() {
 				>
 					{message}
 				</p>
-				<button
-					type="button"
-					className={`mt-4 ${PRIMARY_BUTTON}`}
-					onClick={playAgain}
-				>
-					Play again
-				</button>
+				<div className="mt-4 grid grid-cols-2 gap-3">
+					<button type="button" className={PRIMARY_BUTTON} onClick={retry}>
+						Retry
+					</button>
+					<button
+						type="button"
+						className={SECONDARY_BUTTON}
+						onClick={() => playAgain()}
+					>
+						Play again
+					</button>
+				</div>
 				<h2 className="mt-6 text-sm font-semibold">
 					{`Rounds (${run.rounds.length})`}
 				</h2>
