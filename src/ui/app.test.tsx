@@ -122,6 +122,18 @@ test("How to play button reopens How-to after it is dismissed", async () => {
 	expect(screen.getByRole("dialog", { name: "How-to" })).toBeTruthy();
 });
 
+test("How-to opens with no fade only when it opens by itself", async () => {
+	const user = userEvent.setup();
+	await renderApp({});
+	const dialog = screen.getByRole("dialog", { name: "How-to" });
+	expect(dialog.hasAttribute("data-instant")).toBe(true);
+	await user.click(screen.getByRole("button", { name: "Got it" }));
+	expect(dialog.hasAttribute("data-instant")).toBe(false);
+	await user.click(screen.getByRole("button", { name: "How to play" }));
+	expect(screen.getByRole("dialog", { name: "How-to" })).toBe(dialog);
+	expect(dialog.hasAttribute("data-instant")).toBe(false);
+});
+
 test("How-to links to the privacy page in a new tab and keeps Got it first", async () => {
 	await renderApp({});
 	const dialog = screen.getByRole("dialog", { name: "How-to" });
