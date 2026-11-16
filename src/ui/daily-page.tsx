@@ -254,6 +254,18 @@ function TrackerStrip({
 	);
 }
 
+// The input block sticks above the phone tab bar on a touch screen below `md`
+// that is at least 650 px tall, so Submit stays in reach however many rows the
+// guesses add. The stylesheet picks it from the first paint, with no script
+// (issue 337). `--tab-bar-height` and `--page-pad-bottom` are set by the shell.
+// A sticky box cannot leave its parent, and the page padding below the board
+// (the shell's, and the board's own 1.5rem) lies outside the parent. The
+// negative bottom margin lets the block sit that far lower, so at the end of the
+// page it is still pinned just above the tab bar. A touch screen that is
+// shorter, from `md` up, or a fine pointer keeps the block in the page flow.
+const PIN_ABOVE_TAB_BAR =
+	"pointer-coarse:max-md:[@media(min-height:650px)]:sticky pointer-coarse:max-md:[@media(min-height:650px)]:bottom-(--tab-bar-height) pointer-coarse:max-md:[@media(min-height:650px)]:-mb-[calc(var(--page-pad-bottom)_+_1.5rem_-_var(--tab-bar-height))] pointer-coarse:max-md:[@media(min-height:650px)]:z-[1] pointer-coarse:max-md:[@media(min-height:650px)]:bg-zinc-50 dark:pointer-coarse:max-md:[@media(min-height:650px)]:bg-zinc-950";
+
 function hasTry(record: DailyPersist | null): boolean {
 	return (record?.guesses.length ?? 0) > 0;
 }
@@ -527,7 +539,9 @@ export function DailyBoard({
 							answerPort={puzzle.port}
 						/>
 					))}
-					{frozen ? null : (
+				</div>
+				{frozen ? null : (
+					<div className={`mt-2 ${PIN_ABOVE_TAB_BAR}`}>
 						<RowShell>
 							<DigitSlots
 								length={length}
@@ -539,27 +553,23 @@ export function DailyBoard({
 								ref={slotsRef}
 							/>
 						</RowShell>
-					)}
-				</div>
-				{frozen ? null : (
-					<TrackerStrip
-						guesses={board?.guesses ?? []}
-						length={length}
-						answerPort={puzzle.port}
-					/>
-				)}
-				<p
-					aria-live="polite"
-					className="mt-3 min-h-5 text-center text-sm text-zinc-600 dark:text-zinc-400"
-				>
-					{message}
-				</p>
-				{frozen ? null : (
-					<DigitSubmit
-						slots={slotsRef}
-						onSubmit={submitGuess}
-						buttonClassName="mt-3 w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
-					/>
+						<TrackerStrip
+							guesses={board?.guesses ?? []}
+							length={length}
+							answerPort={puzzle.port}
+						/>
+						<p
+							aria-live="polite"
+							className="mt-3 min-h-5 text-center text-sm text-zinc-600 dark:text-zinc-400"
+						>
+							{message}
+						</p>
+						<DigitSubmit
+							slots={slotsRef}
+							onSubmit={submitGuess}
+							buttonClassName="mt-3 w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+						/>
+					</div>
 				)}
 				{frozen && board ? (
 					<>

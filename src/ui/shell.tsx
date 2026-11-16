@@ -151,7 +151,10 @@ export function Shell() {
 	}
 
 	return (
-		<div className="min-h-dvh bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+		// `--tab-bar-height` is the phone tab bar's full height, border and safe
+		// area included: the nav takes it, and the Daily board pins its input block
+		// above it. 55.5px is the nav's border, padding, icon and label (issue 337).
+		<div className="min-h-dvh bg-zinc-50 text-zinc-900 [--page-pad-bottom:6rem] [--tab-bar-height:calc(55.5px_+_env(safe-area-inset-bottom))] dark:bg-zinc-950 dark:text-zinc-100">
 			<header className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 [view-transition-name:shell-top] dark:border-zinc-800 dark:bg-zinc-950">
 				<div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 px-4">
 					<a
@@ -168,7 +171,7 @@ export function Shell() {
 					</a>
 					<nav
 						aria-label="Main"
-						className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] [view-transition-name:shell-nav] md:static md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
+						className="fixed inset-x-0 bottom-0 z-10 grid h-(--tab-bar-height) grid-cols-4 border-t border-zinc-200 bg-zinc-50 pb-[env(safe-area-inset-bottom)] [view-transition-name:shell-nav] md:static md:h-auto md:flex md:gap-1 md:border-0 md:bg-transparent md:pb-0 dark:border-zinc-800 dark:bg-zinc-950"
 					>
 						{NAV.map((item) => {
 							const isActive = onScreen(item, pathname);
@@ -230,7 +233,7 @@ export function Shell() {
 					</div>
 				</div>
 			</header>
-			<div className="mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-6 [view-transition-name:screen]">
+			<div className="mx-auto max-w-3xl px-4 pt-6 pb-(--page-pad-bottom) md:pb-6 [view-transition-name:screen]">
 				<ProgressNotice show={saveWarning} />
 				<Outlet />
 			</div>
