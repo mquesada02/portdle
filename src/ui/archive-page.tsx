@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { archiveRows, boardEntryId, dailyResult } from "../engine/archive";
 import { entryById } from "../engine/catalog";
 import { isDailyCategory } from "../engine/types";
@@ -7,7 +7,7 @@ import { isValidUtcDate } from "../engine/utc";
 import { DailyBoard, DailyLoading, MissingPuzzle } from "./daily-page";
 import { DailyGroupList, DailyRowLink } from "./daily-row";
 import { boardCanonical } from "./head";
-import { usePulled } from "./pulled";
+import { usePullCount } from "./pulled";
 import { useScheduleReads } from "./schedule-rows";
 import { LoadStatus } from "./server-data";
 import { BOARD_CANONICAL_ATTRIBUTE } from "./sync-head";
@@ -29,11 +29,7 @@ export function ArchivePage() {
 	const { data, retry } = useScheduleReads();
 	const [, current, schedule] = data.status === "ready" ? data.value : [];
 	// Counts the pulls that changed a Daily, so the results are read again.
-	const [pulls, setPulls] = useState(0);
-	usePulled(
-		(change) => change.kind === "daily",
-		() => setPulls((count) => count + 1),
-	);
+	const pulls = usePullCount((change) => change.kind === "daily");
 	// Every row's saved result is read once per load and after each such pull,
 	// not on every render.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `pulls` re-runs the read after a pull.

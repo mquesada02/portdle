@@ -1,5 +1,5 @@
 import { useRouteContext } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import type { PersistChange } from "../persist/storage";
 
 // Calls `onPulled` after a sync pull wrote a stored row that `shows` matches,
@@ -22,4 +22,14 @@ export function usePulled(
 			}),
 		[sync],
 	);
+}
+
+// Renders the screen again after each pull that `shows` matches, for rows read
+// in render. Returns the count of such pulls, for a memo that must read again.
+export function usePullCount(
+	shows: (change: PersistChange) => boolean,
+): number {
+	const [count, countPull] = useReducer((pulls: number) => pulls + 1, 0);
+	usePulled(shows, countPull);
+	return count;
 }
