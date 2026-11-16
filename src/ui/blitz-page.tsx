@@ -987,7 +987,7 @@ export function BlitzPage() {
 	if (!puzzle) {
 		return (
 			<main>
-				<h1>Blitz</h1>
+				<h1 className="text-2xl font-bold tracking-tight">Blitz</h1>
 			</main>
 		);
 	}
