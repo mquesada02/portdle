@@ -204,8 +204,8 @@ export function DigitSlots({
 						}}
 						className={`h-14 w-12 rounded-md border-2 bg-transparent text-center font-mono text-2xl font-bold caret-transparent outline-none transition-colors ${
 							value[index]
-								? "border-zinc-500 dark:border-zinc-400"
-								: "border-zinc-300 dark:border-zinc-700"
+								? "border-zinc-700 dark:border-zinc-300"
+								: "border-zinc-500"
 						} focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/20 dark:focus:border-zinc-100 dark:focus:ring-zinc-100/20`}
 					/>
 				))}
