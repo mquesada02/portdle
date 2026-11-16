@@ -2,6 +2,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The Daily board pins its input block above the phone tab bar: a touch screen
+   below md (48rem) that is at least 650px tall (issue 337). */
+@custom-variant pinned (
+	@media (pointer: coarse) and (width < 48rem) and (min-height: 650px)
+);
+
 @keyframes pop {
 	0% {
 		transform: scale(1);
