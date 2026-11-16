@@ -119,7 +119,7 @@ function regions(): HTMLElement[] {
 	];
 }
 
-function endRegion(): HTMLElement {
+function liveRegion(): HTMLElement {
 	const found = regions();
 	expect(found).toHaveLength(1);
 	return found[0] as HTMLElement;
@@ -212,7 +212,7 @@ test.each([
 		await renderBlitz({ persist });
 		const user = end === "time" ? timeUser() : userEvent.setup();
 		await playToEnd(user, end, score);
-		const region = endRegion();
+		const region = liveRegion();
 		expect(region.classList.contains("sr-only")).toBe(true);
 		expect(region.closest('[aria-hidden="true"]')).toBeNull();
 		await waitFor(() => expect(region.textContent).toBe(text));
@@ -233,7 +233,7 @@ test("the end card region is added with no text, then gets its text once, across
 	const user = userEvent.setup();
 	const recorder = recordChanges();
 	await playToEnd(user, "lives", 0);
-	const region = endRegion();
+	const region = liveRegion();
 	expect(region.textContent).toBe("Out of lives. Score 0.");
 	expectAnnouncedOnce(recorder.drain(), region, "Out of lives. Score 0.");
 	// A pull that lands now shows a stored Best of 9 on the card: the screen
@@ -250,14 +250,14 @@ test("a second run's end card again adds its region empty, then sets its text", 
 	await renderBlitz();
 	const recorder = recordChanges();
 	await playToEnd(user, "lives", 0);
-	expectAnnouncedOnce(recorder.drain(), endRegion(), "Out of lives. Score 0.");
+	expectAnnouncedOnce(recorder.drain(), liveRegion(), "Out of lives. Score 0.");
 	await user.click(screen.getByRole("button", { name: "Retry" }));
 	recorder.drain();
 	await missUnknown(user);
 	await missUnknown(user);
 	await missUnknown(user);
 	expect(screen.getByText("Out of lives")).toBeTruthy();
-	expectAnnouncedOnce(recorder.drain(), endRegion(), "Out of lives. Score 0.");
+	expectAnnouncedOnce(recorder.drain(), liveRegion(), "Out of lives. Score 0.");
 	recorder.stop();
 });
 
@@ -266,7 +266,7 @@ test("Retry starts a run with an empty feedback line", async () => {
 	await renderBlitz();
 	await playToEnd(user, "lives", 0);
 	await user.click(screen.getByRole("button", { name: "Retry" }));
-	expect(endRegion().textContent).toBe("");
+	expect(liveRegion().textContent).toBe("");
 });
 
 test("Play again then a new run starts with an empty feedback line", async () => {
@@ -275,5 +275,5 @@ test("Play again then a new run starts with an empty feedback line", async () =>
 	await playToEnd(user, "lives", 0);
 	await user.click(screen.getByRole("button", { name: "Play again" }));
 	await startRun(user);
-	expect(endRegion().textContent).toBe("");
+	expect(liveRegion().textContent).toBe("");
 });
