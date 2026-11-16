@@ -193,7 +193,9 @@ export function HistoryPage({ segment }: { segment: "daily" | "blitz" }) {
 	const { persist } = useRouteContext({ from: "__root__" });
 	return (
 		<main>
-			<h1 id={HEADING_ID}>History</h1>
+			<h1 id={HEADING_ID} className="text-2xl font-bold tracking-tight">
+				History
+			</h1>
 			<HistorySwitcher segment={segment} />
 			{segment === "daily" ? (
 				<DailySegmentList persist={persist} />
