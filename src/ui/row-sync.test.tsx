@@ -158,8 +158,10 @@ test("a display name changed on another device shows in the menu after the next 
 	expect(screen.queryByText("Ada L.")).toBeNull();
 });
 
-// Issue 346 supersedes the t137 spec line "a pulled theme shows the next time
-// the shell mounts": a pull now shows on the mounted screen.
+// Issue 346 supersedes the next-mount rule of the Spec 4 backend spec ("Each
+// screen shows merged data the next time it mounts") and the t137 spec line
+// "a pulled theme shows the next time the shell mounts": a pull now shows on
+// the mounted screen.
 test("a pulled theme shows on the mounted shell", async () => {
 	document.documentElement.classList.remove("dark");
 	const remote = createFakeRemote(CONFIRMED);

@@ -232,9 +232,10 @@ function CodexScreen({
 	// it opened with, which the mount write below already cleared in storage.
 	usePulled(
 		(change) => change.kind === "codex",
-		() =>
+		() => {
+			const stored = persist.readCodex();
 			setMap((shown: CodexMap) => {
-				const next = persist.readCodex();
+				const next = { ...stored };
 				for (const [id, entry] of Object.entries(shown)) {
 					const pulled = next[id];
 					if (entry.fresh && pulled) {
@@ -242,7 +243,8 @@ function CodexScreen({
 					}
 				}
 				return next;
-			}),
+			});
+		},
 	);
 	usePulled(
 		(change) => change.kind === "codexSort",

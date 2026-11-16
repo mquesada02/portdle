@@ -62,7 +62,7 @@ afterEach(() => {
 async function mountThenPull(
 	remote: FakeRemote,
 	path: string,
-	beforePull: () => Promise<void> = async () => {},
+	beforePull: () => Promise<void>,
 ): Promise<Persist> {
 	stubMatchMedia();
 	const persist = createPersist(memoryStore());
