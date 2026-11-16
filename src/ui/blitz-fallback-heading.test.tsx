@@ -45,10 +45,10 @@ test("the Blitz fallback heading has the class list of the Blitz page heading", 
 	await user.click(screen.getByRole("button", { name: "New run" }));
 	await user.click(screen.getByRole("button", { name: "Start" }));
 
+	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
 	const fallbackHeading = screen.getByRole("heading", {
 		level: 1,
 		name: "Blitz",
 	});
-	expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
 	expect(fallbackHeading.className).toBe(pageClasses);
 });
