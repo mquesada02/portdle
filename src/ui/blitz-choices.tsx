@@ -31,7 +31,7 @@ export function Pill({
 			className={`inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
 				checked
 					? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-					: "border-zinc-300 text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600"
+					: "border-zinc-500 text-zinc-700 hover:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-300"
 			}`}
 		>
 			<input

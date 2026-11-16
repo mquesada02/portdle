@@ -415,7 +415,7 @@ export function AccountMenu({
 												setEditing(event.target.value);
 												setError(null);
 											}}
-											className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700"
+											className="rounded-lg border border-zinc-500 bg-transparent px-3 py-2 text-sm"
 										/>
 										<p className="text-xs text-zinc-500 dark:text-zinc-400">
 											{DISPLAY_NAME_HINT}

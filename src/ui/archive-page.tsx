@@ -45,7 +45,9 @@ export function ArchivePage() {
 	);
 	return (
 		<main>
-			<h1 id={HEADING_ID}>Archive</h1>
+			<h1 id={HEADING_ID} className="text-2xl font-bold tracking-tight">
+				Archive
+			</h1>
 			{data.status === "ready" ? (
 				<DailyGroupList
 					rows={rows}
