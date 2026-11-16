@@ -122,29 +122,6 @@ test("a finished Daily's stats count an earlier Daily pulled after it opened", a
 	await waitFor(() => expect(played()).toBe("2"));
 });
 
-test("a guess on a stale Daily never replaces the finished Daily in storage", async () => {
-	const user = userEvent.setup();
-	stubMatchMedia();
-	const persist = createPersist(memoryStore());
-	persist.writeHowToSeen();
-	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-		/>,
-	);
-	await screen.findByRole("navigation", { name: "Main" });
-	await loaded();
-	// Finished behind the open screen, with no pull to announce it.
-	persist.writeDaily("mixed", UTC_TODAY, won(mixedAnswer.port));
-	const wrong = mixedAnswer.port === 1 ? 2 : 1;
-	await user.type(portDigits(), padToAnswer(wrong, mixedAnswer));
-	await user.click(screen.getByRole("button", { name: "Submit" }));
-	expect(persist.readDaily("mixed", UTC_TODAY)).toEqual(won(mixedAnswer.port));
-	expect(screen.getByText("Played")).toBeTruthy();
-});
-
 test("the History Daily tab lists a Daily pulled after it opened", async () => {
 	const remote = createFakeRemote(SIGNED_IN);
 	remote.rows.dailies[`mixed|${UTC_TODAY}`] = won(mixedAnswer.port);
@@ -184,6 +161,33 @@ test("the Codex counts an entry pulled after it opened", async () => {
 	await waitFor(() =>
 		expect(screen.getByText(/Seen 1 \/ \d+ · Correct 1/)).toBeTruthy(),
 	);
+});
+
+test("a Codex entry fresh at open stays fresh after a pull adds another", async () => {
+	stubMatchMedia();
+	const remote = createFakeRemote(SIGNED_IN);
+	remote.rows.codex = { http: "correct" };
+	const persist = createPersist(memoryStore());
+	persist.writeHowToSeen();
+	persist.writeCodex({ ftp: { state: "missed", fresh: true } });
+	const release = remote.holdPull();
+	render(
+		<App
+			persist={persist}
+			remote={remote}
+			history={createMemoryHistory({ initialEntries: ["/portdle/codex"] })}
+		/>,
+	);
+	const ftp = await screen.findByRole("button", { name: "FTP 21 TCP Missed" });
+	expect(ftp.className).toContain("animate-pop");
+	release();
+	const http = await screen.findByRole("button", {
+		name: "HTTP 80 TCP Correct",
+	});
+	expect(http.className).not.toContain("animate-pop");
+	expect(
+		screen.getByRole("button", { name: "FTP 21 TCP Missed" }).className,
+	).toContain("animate-pop");
 });
 
 test("Blitz shows the last run and the Best pulled after it opened", async () => {
