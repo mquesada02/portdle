@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useReducer, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { catalogFor, entryById, playableCatalogFor } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
 import {
@@ -27,7 +27,7 @@ import { GlobalStats } from "./global-stats";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
-import { usePulled } from "./pulled";
+import { usePullCount, usePulled } from "./pulled";
 import { LoadStatus, useServerData } from "./server-data";
 import { allReady } from "./server-store";
 
@@ -424,13 +424,11 @@ export function DailyBoard({
 	);
 	// A finished Daily's stats fold every Daily of its category, so a pull of
 	// another day in this category renders them again.
-	const [, renderAgain] = useReducer((count: number) => count + 1, 0);
-	usePulled(
+	usePullCount(
 		(change) =>
 			change.kind === "daily" &&
 			change.category === category &&
 			change.date !== date,
-		renderAgain,
 	);
 
 	function noteWrite(result: { ok: boolean }) {

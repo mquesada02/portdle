@@ -1,5 +1,5 @@
 import { useLocation, useRouteContext } from "@tanstack/react-router";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	buildRun,
 	prependRun,
@@ -35,7 +35,7 @@ import { DigitSlots, type DigitSlotsHandle } from "./digit-slots";
 import { defaultGuessMessage, invertedGuessMessage } from "./guess-copy";
 import { type LeaderboardPicker, Leaderboards } from "./leaderboards";
 import { ProgressNotice } from "./notice";
-import { usePulled } from "./pulled";
+import { usePullCount } from "./pulled";
 import { RoundLog } from "./round-log";
 import { LoadStatus, useServerData } from "./server-data";
 import { allReady } from "./server-store";
@@ -561,10 +561,8 @@ export function BlitzPage() {
 	const [tab, setTab] = useState<BlitzTab>("play");
 	// The Bests and the last run are read in render, so a pull that changes
 	// them only needs a new render.
-	const [, renderAgain] = useReducer((count: number) => count + 1, 0);
-	usePulled(
+	usePullCount(
 		(change) => change.kind === "blitzBests" || change.kind === "blitzRuns",
-		renderAgain,
 	);
 	// The Leaderboards picker lives here so it survives a tab change. It starts
 	// on the last run's setup and is reset whenever a run ends.

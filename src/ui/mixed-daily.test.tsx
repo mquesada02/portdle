@@ -644,3 +644,15 @@ test("the Reveal counts a late record in Played but not in the streak", async ()
 	expect(playedCount()).toBe("3");
 	expect(streakCount()).toBe("1");
 });
+
+test("a guess on a stale Daily never replaces the finished Daily in storage", async () => {
+	const user = userEvent.setup();
+	const persist = await renderDaily();
+	// Finished behind the open screen, by another tab or a pull.
+	persist.writeDaily("mixed", UTC_TODAY, won());
+	const wrong = mixedAnswer.port === 1 ? 2 : 1;
+	await user.type(portDigits(), padToAnswer(wrong, mixedAnswer));
+	await user.click(screen.getByRole("button", { name: "Submit" }));
+	expect(persist.readDaily("mixed", UTC_TODAY)).toEqual(won());
+	expect(screen.getByText("Played")).toBeTruthy();
+});

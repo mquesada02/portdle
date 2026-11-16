@@ -235,6 +235,7 @@ function CodexScreen({
 		() => {
 			const stored = persist.readCodex();
 			setMap((shown: CodexMap) => {
+				// A copy keeps the updater pure: React may call it twice.
 				const next = { ...stored };
 				for (const [id, entry] of Object.entries(shown)) {
 					const pulled = next[id];
