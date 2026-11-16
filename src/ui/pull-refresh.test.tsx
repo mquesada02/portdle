@@ -58,15 +58,17 @@ afterEach(() => {
 });
 
 // Mounts the app on `path` with the account's pull held, waits for the screen,
-// then lets the pull finish.
+// then lets the pull finish. `seed` writes this device's rows before the mount.
 async function mountThenPull(
 	remote: FakeRemote,
 	path: string,
 	beforePull: () => Promise<void>,
+	seed: (persist: Persist) => void = () => {},
 ): Promise<Persist> {
 	stubMatchMedia();
 	const persist = createPersist(memoryStore());
 	persist.writeHowToSeen();
+	seed(persist);
 	const release = remote.holdPull();
 	render(
 		<App
@@ -164,23 +166,19 @@ test("the Codex counts an entry pulled after it opened", async () => {
 });
 
 test("a Codex entry fresh at open stays fresh after a pull adds another", async () => {
-	stubMatchMedia();
 	const remote = createFakeRemote(SIGNED_IN);
 	remote.rows.codex = { http: "correct" };
-	const persist = createPersist(memoryStore());
-	persist.writeHowToSeen();
-	persist.writeCodex({ ftp: { state: "missed", fresh: true } });
-	const release = remote.holdPull();
-	render(
-		<App
-			persist={persist}
-			remote={remote}
-			history={createMemoryHistory({ initialEntries: ["/portdle/codex"] })}
-		/>,
+	await mountThenPull(
+		remote,
+		"/portdle/codex",
+		async () => {
+			const ftp = await screen.findByRole("button", {
+				name: "FTP 21 TCP Missed",
+			});
+			expect(ftp.className).toContain("animate-pop");
+		},
+		(persist) => persist.writeCodex({ ftp: { state: "missed", fresh: true } }),
 	);
-	const ftp = await screen.findByRole("button", { name: "FTP 21 TCP Missed" });
-	expect(ftp.className).toContain("animate-pop");
-	release();
 	const http = await screen.findByRole("button", {
 		name: "HTTP 80 TCP Correct",
 	});
