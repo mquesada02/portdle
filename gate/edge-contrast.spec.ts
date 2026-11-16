@@ -66,7 +66,7 @@ async function readEdge(
 function luminance([r, g, b]: Rgba): number {
 	const channel = (value: number) => {
 		const unit = value / 255;
-		return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4;
+		return unit <= 0.04045 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4;
 	};
 	return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
@@ -98,17 +98,15 @@ function chip(scope: Locator, selected: boolean): Locator {
 	return scope
 		.locator("fieldset")
 		.first()
-		.locator("label")
-		.filter({
-			has: scope
-				.page()
-				.locator(selected ? "input:checked" : "input:not(:checked)"),
-		})
+		.locator(
+			selected ? "label:has(input:checked)" : "label:has(input:not(:checked))",
+		)
 		.first();
 }
 
 // The rest, hover, and selected edge of the chips in the fieldset. Each state
-// is read with the pointer where the state needs it.
+// is read with the pointer where the state needs it. Only the rest edge has the
+// 3:1 check; the three edges must differ.
 async function expectChipStates(page: Page, scope: Locator): Promise<void> {
 	const resting = chip(scope, false);
 	await page.mouse.move(0, 0);
@@ -140,11 +138,13 @@ test("digit slots: empty, filled, and focused", async ({ page }, testInfo) => {
 	// The Applications Daily is Rails, port 3000: four slots. The first slot
 	// takes focus on mount, so after one digit slot 1 is filled and unfocused,
 	// slot 2 is empty and focused, and slot 4 is empty and unfocused.
-	await page.goto("/portdle/applications");
+	await openGame(page, testInfo, { path: "/portdle/applications" });
 	await page.getByLabel("Digit 1 of 4").click();
 	await page.keyboard.type("3");
 	const focused = page.getByLabel("Digit 2 of 4");
 	await expect(focused).toBeFocused();
+	await expect(page.getByLabel("Digit 1 of 4")).toHaveValue("3");
+	await expect(page.getByLabel("Digit 4 of 4")).not.toBeFocused();
 	await waitForQuiet(page);
 	const empty = await expectRestingEdge(page.getByLabel("Digit 4 of 4"));
 	const filled = (await readEdge(page.getByLabel("Digit 1 of 4"))).edge;
@@ -197,7 +197,7 @@ test.describe("confirmed name", () => {
 		const field = page.getByLabel("Display name");
 		// The editor focuses its field; the focus edge is not the resting edge.
 		await expect(field).toBeFocused();
-		await field.evaluate((element) => (element as HTMLElement).blur());
+		await field.blur();
 		await expectRestingEdge(field);
 	});
 
@@ -223,7 +223,7 @@ test.describe("unconfirmed name", () => {
 			page.getByRole("heading", { name: "Confirm your display name" }),
 		).toBeVisible();
 		const field = dialog.getByRole("textbox");
-		await field.evaluate((element) => (element as HTMLElement).blur());
+		await field.blur();
 		await expectRestingEdge(field);
 	});
 });
