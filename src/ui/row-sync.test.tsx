@@ -158,7 +158,11 @@ test("a display name changed on another device shows in the menu after the next 
 	expect(screen.queryByText("Ada L.")).toBeNull();
 });
 
-test("a pulled theme shows the next time the shell mounts, not on the mounted shell", async () => {
+// Issue 346 supersedes the next-mount rule of the Spec 4 backend spec ("Each
+// screen shows merged data the next time it mounts") and the t137 spec line
+// "a pulled theme shows the next time the shell mounts": a pull now shows on
+// the mounted screen.
+test("a pulled theme shows on the mounted shell", async () => {
 	document.documentElement.classList.remove("dark");
 	const remote = createFakeRemote(CONFIRMED);
 	remote.rows.preferences = { theme: "dark" };
@@ -167,20 +171,13 @@ test("a pulled theme shows the next time the shell mounts, not on the mounted sh
 	await screen.findByRole("button", { name: "Account" });
 	release();
 	await waitFor(() => expect(persist.readTheme()).toBe("dark"));
-	expect(document.documentElement.classList.contains("dark")).toBe(false);
-	cleanup();
-	render(
-		<App
-			persist={persist}
-			history={createMemoryHistory({ initialEntries: ["/portdle/"] })}
-		/>,
+	await waitFor(() =>
+		expect(document.documentElement.classList.contains("dark")).toBe(true),
 	);
-	await screen.findByRole("button", { name: "Toggle color theme" });
-	expect(document.documentElement.classList.contains("dark")).toBe(true);
 	document.documentElement.classList.remove("dark");
 });
 
-test("a pulled Codex sort shows the next time the Codex screen mounts, not on the mounted one", async () => {
+test("a pulled Codex sort shows on the mounted Codex screen", async () => {
 	stubMatchMedia();
 	const remote = createFakeRemote(CONFIRMED);
 	remote.rows.preferences = { codexSort: "port" };
@@ -192,15 +189,7 @@ test("a pulled Codex sort shows the next time the Codex screen mounts, not on th
 	const name = await screen.findByRole("radio", { name: "Name" });
 	release();
 	await waitFor(() => expect(persist.readCodexSort()).toBe("port"));
-	expect((name as HTMLInputElement).checked).toBe(true);
-	cleanup();
-	render(
-		<App
-			persist={persist}
-			remote={createFakeRemote()}
-			history={createMemoryHistory({ initialEntries: ["/portdle/codex"] })}
-		/>,
-	);
-	const port = await screen.findByRole("radio", { name: "Port" });
-	expect((port as HTMLInputElement).checked).toBe(true);
+	const port = screen.getByRole("radio", { name: "Port" });
+	await waitFor(() => expect((port as HTMLInputElement).checked).toBe(true));
+	expect((name as HTMLInputElement).checked).toBe(false);
 });

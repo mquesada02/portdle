@@ -12,6 +12,7 @@ import type { Persist } from "../persist/storage";
 import { useAfterFirstRender } from "./after-first-render";
 import { localDate, localTime, SetupBadges } from "./blitz-badges";
 import { DailyGroupList, DailyRowLink } from "./daily-row";
+import { usePulled } from "./pulled";
 import { RoundLog } from "./round-log";
 import { useScheduleReads } from "./schedule-rows";
 
@@ -36,10 +37,17 @@ const NO_SAVED: SavedDaily[] = [];
 
 function DailySegmentList({ persist }: { persist: Persist }) {
 	const { data } = useScheduleReads();
-	// The player's finished Dailies are listed at once and read once. Their
-	// names join in once every read has succeeded; until then the rows carry
-	// none.
-	const [saved] = useAfterFirstRender(() => savedDailyRows(persist), NO_SAVED);
+	// The player's finished Dailies are listed at once and read again only
+	// after a pull changes one. Their names join in once every read has
+	// succeeded; until then the rows carry none.
+	const [saved, setSaved] = useAfterFirstRender(
+		() => savedDailyRows(persist),
+		NO_SAVED,
+	);
+	usePulled(
+		(change) => change.kind === "daily",
+		() => setSaved(savedDailyRows(persist)),
+	);
 	const [catalog, , schedule] = data.status === "ready" ? data.value : [];
 	const rows = useMemo(
 		() =>
@@ -170,9 +178,13 @@ function HistorySwitcher({ segment }: { segment: "daily" | "blitz" }) {
 }
 
 function BlitzSegment({ persist }: { persist: Persist }) {
-	const [runs] = useAfterFirstRender<BlitzRun[] | null>(
+	const [runs, setRuns] = useAfterFirstRender<BlitzRun[] | null>(
 		() => persist.readBlitzRuns(),
 		null,
+	);
+	usePulled(
+		(change) => change.kind === "blitzRuns",
+		() => setRuns(persist.readBlitzRuns()),
 	);
 	return <BlitzSegmentList runs={runs} />;
 }

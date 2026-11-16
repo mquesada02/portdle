@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useReducer, useRef, useState } from "react";
 import { catalogFor, entryById, playableCatalogFor } from "../engine/catalog";
 import { applyCodexEncounter } from "../engine/codex";
 import {
@@ -27,6 +27,7 @@ import { GlobalStats } from "./global-stats";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
+import { usePulled } from "./pulled";
 import { LoadStatus, useServerData } from "./server-data";
 import { allReady } from "./server-store";
 
@@ -404,6 +405,33 @@ export function DailyBoard({
 
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
+
+	// A pull can bring this Daily's tries from another device. Typed digits
+	// stay unless the pulled Daily is finished.
+	usePulled(
+		(change) =>
+			change.kind === "daily" &&
+			change.category === category &&
+			change.date === date,
+		() => {
+			const stored = persist.readDaily(category, date);
+			setBoard(stored);
+			if (stored?.status === "won" || stored?.status === "lost") {
+				setDigits("");
+				setMessage("");
+			}
+		},
+	);
+	// A finished Daily's stats fold every Daily of its category, so a pull of
+	// another day in this category renders them again.
+	const [, renderAgain] = useReducer((count: number) => count + 1, 0);
+	usePulled(
+		(change) =>
+			change.kind === "daily" &&
+			change.category === category &&
+			change.date !== date,
+		renderAgain,
+	);
 
 	function noteWrite(result: { ok: boolean }) {
 		if (!result.ok) {

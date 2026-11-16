@@ -13,6 +13,7 @@ import { HEAD } from "./head";
 import { HowTo } from "./how-to";
 import { NAV, onScreen } from "./nav";
 import { ProgressNotice } from "./notice";
+import { usePulled } from "./pulled";
 import { syncHead } from "./sync-head";
 import {
 	applyHtmlTheme,
@@ -96,6 +97,11 @@ export function Shell() {
 	const [storedTheme, setStoredTheme] = useAfterFirstRender<Theme | null>(
 		() => persist.readTheme(),
 		null,
+	);
+	// A pull can bring the theme chosen on another device.
+	usePulled(
+		(change) => change.kind === "theme",
+		() => setStoredTheme(persist.readTheme()),
 	);
 	const [howTo, setHowTo] = useAfterFirstRender<HowToState>(
 		() => (persist.readHowToSeen() ? "closed" : "auto"),

@@ -9,6 +9,7 @@ import {
 import type {
 	CatalogEntry,
 	CatalogKind,
+	CodexMap,
 	CodexSort,
 	CodexState,
 } from "../engine/types";
@@ -16,6 +17,7 @@ import { useAfterFirstRender } from "./after-first-render";
 import { transportLabel } from "./daily-reveal";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
+import { usePulled } from "./pulled";
 import { LoadStatus, useServerData } from "./server-data";
 import { runViewTransition } from "./view-transition";
 
@@ -224,8 +226,30 @@ function CodexScreen({
 	applications: CatalogEntry[];
 }) {
 	const { persist } = useRouteContext({ from: "__root__" });
-	const [map] = useState(() => persist.readCodex());
+	const [map, setMap] = useState(() => persist.readCodex());
 	const [sort, setSort] = useState<CodexSort>(() => persist.readCodexSort());
+	// A pull can add entries during the visit. The visit keeps the fresh flags
+	// it opened with, which the mount write below already cleared in storage.
+	usePulled(
+		(change) => change.kind === "codex",
+		() => {
+			const stored = persist.readCodex();
+			setMap((shown: CodexMap) => {
+				const next = { ...stored };
+				for (const [id, entry] of Object.entries(shown)) {
+					const pulled = next[id];
+					if (entry.fresh && pulled) {
+						next[id] = { ...pulled, fresh: true };
+					}
+				}
+				return next;
+			});
+		},
+	);
+	usePulled(
+		(change) => change.kind === "codexSort",
+		() => setSort(persist.readCodexSort()),
+	);
 	const [saveWarning, setSaveWarning] = useState(false);
 	const columnCount = useColumnCount();
 
