@@ -232,6 +232,50 @@ test("a pull does not count as a local change", async () => {
 	expect(d.clock.pending()).toBe(0);
 });
 
+test("a pull tells its listeners each row it wrote, once", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.rows.codex = { dns: "correct" };
+	remote.rows.bests = { "mixed|default|sprint": { score: 9 } };
+	remote.rows.runs = [run("2026-09-28T10:00:00.000Z", 9)];
+	remote.rows.dailies = {
+		"mixed|2026-09-28": win(80),
+		"protocols|2026-09-27": win(443),
+	};
+	remote.rows.preferences = { theme: "dark" };
+	const d = device(remote);
+	d.persist.writeDaily("protocols", "2026-09-27", win(443));
+	const calls: unknown[] = [];
+	d.sync.onPulled((changes) => calls.push(changes));
+	await d.sync.refresh();
+	expect(calls).toEqual([
+		[
+			{ kind: "codex" },
+			{ kind: "blitzBests" },
+			{ kind: "blitzRuns" },
+			{ kind: "daily", category: "mixed", date: "2026-09-28" },
+			{ kind: "theme" },
+		],
+	]);
+});
+
+test("a pull that changes nothing calls no listener, nor does a removed one", async () => {
+	const remote = createFakeRemote(ACCOUNT);
+	remote.rows.dailies = { "mixed|2026-09-28": win(80) };
+	const d = device(remote);
+	d.persist.writeDaily("mixed", "2026-09-28", win(80));
+	const calls: unknown[] = [];
+	const remove = d.sync.onPulled((changes) => calls.push(changes));
+	await d.sync.refresh();
+	expect(calls).toEqual([]);
+	remove();
+	remote.rows.codex = { dns: "correct" };
+	await d.sync.refresh();
+	expect(d.persist.readCodex()).toEqual({
+		dns: { state: "correct", fresh: false },
+	});
+	expect(calls).toEqual([]);
+});
+
 test("rows returned with reordered object keys mark and push nothing", async () => {
 	const remote = createFakeRemote(ACCOUNT);
 	remote.rows.runs = [run("2026-09-28T10:00:00.000Z", 9)];

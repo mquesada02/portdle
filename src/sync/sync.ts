@@ -54,6 +54,9 @@ export type Sync = {
 	// Runs after each account read sync makes (the load read included), and at
 	// once with the latest report when added, so a late listener needs no read.
 	onAccount(listener: (report: AccountReport) => void): () => void;
+	// Runs after a pull that changed stored rows, with one change per row it
+	// wrote, so a mounted screen can read its rows again.
+	onPulled(listener: (changes: PersistChange[]) => void): () => void;
 };
 
 type Kind = "codex" | "bests" | "runs" | "dailies" | "preferences";
@@ -113,6 +116,7 @@ export function createSync(options: {
 	const goneListeners = new Set<() => void>();
 	const deletedListeners = new Set<() => void>();
 	const accountListeners = new Set<(report: AccountReport) => void>();
+	const pulledListeners = new Set<(changes: PersistChange[]) => void>();
 
 	function enqueue(task: () => Promise<void>): Promise<void> {
 		const next = queue.then(task, task);
@@ -265,22 +269,26 @@ export function createSync(options: {
 		if (firstSync) {
 			addPending("preferences", Object.keys(persist.readPreferences()));
 		}
+		const changed: PersistChange[] = [];
 		writing = true;
 		try {
 			const codex = persist.readCodex();
 			const mergedCodex = mergeCodex(codex, rows.codex);
 			if (canonical(mergedCodex) !== canonical(codex)) {
 				persist.writeCodex(mergedCodex);
+				changed.push({ kind: "codex" });
 			}
 			const bests = persist.readBlitzBests();
 			const mergedBests = mergeBests(bests, rows.bests);
 			if (canonical(mergedBests) !== canonical(bests)) {
 				persist.writeBlitzBests(mergedBests);
+				changed.push({ kind: "blitzBests" });
 			}
 			const runs = persist.readBlitzRuns();
 			const mergedRuns = mergeRuns(runs, rows.runs);
 			if (canonical(mergedRuns) !== canonical(runs)) {
 				persist.writeBlitzRuns(mergedRuns);
+				changed.push({ kind: "blitzRuns" });
 			}
 			for (const [key, account] of Object.entries(rows.dailies)) {
 				const [category, date] = parseDailyKey(key);
@@ -291,6 +299,7 @@ export function createSync(options: {
 				const merged = local ? mergeDaily(local, account) : account;
 				if (local === null || canonical(merged) !== canonical(local)) {
 					persist.writeDaily(category, date, merged);
+					changed.push({ kind: "daily", category, date });
 				}
 			}
 			// A preference with a change not yet pushed keeps its local value.
@@ -300,6 +309,7 @@ export function createSync(options: {
 				const value = rows.preferences[key];
 				if (value !== undefined && !pending.has(key) && value !== local[key]) {
 					writePreference(key, value);
+					changed.push({ kind: key });
 				}
 			}
 		} finally {
@@ -320,6 +330,11 @@ export function createSync(options: {
 		}
 		for (const [key, value] of Object.entries(rows.preferences)) {
 			snapshot.preferences.set(key, canonical(value));
+		}
+		if (changed.length > 0) {
+			for (const listener of pulledListeners) {
+				listener(changed);
+			}
 		}
 	}
 
@@ -635,6 +650,12 @@ export function createSync(options: {
 			}
 			return () => {
 				accountListeners.delete(listener);
+			};
+		},
+		onPulled(listener) {
+			pulledListeners.add(listener);
+			return () => {
+				pulledListeners.delete(listener);
 			};
 		},
 	};
