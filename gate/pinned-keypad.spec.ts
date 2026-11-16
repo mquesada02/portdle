@@ -21,6 +21,9 @@ const DIRECTLY_ABOVE = 16;
 
 type Box = { x: number; y: number; width: number; height: number };
 
+// The phone of the triage reproduction.
+const PHONE = { width: 375, height: 800 };
+
 async function box(locator: Locator): Promise<Box> {
 	const found = await locator.boundingBox();
 	expect(found, "the element has a box").not.toBeNull();
@@ -38,7 +41,7 @@ function tabBar(page: Page): Locator {
 }
 
 // The parts of the input block, in screen order.
-function parts(page: Page): Locator[] {
+function inputBlockParts(page: Page): Locator[] {
 	return [
 		page.getByLabel("Digit 1 of 2"),
 		page.getByRole("group", { name: "Tracker strip" }),
@@ -92,6 +95,18 @@ async function documentTop(page: Page): Promise<number> {
 	return slot.y + scrollY;
 }
 
+// In the flow: nothing in the board is sticky, and the block does not move
+// relative to the document when the page scrolls.
+async function expectInFlow(page: Page): Promise<void> {
+	expect(await stickyCount(page)).toBe(0);
+	if (await canScroll(page)) {
+		await scrollTo(page, "top");
+		const top = await documentTop(page);
+		await scrollTo(page, "bottom");
+		expect(await documentTop(page)).toBe(top);
+	}
+}
+
 async function expectSubmitAboveTabBar(
 	page: Page,
 	directlyAbove: boolean,
@@ -113,14 +128,9 @@ test.describe("touch screen", () => {
 		test(`Submit is above the tab bar with ${guesses} guesses`, async ({
 			page,
 		}, testInfo) => {
-			await open(
-				page,
-				testInfo,
-				{ width: 375, height: 800 },
-				{
-					records: guesses ? [playingMixed(guesses)] : [],
-				},
-			);
+			await open(page, testInfo, PHONE, {
+				records: guesses ? [playingMixed(guesses)] : [],
+			});
 			await expect(submitKey(page)).toBeVisible();
 			for (const where of ["top", "bottom"] as const) {
 				await scrollTo(page, where);
@@ -132,38 +142,30 @@ test.describe("touch screen", () => {
 	test("the slots, the marks strip and the message line stay with the keypad", async ({
 		page,
 	}, testInfo) => {
-		await open(
-			page,
-			testInfo,
-			{ width: 375, height: 800 },
-			{
-				records: [playingMixed(1)],
-			},
-		);
+		await open(page, testInfo, PHONE, {
+			records: [playingMixed(1)],
+		});
 		await expect(submitKey(page)).toBeVisible();
 		expect(await canScroll(page), "the page can scroll").toBe(true);
 		const tabTop = (await box(tabBar(page))).y;
-		const at: Record<string, Box[]> = {};
-		for (const where of ["top", "bottom"] as const) {
+		async function boxesAt(where: "top" | "bottom"): Promise<Box[]> {
 			await scrollTo(page, where);
-			at[where] = [];
-			for (const part of parts(page)) {
-				at[where].push(await box(part));
-			}
+			return Promise.all(inputBlockParts(page).map(box));
 		}
-		for (const where of ["top", "bottom"]) {
-			const boxes = at[where] ?? [];
+		const topBoxes = await boxesAt("top");
+		const bottomBoxes = await boxesAt("bottom");
+		for (const boxes of [topBoxes, bottomBoxes]) {
 			boxes.forEach((part, index) => {
 				expect(part.y + part.height).toBeLessThanOrEqual(tabTop);
-				if (index > 0) {
-					const before = boxes[index - 1] as Box;
+				const before = boxes[index - 1];
+				if (before) {
 					expect(part.y).toBeGreaterThanOrEqual(before.y + before.height - 1);
 				}
 			});
 		}
 		// Within one pixel: the fixed tab bar sits on a half pixel.
-		at.top?.forEach((part, index) => {
-			const later = at.bottom?.[index] as Box;
+		topBoxes.forEach((part, index) => {
+			const later = bottomBoxes[index] as Box;
 			expect(Math.abs(later.y - part.y)).toBeLessThanOrEqual(1);
 			expect(later.height).toBe(part.height);
 		});
@@ -172,14 +174,9 @@ test.describe("touch screen", () => {
 	test("the last guess row is above the pinned block", async ({
 		page,
 	}, testInfo) => {
-		await open(
-			page,
-			testInfo,
-			{ width: 375, height: 800 },
-			{
-				records: [playingMixed(5)],
-			},
-		);
+		await open(page, testInfo, PHONE, {
+			records: [playingMixed(5)],
+		});
 		await expect(submitKey(page)).toBeVisible();
 		await scrollTo(page, "bottom");
 		const lastTile = await box(page.locator("main .animate-pop").last());
@@ -190,7 +187,7 @@ test.describe("touch screen", () => {
 	test("a guess sent with the keypad keeps Submit in reach", async ({
 		page,
 	}, testInfo) => {
-		await open(page, testInfo, { width: 375, height: 800 }, {});
+		await open(page, testInfo, PHONE, {});
 		const keypad = page.getByRole("group", { name: "Keypad" });
 		await keypad.getByRole("button", { name: "8", exact: true }).click();
 		await keypad.getByRole("button", { name: "0", exact: true }).click();
@@ -235,27 +232,16 @@ test.describe("touch screen", () => {
 		}, testInfo) => {
 			await open(page, testInfo, size, { records: [playingMixed(5)] });
 			await expect(submitKey(page)).toBeVisible();
-			expect(await stickyCount(page)).toBe(0);
-			if (await canScroll(page)) {
-				await scrollTo(page, "top");
-				const top = await documentTop(page);
-				await scrollTo(page, "bottom");
-				expect(await documentTop(page)).toBe(top);
-			}
+			await expectInFlow(page);
 		});
 	}
 
 	test("a finished Daily shows the Reveal with nothing pinned", async ({
 		page,
 	}, testInfo) => {
-		await open(
-			page,
-			testInfo,
-			{ width: 375, height: 800 },
-			{
-				records: [WON],
-			},
-		);
+		await open(page, testInfo, PHONE, {
+			records: [WON],
+		});
 		await expect(page.getByText("Global distribution")).toBeVisible();
 		await expect(page.getByLabel("Digit 1 of 2")).toHaveCount(0);
 		await expect(page.getByRole("group", { name: "Keypad" })).toHaveCount(0);
@@ -266,15 +252,10 @@ test.describe("touch screen", () => {
 	});
 
 	test("the Archive board pins the keypad too", async ({ page }, testInfo) => {
-		await open(
-			page,
-			testInfo,
-			{ width: 375, height: 800 },
-			{
-				path: "/portdle/archive/board?category=applications&date=2026-10-09",
-				records: [ARCHIVE_ONE_MISS],
-			},
-		);
+		await open(page, testInfo, PHONE, {
+			path: "/portdle/archive/board?category=applications&date=2026-10-09",
+			records: [ARCHIVE_ONE_MISS],
+		});
 		await expect(submitKey(page)).toBeVisible();
 		for (const where of ["top", "bottom"] as const) {
 			await scrollTo(page, where);
@@ -286,22 +267,13 @@ test.describe("touch screen", () => {
 test.describe("fine pointer", () => {
 	test.use({ hasTouch: false, isMobile: false });
 
-	for (const size of [
-		{ width: 375, height: 800 },
-		{ width: 1024, height: 768 },
-	]) {
+	for (const size of [PHONE, { width: 1024, height: 768 }]) {
 		test(`the block is in the flow at ${size.width} × ${size.height}`, async ({
 			page,
 		}, testInfo) => {
 			await open(page, testInfo, size, { records: [playingMixed(5)] });
 			await expect(page.getByLabel("Digit 1 of 2")).toBeVisible();
-			expect(await stickyCount(page)).toBe(0);
-			if (await canScroll(page)) {
-				await scrollTo(page, "top");
-				const top = await documentTop(page);
-				await scrollTo(page, "bottom");
-				expect(await documentTop(page)).toBe(top);
-			}
+			await expectInFlow(page);
 		});
 	}
 });

@@ -64,7 +64,7 @@ export function playingMixed(count: number): Saved {
 		guesses: MISS_PORTS.slice(0, count).map((port) => miss(port)),
 	};
 }
-// Applications 2026-10-09 (pgAdmin, 5050) after one miss.
+// Applications 2026-10-09 (pgAdmin) after one miss.
 export const ARCHIVE_ONE_MISS: Saved = {
 	category: "applications",
 	date: "2026-10-09",
