@@ -92,7 +92,7 @@ export function NameConfirm({
 							setName(event.target.value);
 							setFailure(null);
 						}}
-						className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-base font-normal dark:border-zinc-700"
+						className="rounded-lg border border-zinc-500 bg-transparent px-3 py-2 text-base font-normal"
 					/>
 				</label>
 				<p className="text-sm text-zinc-500 dark:text-zinc-400">

@@ -53,6 +53,24 @@ export const IDENTIFIED_MISS: Saved = {
 	status: "playing",
 	guesses: [miss(80, HTTP)],
 };
+// Mixed 2026-10-10 (SSH, 22) after `count` misses: an unfinished board whose
+// guess rows are `count` rows tall. Every port has two digits.
+const MISS_PORTS = [80, 53, 25, 23, 69];
+export function playingMixed(count: number): Saved {
+	return {
+		category: "mixed",
+		date: "2026-10-10",
+		status: "playing",
+		guesses: MISS_PORTS.slice(0, count).map((port) => miss(port)),
+	};
+}
+// Applications 2026-10-09 (pgAdmin) after one miss.
+export const ARCHIVE_ONE_MISS: Saved = {
+	category: "applications",
+	date: "2026-10-09",
+	status: "playing",
+	guesses: [miss(9001)],
+};
 // The Archive list and History show these results.
 export const PLAYED: Saved[] = [
 	WON,
