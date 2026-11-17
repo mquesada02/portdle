@@ -558,6 +558,9 @@ export function BlitzPage() {
 	const [shakeKey, setShakeKey] = useState(0);
 	const slotsRef = useRef<DigitSlotsHandle>(null);
 	const [newBest, setNewBest] = useState(false);
+	// The end card's screen-reader announcement. It stays empty until the end
+	// card has mounted, so the live region announces the text once it is set.
+	const [announcement, setAnnouncement] = useState("");
 	const [tab, setTab] = useState<BlitzTab>("play");
 	// The Bests and the last run are read in render, so a pull that changes
 	// them only needs a new render.
@@ -650,6 +653,9 @@ export function BlitzPage() {
 		);
 		const bestResult = recordBest(persist, run);
 		setNewBest(bestResult.newBest);
+		setAnnouncement(
+			`${run.ended === "timeout" ? "Time's up" : "Out of lives"}. Score ${run.score}.${bestResult.newBest ? " New best." : ""}`,
+		);
 		setPicker((current) => ({
 			...current,
 			category: run.category,
@@ -681,6 +687,7 @@ export function BlitzPage() {
 			setDigits("");
 			setShakeKey(0);
 			setNewBest(false);
+			setAnnouncement("");
 			setRun(started);
 			setDialogOpen(false);
 			const ms = durationMs(setup.mode);
@@ -827,6 +834,7 @@ export function BlitzPage() {
 			setDeadline(null);
 			setRemaining(null);
 			setNewBest(false);
+			setAnnouncement("");
 			setDialogOpen(openSetup);
 		});
 	}
@@ -957,11 +965,8 @@ export function BlitzPage() {
 						New best
 					</span>
 				) : null}
-				<p
-					aria-live="polite"
-					className="mt-3 min-h-5 text-sm text-zinc-600 dark:text-zinc-400"
-				>
-					{message}
+				<p aria-live="polite" className="sr-only">
+					{announcement}
 				</p>
 				<div className="mt-4 grid grid-cols-2 gap-3">
 					<button type="button" className={PRIMARY_BUTTON} onClick={retry}>
