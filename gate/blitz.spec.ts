@@ -83,7 +83,7 @@ async function playToLastLife(page: Page, testInfo: TestInfo) {
 async function playToEnd(page: Page, testInfo: TestInfo) {
 	await playToLastLife(page, testInfo);
 	await guess(page, "miss");
-	await expect(page.getByText("Out of lives")).toBeVisible();
+	await expect(page.getByText("Out of lives", { exact: true })).toBeVisible();
 }
 
 // The frames of a phase change.
@@ -139,7 +139,8 @@ test("Last life: Run to End card", async ({ page }, testInfo) => {
 	await shootPhase(page, isReduced(testInfo), {
 		name: "blitz-last-life",
 		interact: () => page.keyboard.press("Enter"),
-		done: () => expect(page.getByText("Out of lives")).toBeVisible(),
+		done: () =>
+			expect(page.getByText("Out of lives", { exact: true })).toBeVisible(),
 	});
 });
 
@@ -150,7 +151,7 @@ test("End card at rest, then Play again: End card to Arena", async ({
 	const reduced = isReduced(testInfo);
 	await playToEnd(page, testInfo);
 	if (!reduced) {
-		await expect(page.getByText("New best")).toBeVisible();
+		await expect(page.getByText("New best", { exact: true })).toBeVisible();
 		await restShot(page, "blitz-end");
 	}
 	await shootPhase(page, reduced, {
