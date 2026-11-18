@@ -25,7 +25,7 @@ import { DigitSubmit } from "./digit-keypad";
 import { DigitSlots, type DigitSlotsHandle, SLOT_KEYS } from "./digit-slots";
 import { GlobalStats } from "./global-stats";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
-import { MARK_BACKGROUND, markLabel, UNKNOWN_MARK } from "./mark-style";
+import { MARK_BACKGROUND, markClasses, markLabel } from "./mark-style";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { usePullCount, usePulled } from "./pulled";
@@ -187,12 +187,6 @@ function Row({
 
 const TRACKER_DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
-// Same palette as the tiles, without the border (the strip's digits are
-// small, borderless chips rather than bordered squares).
-function trackerMarkClasses(mark: Mark | undefined): string {
-	return mark === undefined ? UNKNOWN_MARK : MARK_BACKGROUND[mark];
-}
-
 // The best-known mark for each digit 0-9. The aggregation itself (best mark
 // per digit, placed over present over absent) is the engine's bestMarkByDigit;
 // this only pads each committed row. The strip and the touch keypad both
@@ -221,7 +215,7 @@ function TrackerStrip({ marks }: { marks: ReadonlyMap<string, Mark> }) {
 							key={digit}
 							role="img"
 							aria-label={markLabel(digit, mark)}
-							className={`flex h-8 w-6 items-center justify-center rounded font-mono text-xs font-semibold ${trackerMarkClasses(mark)}`}
+							className={`flex h-8 w-6 items-center justify-center rounded font-mono text-xs font-semibold ${markClasses(mark)}`}
 						>
 							{digit}
 						</span>

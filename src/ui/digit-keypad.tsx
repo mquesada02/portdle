@@ -1,7 +1,7 @@
 import type { PointerEvent, RefObject } from "react";
 import type { Mark } from "../engine/marks";
 import { type DigitSlotsHandle, useCoarsePointer } from "./digit-slots";
-import { MARK_BACKGROUND, markLabel, UNKNOWN_MARK } from "./mark-style";
+import { markClasses, markLabel } from "./mark-style";
 
 const BACKSPACE = "Backspace";
 
@@ -12,7 +12,7 @@ const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", BACKSPACE, "0"];
 const FOCUS_RING =
 	"outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/40 dark:focus-visible:ring-zinc-100/40";
 const KEY = `h-14 rounded-lg text-xl font-semibold ${FOCUS_RING}`;
-const PLAIN_KEY_COLOURS =
+const PLAIN_KEY_CLASSES =
 	"bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100";
 
 function keyLabel(
@@ -23,13 +23,12 @@ function keyLabel(
 	return marks ? markLabel(key, marks.get(key)) : undefined;
 }
 
-function keyColours(
+function keyClasses(
 	key: string,
 	marks: ReadonlyMap<string, Mark> | undefined,
 ): string {
-	if (!marks || key === BACKSPACE) return PLAIN_KEY_COLOURS;
-	const mark = marks.get(key);
-	return mark ? MARK_BACKGROUND[mark] : UNKNOWN_MARK;
+	if (!marks || key === BACKSPACE) return PLAIN_KEY_CLASSES;
+	return markClasses(marks.get(key));
 }
 
 // A key keeps the focus where it was: on a slot, so the next key goes in
@@ -72,7 +71,7 @@ export function DigitSubmit({
 						key={key}
 						type="button"
 						aria-label={keyLabel(key, marks)}
-						className={`${KEY} ${keyColours(key, marks)}`}
+						className={`${KEY} ${keyClasses(key, marks)}`}
 						onPointerDown={keepFocus}
 						onClick={() =>
 							key === BACKSPACE
