@@ -3,9 +3,11 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* The Daily board pins its input block above the phone tab bar: a touch screen
-   below md (48rem) that is at least 650px tall (issue 337). */
+   below md (48rem) that is at least 599px tall (issues 337 and 338). 599px is
+   the smallest height where Submit clears the tab bar with the marks strip
+   hidden on touch. */
 @custom-variant pinned (
-	@media (pointer: coarse) and (width < 48rem) and (min-height: 650px)
+	@media (pointer: coarse) and (width < 48rem) and (min-height: 599px)
 );
 
 @keyframes pop {
