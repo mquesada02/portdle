@@ -1,12 +1,6 @@
 # Popover border and shadow
 
-Portdle's floating surfaces have both a hairline border and a wide soft shadow:
-
-- the account popover (`shadow-xl`);
-- the miss popover on the Daily and the Codex (`shadow-lg`);
-- the How to play, Blitz setup, delete-account and device progress dialogs (`shadow-xl`).
-
-The Hallmark design skill flags this pair and says to keep one (its finish check F24). Portdle keeps both on all of these surfaces.
+Every floating surface in Portdle (popover or dialog) has both a hairline border and a wide soft shadow. Today these are the account and miss popovers, and the How to play, Blitz setup, delete-account and device progress dialogs. The Hallmark design skill flags this pair and says to keep one (its finish check F24). Portdle keeps both on every floating surface, including new ones.
 
 ## Why this is out of scope
 
