@@ -25,6 +25,7 @@ import { DigitSubmit } from "./digit-keypad";
 import { DigitSlots, type DigitSlotsHandle, SLOT_KEYS } from "./digit-slots";
 import { GlobalStats } from "./global-stats";
 import { defaultGuessMessage, NOT_IN_THIS_CATALOG } from "./guess-copy";
+import { MARK_BACKGROUND, markClasses, markLabel } from "./mark-style";
 import { MissPopover } from "./miss-popover";
 import { ProgressNotice } from "./notice";
 import { usePullCount, usePulled } from "./pulled";
@@ -71,21 +72,6 @@ function DailySwitcher({ category }: { category: DailyCategory }) {
 	);
 }
 
-// One color per mark, shared by the tiles and the tracker strip. Placed
-// reuses the correct-guess green, absent reuses the existing miss gray;
-// present is the one new mark color this ticket adds. Both placed and
-// present use dark text for contrast against their bright backgrounds
-// (white-on-emerald-500 and white-on-yellow-500 both fail WCAG AA; dark
-// zinc-900 text passes on both). Placed and present keep one shade for
-// both themes (their saturated colors already read clearly on light and
-// dark surfaces); absent, closer to gray, needs a dark: shade to stay
-// legible against both.
-const MARK_BACKGROUND: Record<Mark, string> = {
-	placed: "bg-emerald-500 text-zinc-900",
-	present: "bg-yellow-500 text-zinc-900",
-	absent: "bg-zinc-500 text-white dark:bg-zinc-600",
-};
-
 const MARK_BORDER: Record<Mark, string> = {
 	placed: "border-emerald-500",
 	present: "border-yellow-500",
@@ -94,12 +80,6 @@ const MARK_BORDER: Record<Mark, string> = {
 
 function tileMarkClasses(mark: Mark): string {
 	return `${MARK_BORDER[mark]} ${MARK_BACKGROUND[mark]}`;
-}
-
-// The accessible text every tile and tracker digit exposes, in the form
-// "digit, mark" (or "digit, unknown" when the digit has never been typed).
-function markLabel(digit: string, mark: Mark | undefined): string {
-	return mark ? `${digit}, ${mark}` : `${digit}, unknown`;
 }
 
 function Tiles({
@@ -207,43 +187,35 @@ function Row({
 
 const TRACKER_DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
-// Same palette as the tiles, without the border (the strip's digits are
-// small, borderless chips rather than bordered squares).
-function trackerMarkClasses(mark: Mark | undefined): string {
-	if (mark === undefined) {
-		return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
-	}
-	return MARK_BACKGROUND[mark];
+// The best-known mark for each digit 0-9. The aggregation itself (best mark
+// per digit, placed over present over absent) is the engine's bestMarkByDigit;
+// this only pads each committed row. The strip and the touch keypad both
+// render the result.
+function bestMarks(
+	guesses: CommittedGuess[],
+	length: number,
+	answerPort: number,
+): Map<string, Mark> {
+	const typedRows = guesses.map((guess) => padPort(guess.port, length));
+	return bestMarkByDigit(typedRows, padPort(answerPort, length));
 }
 
-// Display-only best-known mark for each digit 0-9. The aggregation itself
-// (best mark per digit, placed over present over absent) is the engine's
-// bestMarkByDigit; this component only pads each committed row and renders
-// the result.
-function TrackerStrip({
-	guesses,
-	length,
-	answerPort,
-}: {
-	guesses: CommittedGuess[];
-	length: number;
-	answerPort: number;
-}) {
-	const paddedAnswer = padPort(answerPort, length);
-	const typedRows = guesses.map((guess) => padPort(guess.port, length));
-	const bestByDigit = bestMarkByDigit(typedRows, paddedAnswer);
+// Display-only. A touch screen hides the strip: the keypad keys show the
+// marks instead (issue 338). `pointer-coarse:hidden` is CSS only, so there is
+// no layout shift and no script check.
+function TrackerStrip({ marks }: { marks: ReadonlyMap<string, Mark> }) {
 	return (
-		<fieldset className="mt-4">
+		<fieldset className="mt-4 pointer-coarse:hidden">
 			<legend className="sr-only">Tracker strip</legend>
 			<div className="flex justify-center gap-1">
 				{TRACKER_DIGITS.map((digit) => {
-					const mark = bestByDigit.get(digit);
+					const mark = marks.get(digit);
 					return (
 						<span
 							key={digit}
 							role="img"
 							aria-label={markLabel(digit, mark)}
-							className={`flex h-8 w-6 items-center justify-center rounded font-mono text-xs font-semibold ${trackerMarkClasses(mark)}`}
+							className={`flex h-8 w-6 items-center justify-center rounded font-mono text-xs font-semibold ${markClasses(mark)}`}
 						>
 							{digit}
 						</span>
@@ -417,6 +389,7 @@ export function DailyBoard({
 
 	const length = digitLength(puzzle.port);
 	const frozen = board?.status === "won" || board?.status === "lost";
+	const marks = bestMarks(board?.guesses ?? [], length, puzzle.port);
 
 	// A pull can bring this Daily's tries from another device. Typed digits
 	// stay unless the pulled Daily is finished.
@@ -553,11 +526,7 @@ export function DailyBoard({
 								ref={slotsRef}
 							/>
 						</RowShell>
-						<TrackerStrip
-							guesses={board?.guesses ?? []}
-							length={length}
-							answerPort={puzzle.port}
-						/>
+						<TrackerStrip marks={marks} />
 						<p
 							aria-live="polite"
 							className="mt-3 min-h-5 text-center text-sm text-zinc-600 dark:text-zinc-400"
@@ -566,6 +535,7 @@ export function DailyBoard({
 						</p>
 						<DigitSubmit
 							slots={slotsRef}
+							marks={marks}
 							onSubmit={submitGuess}
 							buttonClassName="mt-3 w-full rounded-lg bg-zinc-900 py-3 text-base font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
 						/>

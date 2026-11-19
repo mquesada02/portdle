@@ -1,6 +1,7 @@
-// The input block of the Daily board (digit slots, marks strip, message line,
-// keypad) is pinned above the phone tab bar on a touch screen that is narrower
-// than 768 px and at least 650 px tall (#337). The test reads boxes and takes no
+// The input block of the Daily board (digit slots, message line, keypad) is
+// pinned above the phone tab bar on a touch screen that is narrower than 768 px
+// and at least 599 px tall (#337, #338). The marks strip is not displayed on a
+// touch screen: the keypad keys show the marks. The test reads boxes and takes no
 // screenshot. One project is enough: the viewport is set in each test.
 
 import type { Locator, Page, TestInfo } from "@playwright/test";
@@ -44,7 +45,6 @@ function tabBar(page: Page): Locator {
 function inputBlockParts(page: Page): Locator[] {
 	return [
 		page.getByLabel("Digit 1 of 2"),
-		page.getByRole("group", { name: "Tracker strip" }),
 		page.locator("main p[aria-live='polite']"),
 		page.getByRole("group", { name: "Keypad" }),
 	];
@@ -139,7 +139,7 @@ test.describe("touch screen", () => {
 		});
 	}
 
-	test("the slots, the marks strip and the message line stay with the keypad", async ({
+	test("the slots and the message line stay with the keypad", async ({
 		page,
 	}, testInfo) => {
 		await open(page, testInfo, PHONE, {
@@ -171,6 +171,26 @@ test.describe("touch screen", () => {
 		});
 	});
 
+	test("the marks strip is not displayed and the keys show the marks", async ({
+		page,
+	}, testInfo) => {
+		await open(page, testInfo, PHONE, { records: [playingMixed(1)] });
+		await expect(submitKey(page)).toBeVisible();
+		// `display: none` also takes the strip out of the accessibility tree.
+		await expect(
+			page.getByRole("group", { name: "Tracker strip" }),
+		).toHaveCount(0);
+		await expect(
+			page.locator("fieldset", { hasText: "Tracker strip" }),
+		).toBeHidden();
+		const keypad = page.getByRole("group", { name: "Keypad" });
+		await expect(
+			keypad
+				.getByRole("button", { name: /^\d, (placed|present|absent)$/ })
+				.first(),
+		).toBeVisible();
+	});
+
 	test("the last guess row is above the pinned block", async ({
 		page,
 	}, testInfo) => {
@@ -189,8 +209,12 @@ test.describe("touch screen", () => {
 	}, testInfo) => {
 		await open(page, testInfo, PHONE, {});
 		const keypad = page.getByRole("group", { name: "Keypad" });
-		await keypad.getByRole("button", { name: "8", exact: true }).click();
-		await keypad.getByRole("button", { name: "0", exact: true }).click();
+		await keypad
+			.getByRole("button", { name: "8, unknown", exact: true })
+			.click();
+		await keypad
+			.getByRole("button", { name: "0, unknown", exact: true })
+			.click();
 		await submitKey(page).click();
 		await expect(page.getByText("1 / 6")).toBeVisible();
 		await expectSubmitAboveTabBar(page, true);
@@ -204,8 +228,8 @@ test.describe("touch screen", () => {
 	});
 
 	for (const [size, pinned] of [
-		[{ width: 375, height: 650 }, true],
-		[{ width: 375, height: 649 }, false],
+		[{ width: 375, height: 599 }, true],
+		[{ width: 375, height: 598 }, false],
 		[{ width: 767, height: 800 }, true],
 		[{ width: 768, height: 800 }, false],
 	] as const) {
@@ -254,7 +278,17 @@ test.describe("touch screen", () => {
 	test("the Archive board pins the keypad too", async ({ page }, testInfo) => {
 		await open(page, testInfo, PHONE, {
 			path: "/portdle/archive/board?category=applications&date=2026-10-09",
-			records: [ARCHIVE_ONE_MISS],
+			// Five misses: with the strip hidden, one row no longer fills the page.
+			records: [
+				{
+					...ARCHIVE_ONE_MISS,
+					guesses: [9001, 9002, 9003, 9004, 9005].map((port) => ({
+						port,
+						result: "miss" as const,
+						identified: null,
+					})),
+				},
+			],
 		});
 		await expect(submitKey(page)).toBeVisible();
 		for (const where of ["top", "bottom"] as const) {
@@ -276,4 +310,14 @@ test.describe("fine pointer", () => {
 			await expectInFlow(page);
 		});
 	}
+
+	test("the marks strip is displayed and the keypad is not", async ({
+		page,
+	}, testInfo) => {
+		await open(page, testInfo, PHONE, { records: [playingMixed(1)] });
+		await expect(
+			page.getByRole("group", { name: "Tracker strip" }),
+		).toBeVisible();
+		await expect(page.getByRole("group", { name: "Keypad" })).toHaveCount(0);
+	});
 });
